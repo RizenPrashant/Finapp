@@ -3,6 +3,7 @@ package com.finapp.service;
 import com.finapp.dto.DashboardSummaryDTO;
 import com.finapp.model.AssetType;
 import com.finapp.model.TransactionType;
+import com.finapp.model.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -16,11 +17,11 @@ public class DashboardService {
     private final TransactionService transactionService;
     private final AssetService assetService;
 
-    public DashboardSummaryDTO getSummary() {
-        BigDecimal totalIncome = transactionService.sumByType(TransactionType.CREDIT);
-        BigDecimal totalExpenses = transactionService.sumByType(TransactionType.DEBIT);
+    public DashboardSummaryDTO getSummary(User user) {
+        BigDecimal totalIncome = transactionService.sumByUserAndType(user, TransactionType.CREDIT);
+        BigDecimal totalExpenses = transactionService.sumByUserAndType(user, TransactionType.DEBIT);
         // Savings = DEBIT transactions in savings budget (money moved to savings)
-        BigDecimal totalSavings = transactionService.sumByBudgetCategoryAndType("Monthly Total Savings", TransactionType.DEBIT);
+        BigDecimal totalSavings = transactionService.sumByUserAndBudgetCategoryAndType(user, "Monthly Total Savings", TransactionType.DEBIT);
         // Balance = Income - all DEBIT (expenses + savings)
         BigDecimal totalBalance = totalIncome.subtract(totalExpenses);
 
@@ -31,10 +32,10 @@ public class DashboardService {
                     .doubleValue();
         }
 
-        BigDecimal totalAssets = assetService.sumByType(AssetType.ASSET);
-        BigDecimal totalLiabilities = assetService.sumByType(AssetType.LIABILITY);
-        BigDecimal totalDebt = assetService.sumByType(AssetType.DEBT);
-        BigDecimal totalInvestments = assetService.sumByType(AssetType.INVESTMENT);
+        BigDecimal totalAssets = assetService.sumByType(AssetType.ASSET, user);
+        BigDecimal totalLiabilities = assetService.sumByType(AssetType.LIABILITY, user);
+        BigDecimal totalDebt = assetService.sumByType(AssetType.DEBT, user);
+        BigDecimal totalInvestments = assetService.sumByType(AssetType.INVESTMENT, user);
         BigDecimal netWorth = totalAssets.add(totalInvestments).subtract(totalLiabilities).subtract(totalDebt);
 
         return DashboardSummaryDTO.builder()

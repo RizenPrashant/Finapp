@@ -3,6 +3,7 @@ package com.finapp.service;
 import com.finapp.dto.TransactionDTO;
 import com.finapp.model.Transaction;
 import com.finapp.model.TransactionType;
+import com.finapp.model.User;
 import com.finapp.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,33 +23,43 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
 
-    public List<Transaction> getAll() {
-        return transactionRepository.findAll();
+    public List<Transaction> getAll(User user) {
+        List<Transaction> transactions = transactionRepository.findByUser(user);
+        // If user has no transactions, try to assign orphan transactions first
+        if (transactions.isEmpty()) {
+            List<Transaction> orphanTransactions = transactionRepository.findByUserIsNull();
+            if (!orphanTransactions.isEmpty()) {
+                orphanTransactions.forEach(t -> t.setUser(user));
+                transactionRepository.saveAll(orphanTransactions);
+                transactions = transactionRepository.findByUser(user);
+            }
+        }
+        return transactions;
     }
 
-    public List<Transaction> getByMonthAndYear(Integer month, Integer year, TransactionType type) {
+    public List<Transaction> getByMonthAndYear(Integer month, Integer year, TransactionType type, User user) {
         LocalDate start = YearMonth.of(year, month).atDay(1);
         LocalDate end = YearMonth.of(year, month).atEndOfMonth();
-        if (type != null) return transactionRepository.findByTypeAndDateBetweenOrderByDateDesc(type, start, end);
-        return transactionRepository.findByDateBetweenOrderByDateDesc(start, end);
+        if (type != null) return transactionRepository.findByUserAndTypeAndDateBetweenOrderByDateDesc(user, type, start, end);
+        return transactionRepository.findByUserAndDateBetweenOrderByDateDesc(user, start, end);
     }
 
-    public List<Transaction> getByYear(Integer year, TransactionType type) {
+    public List<Transaction> getByYear(Integer year, TransactionType type, User user) {
         LocalDate start = LocalDate.of(year, 1, 1);
         LocalDate end = LocalDate.of(year, 12, 31);
-        if (type != null) return transactionRepository.findByTypeAndDateBetweenOrderByDateDesc(type, start, end);
-        return transactionRepository.findByDateBetweenOrderByDateDesc(start, end);
+        if (type != null) return transactionRepository.findByUserAndTypeAndDateBetweenOrderByDateDesc(user, type, start, end);
+        return transactionRepository.findByUserAndDateBetweenOrderByDateDesc(user, start, end);
     }
 
-    public List<Transaction> getByBudgetCategory(String budgetCategory) {
-        return transactionRepository.findByBudgetCategoryIgnoreCase(budgetCategory);
+    public List<Transaction> getByBudgetCategory(String budgetCategory, User user) {
+        return transactionRepository.findByUserAndBudgetCategoryIgnoreCase(user, budgetCategory);
     }
 
-    public List<Transaction> getByType(TransactionType type) {
-        return transactionRepository.findByType(type);
+    public List<Transaction> getByType(TransactionType type, User user) {
+        return transactionRepository.findByUserAndType(user, type);
     }
 
-    public Transaction create(TransactionDTO dto) {
+    public Transaction create(TransactionDTO dto, User user) {
         Transaction transaction = Transaction.builder()
                 .title(dto.getTitle())
                 .amount(dto.getAmount())
@@ -57,12 +68,13 @@ public class TransactionService {
                 .budgetCategory(dto.getBudgetCategory())
                 .date(dto.getDate())
                 .description(dto.getDescription())
+                .user(user)
                 .build();
         return transactionRepository.save(transaction);
     }
 
-    public Transaction update(Long id, TransactionDTO dto) {
-        Transaction existing = transactionRepository.findById(id)
+    public Transaction update(Long id, TransactionDTO dto, User user) {
+        Transaction existing = transactionRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new RuntimeException("Transaction not found: " + id));
         existing.setTitle(dto.getTitle());
         existing.setAmount(dto.getAmount());
@@ -74,12 +86,18 @@ public class TransactionService {
         return transactionRepository.save(existing);
     }
 
-    public void delete(Long id) {
-        transactionRepository.deleteById(id);
+    public void delete(Long id, User user) {
+        Transaction transaction = transactionRepository.findByIdAndUser(id, user)
+                .orElseThrow(() -> new RuntimeException("Transaction not found: " + id));
+        transactionRepository.delete(transaction);
     }
 
     public BigDecimal sumByType(TransactionType type) {
         return transactionRepository.sumByType(type);
+    }
+
+    public BigDecimal sumByUserAndType(User user, TransactionType type) {
+        return transactionRepository.sumByUserAndType(user, type);
     }
 
     public BigDecimal sumByBudgetCategory(String budgetCategory) {
@@ -90,16 +108,20 @@ public class TransactionService {
         return transactionRepository.sumByBudgetCategoryAndType(budgetCategory, type);
     }
 
+    public BigDecimal sumByUserAndBudgetCategoryAndType(User user, String budgetCategory, TransactionType type) {
+        return transactionRepository.sumByUserAndBudgetCategoryAndType(user, budgetCategory, type);
+    }
+
     // Monthly summary for a year — returns list of {month, income, expense, savings}
-    public List<Map<String, Object>> getMonthlySummary(int year) {
+    public List<Map<String, Object>> getMonthlySummary(int year, User user) {
         List<Map<String, Object>> result = new ArrayList<>();
         String[] months = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
         for (int m = 1; m <= 12; m++) {
             LocalDate start = YearMonth.of(year, m).atDay(1);
             LocalDate end = YearMonth.of(year, m).atEndOfMonth();
-            BigDecimal income = transactionRepository.sumByTypeAndDateBetween(TransactionType.CREDIT, start, end);
-            BigDecimal expense = transactionRepository.sumByTypeAndDateBetween(TransactionType.DEBIT, start, end);
-            BigDecimal savings = transactionRepository.sumByBudgetCategoryAndType("Monthly Total Savings", TransactionType.DEBIT);
+            BigDecimal income = transactionRepository.sumByUserAndTypeAndDateBetween(user, TransactionType.CREDIT, start, end);
+            BigDecimal expense = transactionRepository.sumByUserAndTypeAndDateBetween(user, TransactionType.DEBIT, start, end);
+            BigDecimal savings = transactionRepository.sumByUserAndBudgetCategoryAndType(user, "Monthly Total Savings", TransactionType.DEBIT);
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("month", months[m - 1]);
             map.put("income", income);
@@ -111,14 +133,14 @@ public class TransactionService {
     }
 
     // Weekly summary — last N weeks
-    public List<Map<String, Object>> getWeeklySummary(int weeks) {
+    public List<Map<String, Object>> getWeeklySummary(int weeks, User user) {
         List<Map<String, Object>> result = new ArrayList<>();
         LocalDate today = LocalDate.now();
         for (int i = weeks - 1; i >= 0; i--) {
             LocalDate weekStart = today.minusWeeks(i).with(DayOfWeek.MONDAY);
             LocalDate weekEnd = weekStart.plusDays(6);
-            BigDecimal income = transactionRepository.sumByTypeAndDateBetween(TransactionType.CREDIT, weekStart, weekEnd);
-            BigDecimal expense = transactionRepository.sumByTypeAndDateBetween(TransactionType.DEBIT, weekStart, weekEnd);
+            BigDecimal income = transactionRepository.sumByUserAndTypeAndDateBetween(user, TransactionType.CREDIT, weekStart, weekEnd);
+            BigDecimal expense = transactionRepository.sumByUserAndTypeAndDateBetween(user, TransactionType.DEBIT, weekStart, weekEnd);
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("week", "W" + weekStart.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear()));
             map.put("income", income);
@@ -129,8 +151,8 @@ public class TransactionService {
     }
 
     // Category-wise expense summary
-    public List<Map<String, Object>> getCategorySummary(LocalDate start, LocalDate end) {
-        List<Object[]> rows = transactionRepository.sumByCategoryAndDateBetween(start, end);
+    public List<Map<String, Object>> getCategorySummary(LocalDate start, LocalDate end, User user) {
+        List<Object[]> rows = transactionRepository.sumByUserAndCategoryAndDateBetween(user, start, end);
         List<Map<String, Object>> result = new ArrayList<>();
         for (Object[] row : rows) {
             Map<String, Object> map = new LinkedHashMap<>();

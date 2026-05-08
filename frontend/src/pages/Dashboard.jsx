@@ -35,6 +35,7 @@ export default function Dashboard({ onNavigate }) {
 
   const fetchBudgets = useCallback(async () => {
     const res = await getBudgets();
+    console.log('Budgets API response:', res.data);
     setBudgets(res.data);
     const spentMap = {};
     await Promise.all(

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Bell, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { Search, Bell, AlertTriangle, CheckCircle, XCircle, LogOut, User } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 function getAlerts(budgets, budgetSpent) {
   return budgets
@@ -15,7 +16,10 @@ function getAlerts(budgets, budgetSpent) {
 
 export default function Header({ title, subtitle, budgets = [], budgetSpent = {} }) {
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const ref = useRef(null);
+  const userMenuRef = useRef(null);
+  const { user, logout } = useAuth();
 
   const alerts = getAlerts(budgets, budgetSpent);
   const criticalCount = alerts.filter((a) => a.percent >= 100).length;
@@ -23,10 +27,17 @@ export default function Header({ title, subtitle, budgets = [], budgetSpent = {}
 
   // Close on outside click
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setShowNotifications(false); };
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setShowNotifications(false);
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setShowUserMenu(false);
+    };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  const handleLogout = () => {
+    logout();
+  };
 
   return (
     <header className="h-[70px] flex items-center justify-between px-8 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 sticky top-0 z-10">
@@ -112,6 +123,37 @@ export default function Header({ title, subtitle, budgets = [], budgetSpent = {}
               <div className="px-5 py-3 border-t border-gray-50 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
                 <p className="text-xs text-gray-400 dark:text-gray-500 text-center">Based on current month DEBIT transactions</p>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* User Menu */}
+        <div className="relative" ref={userMenuRef}>
+          <button
+            onClick={() => setShowUserMenu((v) => !v)}
+            className="flex items-center gap-2 p-2 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+          >
+            <div className="w-8 h-8 bg-slate-900 dark:bg-slate-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+              {user?.firstName?.[0] || 'U'}{user?.lastName?.[0] || ''}
+            </div>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
+              {user?.firstName || 'User'}
+            </span>
+          </button>
+
+          {showUserMenu && (
+            <div className="absolute right-0 top-12 w-48 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 z-50 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-50 dark:border-gray-700">
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{user?.firstName} {user?.lastName}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2 px-4 py-3 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+              >
+                <LogOut size={16} />
+                Sign Out
+              </button>
             </div>
           )}
         </div>
