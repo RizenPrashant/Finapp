@@ -86,7 +86,7 @@ export default function Transactions() {
       <div className="flex-1 overflow-y-auto p-8 space-y-5">
 
         {/* Filter Bar */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 space-y-3">
           {/* Filter Type Tabs */}
           <div className="flex items-center gap-2">
             {['daily','monthly','yearly','all'].map((f) => (
@@ -94,7 +94,7 @@ export default function Transactions() {
                 key={f}
                 onClick={() => { setFilterType(f); setAllMonths(f === 'all'); }}
                 className={`px-4 py-2 rounded-xl text-sm font-semibold capitalize transition ${
-                  filterType === f ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  filterType === f ? 'bg-slate-900 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 {f === 'all' ? 'All Time' : f}
@@ -115,18 +115,18 @@ export default function Transactions() {
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="border border-gray-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300"
+              className="border border-gray-200 dark:border-gray-600 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 dark:bg-gray-700 dark:text-white"
             />
           )}
 
           {/* Monthly Picker */}
           {filterType === 'monthly' && (
             <div className="flex items-center gap-3">
-              <button onClick={prevMonth} className="p-2 rounded-xl hover:bg-gray-100 transition">
+              <button onClick={prevMonth} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                 <ChevronLeft size={18} />
               </button>
-              <span className="font-bold text-slate-800 w-32 text-center">{MONTHS[selectedMonth]} {selectedYear}</span>
-              <button onClick={nextMonth} className="p-2 rounded-xl hover:bg-gray-100 transition">
+              <span className="font-bold text-slate-800 dark:text-slate-200 w-32 text-center">{MONTHS[selectedMonth]} {selectedYear}</span>
+              <button onClick={nextMonth} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                 <ChevronRight size={18} />
               </button>
             </div>
@@ -135,11 +135,11 @@ export default function Transactions() {
           {/* Yearly Picker */}
           {filterType === 'yearly' && (
             <div className="flex items-center gap-3">
-              <button onClick={() => setSelectedYear((y) => y - 1)} className="p-2 rounded-xl hover:bg-gray-100 transition">
+              <button onClick={() => setSelectedYear((y) => y - 1)} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                 <ChevronLeft size={18} />
               </button>
-              <span className="font-bold text-slate-800 w-20 text-center">{selectedYear}</span>
-              <button onClick={() => setSelectedYear((y) => y + 1)} className="p-2 rounded-xl hover:bg-gray-100 transition">
+              <span className="font-bold text-slate-800 dark:text-slate-200 w-20 text-center">{selectedYear}</span>
+              <button onClick={() => setSelectedYear((y) => y + 1)} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                 <ChevronRight size={18} />
               </button>
             </div>
@@ -148,43 +148,43 @@ export default function Transactions() {
 
         {/* Summary Strip */}
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-green-50 rounded-xl p-4">
-            <p className="text-xs text-gray-500 mb-1">Income</p>
-            <p className="text-lg font-bold text-green-600">₹{monthlyIncome.toLocaleString('en-IN')}</p>
+          <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Income</p>
+            <p className="text-lg font-bold text-green-600 dark:text-green-400">₹{monthlyIncome.toLocaleString('en-IN')}</p>
           </div>
-          <div className="bg-red-50 rounded-xl p-4">
-            <p className="text-xs text-gray-500 mb-1">Expenses</p>
-            <p className="text-lg font-bold text-red-500">₹{monthlyExpense.toLocaleString('en-IN')}</p>
+          <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Expenses</p>
+            <p className="text-lg font-bold text-red-500 dark:text-red-400">₹{monthlyExpense.toLocaleString('en-IN')}</p>
           </div>
-          <div className="bg-blue-50 rounded-xl p-4">
-            <p className="text-xs text-gray-500 mb-1">Net</p>
-            <p className={`text-lg font-bold ${monthlyIncome - monthlyExpense >= 0 ? 'text-blue-600' : 'text-red-500'}`}>
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Net</p>
+            <p className={`text-lg font-bold ${monthlyIncome - monthlyExpense >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-500 dark:text-red-400'}`}>
               ₹{Math.abs(monthlyIncome - monthlyExpense).toLocaleString('en-IN')}
             </p>
           </div>
         </div>
 
         {/* Transactions List */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-3 p-6 border-b border-gray-50">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
+          <div className="flex items-center gap-3 p-6 border-b border-gray-50 dark:border-gray-700">
             {['ALL', 'CREDIT', 'DEBIT'].map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
                 className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${
-                  filter === f ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  filter === f ? 'bg-slate-900 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 {f === 'ALL' ? 'All' : f === 'CREDIT' ? 'Income' : 'Expenses'}
               </button>
             ))}
-            <span className="ml-auto text-sm text-gray-400">{transactions.length} transactions</span>
+            <span className="ml-auto text-sm text-gray-400 dark:text-gray-500">{transactions.length} transactions</span>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-gray-50 dark:divide-gray-700">
             {loading ? (
-              <p className="text-center text-gray-400 py-12">Loading...</p>
+              <p className="text-center text-gray-400 dark:text-gray-500 py-12">Loading...</p>
             ) : transactions.length === 0 ? (
-              <p className="text-center text-gray-400 py-12">No transactions for this period.</p>
+              <p className="text-center text-gray-400 dark:text-gray-500 py-12">No transactions for this period.</p>
             ) : (
               transactions.map((t) => (
                 <TransactionRow

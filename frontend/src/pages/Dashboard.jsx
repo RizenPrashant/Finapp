@@ -104,22 +104,22 @@ export default function Dashboard({ onNavigate }) {
 
   const fmt = (val) => val != null ? `₹${parseFloat(val).toLocaleString('en-IN')}` : '₹0';
 
-  if (loading) return <div className="flex-1 flex items-center justify-center text-gray-400">Loading...</div>;
+  if (loading) return <div className="flex-1 flex items-center justify-center text-gray-400 dark:text-gray-500">Loading...</div>;
 
   if (selectedBudget) {
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
       <Header title="Financial Dashboard" subtitle="October 2025" budgets={budgets} budgetSpent={budgetSpent} />
       <div className="flex-1 overflow-y-auto p-8">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-            <div className="flex items-center justify-between p-6 border-b border-gray-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
+            <div className="flex items-center justify-between p-6 border-b border-gray-50 dark:border-gray-700">
               <div className="flex items-center gap-4">
-                <button onClick={() => setSelectedBudget(null)} className="p-2 hover:bg-gray-100 rounded-xl border border-gray-200 transition">
+                <button onClick={() => setSelectedBudget(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 transition">
                   <ArrowLeft size={18} />
                 </button>
                 <div>
-                  <h2 className="font-bold text-slate-800">{selectedBudget.category}</h2>
-                  <p className="text-xs text-gray-400">{transactions.length} transactions</p>
+                  <h2 className="font-bold text-slate-800 dark:text-slate-200">{selectedBudget.category}</h2>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">{transactions.length} transactions</p>
                 </div>
               </div>
               {!selectedBudget.virtual && (
@@ -134,41 +134,41 @@ export default function Dashboard({ onNavigate }) {
 
             {/* Balance Breakdown */}
             {selectedBudget.isBalance && (
-              <div className="grid grid-cols-3 gap-4 p-6 border-b border-gray-50">
-                <div className="bg-green-50 rounded-xl p-4">
-                  <p className="text-xs text-gray-500 mb-1">Total Income</p>
-                  <p className="text-lg font-bold text-green-600">{fmt(summary?.totalIncome)}</p>
+              <div className="grid grid-cols-3 gap-4 p-6 border-b border-gray-50 dark:border-gray-700">
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Income</p>
+                  <p className="text-lg font-bold text-green-600 dark:text-green-400">{fmt(summary?.totalIncome)}</p>
                 </div>
-                <div className="bg-red-50 rounded-xl p-4">
-                  <p className="text-xs text-gray-500 mb-1">Total Expenses</p>
-                  <p className="text-lg font-bold text-red-500">{fmt(summary?.totalExpenses)}</p>
+                <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Expenses</p>
+                  <p className="text-lg font-bold text-red-500 dark:text-red-400">{fmt(summary?.totalExpenses)}</p>
                 </div>
-                <div className="bg-blue-50 rounded-xl p-4">
-                  <p className="text-xs text-gray-500 mb-1">Net Balance</p>
-                  <p className="text-lg font-bold text-blue-600">{fmt(summary?.totalBalance)}</p>
-                  <p className="text-xs text-gray-400">Income − Expenses</p>
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Net Balance</p>
+                  <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{fmt(summary?.totalBalance)}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">Income − Expenses</p>
                 </div>
               </div>
             )}
 
             {/* Savings Breakdown */}
             {selectedBudget.isSavings && (
-              <div className="grid grid-cols-2 gap-4 p-6 border-b border-gray-50">
-                <div className="bg-green-50 rounded-xl p-4">
-                  <p className="text-xs text-gray-500 mb-1">Total Savings</p>
-                  <p className="text-lg font-bold text-green-600">{fmt(summary?.totalSavings)}</p>
+              <div className="grid grid-cols-2 gap-4 p-6 border-b border-gray-50 dark:border-gray-700">
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Savings</p>
+                  <p className="text-lg font-bold text-green-600 dark:text-green-400">{fmt(summary?.totalSavings)}</p>
                 </div>
-                <div className="bg-blue-50 rounded-xl p-4">
-                  <p className="text-xs text-gray-500 mb-1">Savings Rate</p>
-                  <p className="text-lg font-bold text-blue-600">{summary?.savingsRate?.toFixed(1) ?? 0}%</p>
-                  <p className="text-xs text-gray-400">of Total Income</p>
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Savings Rate</p>
+                  <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{summary?.savingsRate?.toFixed(1) ?? 0}%</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">of Total Income</p>
                 </div>
               </div>
             )}
 
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-gray-50 dark:divide-gray-700">
               {transactions.length === 0 ? (
-                <p className="text-center text-gray-400 py-12">No transactions found.</p>
+                <p className="text-center text-gray-400 dark:text-gray-500 py-12">No transactions found.</p>
               ) : (
                 transactions.map((t) => (
                   <TransactionRow key={t.id} transaction={t} onDelete={handleDelete} onEdit={setEditingTransaction} deleteLocked={deleteLocked} />
@@ -210,8 +210,8 @@ export default function Dashboard({ onNavigate }) {
         {/* Budget Overview */}
         <div>
           <div className="flex items-center justify-between mb-5">
-            <h2 className="text-lg font-bold text-slate-800">Budget Overview</h2>
-            <button onClick={() => onNavigate('Settings')} className="text-sm font-semibold border border-gray-200 px-4 py-2 rounded-xl hover:bg-gray-50 transition">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">Budget Overview</h2>
+            <button onClick={() => onNavigate('Settings')} className="text-sm font-semibold border border-gray-200 dark:border-gray-600 px-4 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition dark:text-white">
               Set New Limits
             </button>
           </div>

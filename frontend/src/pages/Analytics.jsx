@@ -16,12 +16,12 @@ const fmtK = (v) => v >= 1000 ? `₹${(v/1000).toFixed(0)}k` : `₹${v}`;
 function RupeeTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-gray-100 rounded-xl shadow-lg px-4 py-3 text-sm">
-      {label && <p className="font-bold text-slate-600 mb-2">{label}</p>}
+    <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl shadow-lg px-4 py-3 text-sm">
+      {label && <p className="font-bold text-slate-600 dark:text-slate-400 mb-2">{label}</p>}
       {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full" style={{ background: p.color }} />
-          <span className="text-gray-500">{p.name}:</span>
+          <span className="text-gray-500 dark:text-gray-400">{p.name}:</span>
           <span className="font-bold" style={{ color: p.color }}>{fmt(p.value)}</span>
         </div>
       ))}
@@ -34,17 +34,17 @@ function PieTooltip({ active, payload }) {
   const total = payload[0].payload.total;
   const pct = total > 0 ? ((payload[0].value / total) * 100).toFixed(1) : 0;
   return (
-    <div className="bg-white border border-gray-100 rounded-xl shadow-lg px-4 py-3 text-sm">
-      <p className="font-bold text-slate-700">{payload[0].name}</p>
+    <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl shadow-lg px-4 py-3 text-sm">
+      <p className="font-bold text-slate-700 dark:text-slate-300">{payload[0].name}</p>
       <p className="font-bold" style={{ color: payload[0].payload.fill }}>{fmt(payload[0].value)}</p>
-      <p className="text-gray-400">{pct}% of total</p>
+      <p className="text-gray-400 dark:text-gray-500">{pct}% of total</p>
     </div>
   );
 }
 
 function CustomBarLabel({ x, y, width, value }) {
   if (!value) return null;
-  return <text x={x + width / 2} y={y - 5} fill="#64748B" textAnchor="middle" fontSize={11} fontWeight={600}>{fmtK(value)}</text>;
+  return <text x={x + width / 2} y={y - 5} fill="currentColor" textAnchor="middle" fontSize={11} fontWeight={600} className="text-slate-500 dark:text-slate-400">{fmtK(value)}</text>;
 }
 
 export default function Analytics() {
@@ -135,54 +135,54 @@ export default function Analytics() {
       <div className="flex-1 overflow-y-auto p-8 space-y-6">
 
         {/* Filter Bar */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3 flex-wrap">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 flex items-center gap-3 flex-wrap">
           {['monthly', 'yearly', 'weekly'].map((f) => (
             <button key={f} onClick={() => setFilterType(f)}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold capitalize transition ${filterType === f ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+              className={`px-4 py-2 rounded-xl text-sm font-semibold capitalize transition ${filterType === f ? 'bg-slate-900 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
               {f}
             </button>
           ))}
           {filterType === 'monthly' && (
             <div className="flex items-center gap-2 ml-2">
-              <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-gray-100"><ChevronLeft size={16} /></button>
-              <span className="font-bold text-slate-700 w-28 text-center">{MONTHS[selectedMonth]} {selectedYear}</span>
-              <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-gray-100"><ChevronRight size={16} /></button>
+              <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"><ChevronLeft size={16} /></button>
+              <span className="font-bold text-slate-700 dark:text-slate-300 w-28 text-center">{MONTHS[selectedMonth]} {selectedYear}</span>
+              <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"><ChevronRight size={16} /></button>
             </div>
           )}
           {filterType === 'yearly' && (
             <div className="flex items-center gap-2 ml-2">
-              <button onClick={() => setSelectedYear(y => y - 1)} className="p-1.5 rounded-lg hover:bg-gray-100"><ChevronLeft size={16} /></button>
-              <span className="font-bold text-slate-700 w-16 text-center">{selectedYear}</span>
-              <button onClick={() => setSelectedYear(y => y + 1)} className="p-1.5 rounded-lg hover:bg-gray-100"><ChevronRight size={16} /></button>
+              <button onClick={() => setSelectedYear(y => y - 1)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"><ChevronLeft size={16} /></button>
+              <span className="font-bold text-slate-700 dark:text-slate-300 w-16 text-center">{selectedYear}</span>
+              <button onClick={() => setSelectedYear(y => y + 1)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"><ChevronRight size={16} /></button>
             </div>
           )}
-          {filterType === 'weekly' && <span className="text-sm text-gray-400 ml-2">Last 8 weeks</span>}
+          {filterType === 'weekly' && <span className="text-sm text-gray-400 dark:text-gray-500 ml-2">Last 8 weeks</span>}
         </div>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total Income', value: summary?.totalIncome, color: 'text-green-600', bg: 'bg-green-50' },
-            { label: 'Total Expenses', value: summary?.totalExpenses, color: 'text-red-500', bg: 'bg-red-50' },
-            { label: 'Total Savings', value: summary?.totalSavings, color: 'text-blue-600', bg: 'bg-blue-50' },
-            { label: 'Net Worth', value: summary?.netWorth, color: 'text-slate-800', bg: 'bg-slate-50' },
+            { label: 'Total Income', value: summary?.totalIncome, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
+            { label: 'Total Expenses', value: summary?.totalExpenses, color: 'text-red-500 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/20' },
+            { label: 'Total Savings', value: summary?.totalSavings, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+            { label: 'Net Worth', value: summary?.netWorth, color: 'text-slate-800 dark:text-slate-200', bg: 'bg-slate-50 dark:bg-slate-900/20' },
           ].map(({ label, value, color, bg }) => (
             <div key={label} className={`${bg} rounded-2xl p-5`}>
-              <p className="text-xs text-gray-400 mb-1">{label}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">{label}</p>
               <p className={`text-xl font-bold ${color}`}>{fmt(value)}</p>
             </div>
           ))}
         </div>
 
         {/* Chart 1 — Income vs Expense Trend */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="font-bold text-slate-800">Income vs Expense Trend</h2>
-            <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-lg capitalize">{filterType}</span>
+            <h2 className="font-bold text-slate-800 dark:text-slate-200">Income vs Expense Trend</h2>
+            <span className="text-xs text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700 px-3 py-1 rounded-lg capitalize">{filterType}</span>
           </div>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={trendData} margin={{ top: 20, right: 20, left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-gray-200 dark:text-gray-700" />
               <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
               <YAxis tickFormatter={fmtK} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip content={<RupeeTooltip />} />
@@ -195,15 +195,15 @@ export default function Analytics() {
         </div>
 
         {/* Chart 2 — Net Balance Line Chart */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <h2 className="font-bold text-slate-800 mb-6">Net Balance Trend</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+          <h2 className="font-bold text-slate-800 dark:text-slate-200 mb-6">Net Balance Trend</h2>
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={trendData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-gray-200 dark:text-gray-700" />
               <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
               <YAxis tickFormatter={fmtK} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip content={<RupeeTooltip />} />
-              <ReferenceLine y={0} stroke="#E2E8F0" strokeWidth={2} />
+              <ReferenceLine y={0} stroke="currentColor" className="text-gray-300 dark:text-gray-600" strokeWidth={2} />
               <Line type="monotone" dataKey="Net" stroke="#6366F1" strokeWidth={2.5} dot={{ r: 4, fill: '#6366F1' }} activeDot={{ r: 6 }} />
             </LineChart>
           </ResponsiveContainer>
@@ -212,18 +212,18 @@ export default function Analytics() {
         {/* Chart 3 & 4 — Budget Utilization + Category Pie */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Budget Utilization */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <h2 className="font-bold text-slate-800 mb-6">Budget Utilization</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+            <h2 className="font-bold text-slate-800 dark:text-slate-200 mb-6">Budget Utilization</h2>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={budgetChartData} layout="vertical" margin={{ top: 5, right: 60, left: 10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-gray-200 dark:text-gray-700" horizontal={false} />
                 <XAxis type="number" tickFormatter={fmtK} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={90} />
                 <Tooltip content={<RupeeTooltip />} />
                 <Bar dataKey="Limit" fill="#E2E8F0" radius={[0,6,6,0]} maxBarSize={18} />
                 <Bar dataKey="Spent" fill="#EF4444" radius={[0,6,6,0]} maxBarSize={18}
                   label={({ x, y, width, height, value, index }) => (
-                    <text x={x + width + 6} y={y + height / 2 + 4} fontSize={11} fill="#64748B" fontWeight={600}>
+                    <text x={x + width + 6} y={y + height / 2 + 4} fontSize={11} fill="currentColor" className="text-slate-500 dark:text-slate-400" fontWeight={600}>
                       {budgetChartData[index]?.pct}%
                     </text>
                   )}
@@ -233,10 +233,10 @@ export default function Analytics() {
           </div>
 
           {/* Category Expense Pie */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <h2 className="font-bold text-slate-800 mb-6">Expense by Category</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+            <h2 className="font-bold text-slate-800 dark:text-slate-200 mb-6">Expense by Category</h2>
             {pieData.length === 0 ? (
-              <div className="flex items-center justify-center h-64 text-gray-400 text-sm">No expense data</div>
+              <div className="flex items-center justify-center h-64 text-gray-400 dark:text-gray-500 text-sm">No expense data</div>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
@@ -253,8 +253,8 @@ export default function Analytics() {
 
         {/* Chart 5 — Net Worth Pie */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <h2 className="font-bold text-slate-800 mb-4">Net Worth Breakdown</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+            <h2 className="font-bold text-slate-800 dark:text-slate-200 mb-4">Net Worth Breakdown</h2>
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie data={netWorthData} cx="50%" cy="50%" innerRadius={65} outerRadius={100} paddingAngle={3} dataKey="value">
@@ -266,21 +266,21 @@ export default function Analytics() {
             </ResponsiveContainer>
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col justify-between">
-            <h2 className="font-bold text-slate-800 mb-4">Net Worth Summary</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 flex flex-col justify-between">
+            <h2 className="font-bold text-slate-800 dark:text-slate-200 mb-4">Net Worth Summary</h2>
             <div className="space-y-3">
               {[
-                { label: 'Total Assets', value: summary?.totalAssets, color: 'text-green-600', bg: 'bg-green-50' },
-                { label: 'Total Investments', value: summary?.totalInvestments, color: 'text-blue-600', bg: 'bg-blue-50' },
-                { label: 'Total Liabilities', value: summary?.totalLiabilities, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-                { label: 'Total Debt', value: summary?.totalDebt, color: 'text-red-500', bg: 'bg-red-50' },
+                { label: 'Total Assets', value: summary?.totalAssets, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
+                { label: 'Total Investments', value: summary?.totalInvestments, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                { label: 'Total Liabilities', value: summary?.totalLiabilities, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-50 dark:bg-yellow-900/20' },
+                { label: 'Total Debt', value: summary?.totalDebt, color: 'text-red-500 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/20' },
               ].map(({ label, value, color, bg }) => (
                 <div key={label} className={`flex items-center justify-between ${bg} rounded-xl px-4 py-3`}>
-                  <p className="text-sm font-medium text-slate-600">{label}</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{label}</p>
                   <p className={`text-sm font-bold ${color}`}>{fmt(value)}</p>
                 </div>
               ))}
-              <div className="flex items-center justify-between bg-slate-900 rounded-xl px-4 py-3">
+              <div className="flex items-center justify-between bg-slate-900 dark:bg-slate-950 rounded-xl px-4 py-3">
                 <p className="text-sm font-bold text-white">Net Worth</p>
                 <p className={`text-sm font-bold ${parseFloat(summary?.netWorth || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(summary?.netWorth)}</p>
               </div>

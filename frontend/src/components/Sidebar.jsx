@@ -11,7 +11,7 @@ const navItems = [
 export default function Sidebar({ activeView, onNavigate, darkMode, setDarkMode }) {
   return (
     <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col shrink-0">
-      <div className="p-6 text-xl font-bold border-b border-gray-100">Finance Tracker</div>
+      <div className="h-[70px] flex items-center px-6 text-xl font-bold border-b border-gray-100 dark:border-gray-700 text-slate-800 dark:text-slate-200">Finance Tracker</div>
       <nav className="flex-1 p-4 space-y-1">
         {navItems.map(({ icon: Icon, label }) => (
           <button
