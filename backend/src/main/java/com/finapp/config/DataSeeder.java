@@ -3,8 +3,11 @@ package com.finapp.config;
 import com.finapp.model.*;
 import com.finapp.repository.AssetRepository;
 import com.finapp.repository.BudgetLimitRepository;
+import com.finapp.repository.TradeRepository;
 import com.finapp.repository.TransactionRepository;
 import com.finapp.repository.UserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
@@ -20,19 +23,66 @@ public class DataSeeder implements CommandLineRunner {
     private final TransactionRepository transactionRepository;
     private final BudgetLimitRepository budgetLimitRepository;
     private final AssetRepository assetRepository;
+    private final TradeRepository tradeRepository;
     private final UserRepository userRepository;
+    private final EntityManager entityManager;
 
     @Override
+    @Transactional
     public void run(String... args) {
-        // Find or create default user (ID 1)
-        User defaultUser = userRepository.findById(1L).orElse(null);
-        if (defaultUser == null) {
-            return; // Don't seed if no user exists yet
-        }
+        System.out.println("=== DataSeeder: Starting... ===");
 
-        if (budgetLimitRepository.count() == 0) seedBudgetLimits(defaultUser);
-        if (transactionRepository.count() == 0) seedTransactions(defaultUser);
-        if (assetRepository.count() == 0) seedAssets(defaultUser);
+        // Find or create default user (ID 0)
+        User defaultUser = userRepository.findById(0L).orElseGet(() -> {
+            // First check if user with email exists
+            if (userRepository.findByEmail("test@finapp.com").isPresent()) {
+                System.out.println("=== DataSeeder: User with email test@finapp.com already exists ===");
+                return userRepository.findByEmail("test@finapp.com").get();
+            }
+
+            System.out.println("=== DataSeeder: Creating default user with ID 0... ===");
+            // Force insert with ID 0 using native query (MySQL compatible)
+            try {
+                // Enable NO_AUTO_VALUE_ON_ZERO mode for MySQL to allow ID 0
+                entityManager.createNativeQuery("SET SESSION sql_mode='NO_AUTO_VALUE_ON_ZERO'").executeUpdate();
+
+                entityManager.createNativeQuery(
+                    "INSERT INTO users (id, email, password, first_name, last_name, role, enabled, created_at, updated_at) " +
+                    "VALUES (0, 'test@finapp.com', '$2a$10$N9qoSnQfTw9jSgXw1AZ9bOjF5.KC8lQ8Q2q4m7Y3X9v5w8q2r4t6', 'Test', 'User', 'USER', true, NOW(), NOW()) " +
+                    "ON DUPLICATE KEY UPDATE email = 'test@finapp.com'"
+                ).executeUpdate();
+                entityManager.flush();
+                entityManager.clear();
+                System.out.println("=== DataSeeder: User created with ID 0 ===");
+            } catch (Exception e) {
+                System.out.println("=== DataSeeder: Native insert failed: " + e.getMessage());
+                e.printStackTrace();
+            }
+
+            return userRepository.findById(0L)
+                .orElseGet(() -> userRepository.findByEmail("test@finapp.com")
+                    .orElseThrow(() -> new RuntimeException("Failed to create or find default user")));
+        });
+
+        System.out.println("=== DataSeeder: User ID = " + defaultUser.getId() + " ===");
+
+        if (budgetLimitRepository.count() == 0) {
+            System.out.println("=== DataSeeder: Seeding budget limits... ===");
+            seedBudgetLimits(defaultUser);
+        }
+        if (transactionRepository.count() == 0) {
+            System.out.println("=== DataSeeder: Seeding transactions... ===");
+            seedTransactions(defaultUser);
+        }
+        if (assetRepository.count() == 0) {
+            System.out.println("=== DataSeeder: Seeding assets... ===");
+            seedAssets(defaultUser);
+        }
+        if (tradeRepository.count() == 0) {
+            System.out.println("=== DataSeeder: Seeding trades... ===");
+            seedTrades(defaultUser);
+        }
+        System.out.println("=== DataSeeder: Done! ===");
     }
 
     private void seedBudgetLimits(User user) {
@@ -80,5 +130,178 @@ public class DataSeeder implements CommandLineRunner {
             Asset.builder().name("Home Loan EMI").value(new BigDecimal("250000")).type(AssetType.DEBT).category("Loan").date(LocalDate.of(2025, 10, 1)).user(user).build()
         );
         assetRepository.saveAll(assets);
+    }
+
+    private void seedTrades(User user) {
+        List<Trade> trades = List.of(
+            // OPEN trades
+            Trade.builder()
+                .stockName("RELIANCE")
+                .segment(TradeSegment.EQUITY)
+                .tradeType(Trade.TradeType.SWING)
+                .positionType(Trade.PositionType.LONG)
+                .quantity(10)
+                .buyPrice(new BigDecimal("2450.50"))
+                .investedAmount(new BigDecimal("24505.00"))
+                .brokerage(new BigDecimal("24.51"))
+                .status(TradeStatus.OPEN)
+                .entryDate(LocalDate.of(2025, 9, 15))
+                .notes("Swing trade - expecting 10% upside")
+                .user(user)
+                .build(),
+            Trade.builder()
+                .stockName("INFY")
+                .segment(TradeSegment.INTRADAY)
+                .tradeType(Trade.TradeType.INTRADAY)
+                .positionType(Trade.PositionType.LONG)
+                .quantity(50)
+                .buyPrice(new BigDecimal("1850.00"))
+                .investedAmount(new BigDecimal("92500.00"))
+                .brokerage(new BigDecimal("92.50"))
+                .status(TradeStatus.OPEN)
+                .entryDate(LocalDate.of(2025, 10, 5))
+                .notes("Intraday momentum play")
+                .user(user)
+                .build(),
+            Trade.builder()
+                .stockName("TCS")
+                .segment(TradeSegment.LONG_TERM)
+                .tradeType(Trade.TradeType.LONG_TERM)
+                .positionType(Trade.PositionType.LONG)
+                .quantity(5)
+                .buyPrice(new BigDecimal("3250.75"))
+                .investedAmount(new BigDecimal("16253.75"))
+                .brokerage(new BigDecimal("16.25"))
+                .status(TradeStatus.OPEN)
+                .entryDate(LocalDate.of(2025, 8, 20))
+                .notes("Long term wealth creation")
+                .user(user)
+                .build(),
+            Trade.builder()
+                .stockName("HDFCBANK")
+                .segment(TradeSegment.FNO)
+                .tradeType(Trade.TradeType.SCALPING)
+                .positionType(Trade.PositionType.SHORT)
+                .quantity(2)
+                .buyPrice(new BigDecimal("1650.00"))
+                .investedAmount(new BigDecimal("3300.00"))
+                .brokerage(new BigDecimal("3.30"))
+                .status(TradeStatus.OPEN)
+                .entryDate(LocalDate.of(2025, 10, 8))
+                .notes("Bank Nifty option short")
+                .user(user)
+                .build(),
+            Trade.builder()
+                .stockName("BTCUSDT")
+                .segment(TradeSegment.CRYPTO)
+                .tradeType(Trade.TradeType.SWING)
+                .positionType(Trade.PositionType.LONG)
+                .quantity(1)
+                .buyPrice(new BigDecimal("55000.00"))
+                .investedAmount(new BigDecimal("55000.00"))
+                .brokerage(new BigDecimal("55.00"))
+                .status(TradeStatus.OPEN)
+                .entryDate(LocalDate.of(2025, 9, 1))
+                .notes("Crypto swing - target 60000")
+                .user(user)
+                .build(),
+            // CLOSED trades with profit/loss
+            Trade.builder()
+                .stockName("SBIN")
+                .segment(TradeSegment.EQUITY)
+                .tradeType(Trade.TradeType.SWING)
+                .positionType(Trade.PositionType.LONG)
+                .quantity(20)
+                .buyPrice(new BigDecimal("650.00"))
+                .sellPrice(new BigDecimal("720.50"))
+                .investedAmount(new BigDecimal("13000.00"))
+                .returnAmount(new BigDecimal("14410.00"))
+                .profitLoss(new BigDecimal("1410.00"))
+                .profitLossPercentage(new BigDecimal("10.85"))
+                .brokerage(new BigDecimal("26.41"))
+                .status(TradeStatus.CLOSED)
+                .entryDate(LocalDate.of(2025, 7, 10))
+                .exitDate(LocalDate.of(2025, 8, 15))
+                .notes("Target achieved - 10% profit")
+                .user(user)
+                .build(),
+            Trade.builder()
+                .stockName("ADANIENT")
+                .segment(TradeSegment.INTRADAY)
+                .tradeType(Trade.TradeType.INTRADAY)
+                .positionType(Trade.PositionType.LONG)
+                .quantity(15)
+                .buyPrice(new BigDecimal("2850.00"))
+                .sellPrice(new BigDecimal("2720.00"))
+                .investedAmount(new BigDecimal("42750.00"))
+                .returnAmount(new BigDecimal("40800.00"))
+                .profitLoss(new BigDecimal("-1950.00"))
+                .profitLossPercentage(new BigDecimal("-4.56"))
+                .brokerage(new BigDecimal("83.55"))
+                .status(TradeStatus.CLOSED)
+                .entryDate(LocalDate.of(2025, 9, 5))
+                .exitDate(LocalDate.of(2025, 9, 5))
+                .notes("Stop loss hit")
+                .user(user)
+                .build(),
+            Trade.builder()
+                .stockName("ZOMATO")
+                .segment(TradeSegment.SWING)
+                .tradeType(Trade.TradeType.SWING)
+                .positionType(Trade.PositionType.LONG)
+                .quantity(100)
+                .buyPrice(new BigDecimal("180.50"))
+                .sellPrice(new BigDecimal("225.75"))
+                .investedAmount(new BigDecimal("18050.00"))
+                .returnAmount(new BigDecimal("22575.00"))
+                .profitLoss(new BigDecimal("4525.00"))
+                .profitLossPercentage(new BigDecimal("25.07"))
+                .brokerage(new BigDecimal("40.63"))
+                .status(TradeStatus.CLOSED)
+                .entryDate(LocalDate.of(2025, 6, 15))
+                .exitDate(LocalDate.of(2025, 9, 10))
+                .notes("Multi-bagger swing trade")
+                .user(user)
+                .build(),
+            Trade.builder()
+                .stockName("ETHUSDT")
+                .segment(TradeSegment.CRYPTO)
+                .tradeType(Trade.TradeType.SCALPING)
+                .positionType(Trade.PositionType.SHORT)
+                .quantity(5)
+                .buyPrice(new BigDecimal("3200.00"))
+                .sellPrice(new BigDecimal("3100.00"))
+                .investedAmount(new BigDecimal("16000.00"))
+                .returnAmount(new BigDecimal("15500.00"))
+                .profitLoss(new BigDecimal("500.00"))
+                .profitLossPercentage(new BigDecimal("3.13"))
+                .brokerage(new BigDecimal("15.50"))
+                .status(TradeStatus.CLOSED)
+                .entryDate(LocalDate.of(2025, 8, 25))
+                .exitDate(LocalDate.of(2025, 8, 25))
+                .notes("Quick scalp in crypto")
+                .user(user)
+                .build(),
+            Trade.builder()
+                .stockName("TATAMOTORS")
+                .segment(TradeSegment.FNO)
+                .tradeType(Trade.TradeType.LONG_TERM)
+                .positionType(Trade.PositionType.LONG)
+                .quantity(50)
+                .buyPrice(new BigDecimal("850.00"))
+                .sellPrice(new BigDecimal("920.00"))
+                .investedAmount(new BigDecimal("42500.00"))
+                .returnAmount(new BigDecimal("46000.00"))
+                .profitLoss(new BigDecimal("3500.00"))
+                .profitLossPercentage(new BigDecimal("8.24"))
+                .brokerage(new BigDecimal("88.50"))
+                .status(TradeStatus.CLOSED)
+                .entryDate(LocalDate.of(2025, 5, 1))
+                .exitDate(LocalDate.of(2025, 10, 1))
+                .notes("Partial profit booking")
+                .user(user)
+                .build()
+        );
+        tradeRepository.saveAll(trades);
     }
 }

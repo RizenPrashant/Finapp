@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Insights from './pages/Insights';
 import Transactions from './pages/Transactions';
+import Trading from './pages/Trading';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
@@ -31,6 +32,7 @@ function MainLayout() {
     Dashboard: (onNavigate) => <Dashboard onNavigate={onNavigate} />,
     Insights: () => <Insights />,
     Transactions: () => <Transactions />,
+    Trading: () => <Trading />,
     Analytics: () => <Analytics />,
     Settings: () => <Settings />,
   };

@@ -51,3 +51,18 @@ export const deleteAsset = (id) => api.delete(`/assets/${id}`);
 export const getMonthlyAnalytics = (year) => api.get('/transactions/analytics/monthly', { params: { year } });
 export const getWeeklyAnalytics = (weeks = 8) => api.get('/transactions/analytics/weekly', { params: { weeks } });
 export const getCategoryAnalytics = (params = {}) => api.get('/transactions/analytics/category', { params });
+
+// Trading APIs
+export const getTrades = () => api.get('/trading/trades');
+export const getTradesByStatus = (status) => api.get(`/trading/trades/status/${status}`);
+export const getTradesBySegment = (segment) => api.get(`/trading/trades/segment/${segment}`);
+export const createTrade = (data) => api.post('/trading/trades', data);
+export const updateTrade = (id, data) => api.put(`/trading/trades/${id}`, data);
+export const deleteTrade = (id) => api.delete(`/trading/trades/${id}`);
+
+export const getTradingAnalytics = () => api.get('/trading/analytics');
+export const getTradingCapital = () => api.get('/trading/capital');
+
+export const getCompoundingHistory = () => api.get('/trading/compounding');
+export const createCompoundingHistory = (data) => api.post('/trading/compounding', data);
+export const deleteCompoundingHistory = (id) => api.delete(`/trading/compounding/${id}`);

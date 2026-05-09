@@ -1,0 +1,30 @@
+package com.finapp.repository;
+
+import com.finapp.model.CompoundingHistory;
+import com.finapp.model.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface CompoundingHistoryRepository extends JpaRepository<CompoundingHistory, Long> {
+
+    List<CompoundingHistory> findByUser(User user);
+
+    List<CompoundingHistory> findByUserIsNull();
+
+    Optional<CompoundingHistory> findByIdAndUser(Long id, User user);
+
+    List<CompoundingHistory> findByUserAndYearOrderByMonthAsc(User user, Integer year);
+
+    @Query("SELECT SUM(c.profit) FROM CompoundingHistory c WHERE c.user = :user AND c.year = :year")
+    BigDecimal sumProfitByUserAndYear(@Param("user") User user, @Param("year") Integer year);
+
+    @Query("SELECT c.endingCapital FROM CompoundingHistory c WHERE c.user = :user ORDER BY c.createdAt DESC")
+    List<BigDecimal> findLatestCapitalByUser(@Param("user") User user);
+}

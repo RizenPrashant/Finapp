@@ -54,38 +54,71 @@ taskkill /PID <PID> /F
 E:\Finapp\backend\src\main\java\com\finapp\
 ├── FinappApplication.java
 ├── config\
-│   ├── CorsConfig.java          # CORS for localhost:5173 and localhost:3000
-│   └── DataSeeder.java          # Seeds initial data only if tables are empty
+│   ├── SecurityConfig.java      # Spring Security, CORS, JWT filter chain
+│   ├── JwtAuthenticationFilter.java  # JWT token validation
+│   ├── DataSeeder.java          # Seeds initial data linked to user ID 1
+│   └── CorsConfig.java          # [DELETED] - merged into SecurityConfig
 ├── controller\
+│   ├── AuthController.java      # Login, register, JWT token generation
 │   ├── DashboardController.java
 │   ├── TransactionController.java
 │   ├── BudgetLimitController.java
-│   └── AssetController.java
+│   ├── AssetController.java
+│   └── TradeController.java     # Trading module API endpoints
 ├── service\
 │   ├── DashboardService.java
-│   ├── TransactionService.java
-│   ├── BudgetLimitService.java
-│   └── AssetService.java
+│   ├── TransactionService.java   # Auto-assigns orphan transactions to user
+│   ├── BudgetLimitService.java   # Auto-assigns orphan budgets / creates defaults
+│   ├── AssetService.java         # Auto-assigns orphan assets to user
+│   ├── TradingService.java       # Trading analytics, PnL calculations, compounding
+│   └── JwtService.java           # JWT token generation & validation
 ├── repository\
+│   ├── UserRepository.java
 │   ├── TransactionRepository.java
 │   ├── BudgetLimitRepository.java
-│   └── AssetRepository.java
+│   ├── AssetRepository.java
+│   ├── TradeRepository.java          # Trading queries with analytics
+│   └── CompoundingHistoryRepository.java
 ├── model\
-│   ├── Transaction.java         # field: type VARCHAR(10) - CREDIT/DEBIT
+│   ├── User.java                # User entity with @JsonIgnore on collections
+│   ├── Transaction.java         # @JsonIgnoreProperties on User to prevent circular ref
 │   ├── TransactionType.java     # enum: CREDIT, DEBIT
-│   ├── Asset.java               # field: asset_value (renamed from value - H2 reserved word fix), type VARCHAR(20)
+│   ├── Asset.java               # @JsonIgnoreProperties on User to prevent circular ref
 │   ├── AssetType.java           # enum: ASSET, LIABILITY, DEBT, INVESTMENT
-│   └── BudgetLimit.java
+│   ├── Budget.java
+│   ├── BudgetLimit.java         # Composite unique constraint (user_id, category)
+│   ├── Trade.java               # Trading module - stock trades
+│   ├── TradeSegment.java        # enum: EQUITY, INTRADAY, SWING, FNO, CRYPTO, MUTUAL_FUND, LONG_TERM
+│   ├── TradeStatus.java         # enum: OPEN, CLOSED
+│   └── CompoundingHistory.java  # Capital compounding tracking
 └── dto\
+    ├── RegisterRequest.java
+    ├── LoginRequest.java
+    ├── AuthResponse.java
     ├── TransactionDTO.java
     ├── BudgetLimitDTO.java
     ├── AssetDTO.java
-    └── DashboardSummaryDTO.java
+    ├── DashboardSummaryDTO.java
+    ├── TradeDTO.java
+    ├── CompoundingHistoryDTO.java
+    └── TradeAnalyticsDTO.java
 ```
+
+### Security (JWT Auth)
+- **Login:** `POST /api/auth/login` → returns JWT token
+- **Register:** `POST /api/auth/register` → creates user + default budgets
+- **Token Storage:** `localStorage.getItem('token')`
+- **Auth Header:** `Authorization: Bearer <token>`
 
 ---
 
 ## API Endpoints
+
+### Auth (JWT)
+| Method | URL | Description |
+|--------|-----|-------------|
+| POST | /api/auth/register | Register new user + create default budgets |
+| POST | /api/auth/login | Login and get JWT token |
 
 ### Dashboard
 | Method | URL | Description |
@@ -109,6 +142,21 @@ E:\Finapp\backend\src\main\java\com\finapp\
 | GET | /api/budgets/{category} | By category name |
 | POST | /api/budgets | Create/update budget limit |
 | DELETE | /api/budgets/{id} | Delete budget |
+
+### Trading
+| Method | URL | Description |
+|--------|-----|-------------|
+| GET | /api/trading/trades | All trades |
+| GET | /api/trading/trades/status/{status} | OPEN/CLOSED trades |
+| GET | /api/trading/trades/segment/{segment} | Segment-wise trades |
+| POST | /api/trading/trades | Add trade |
+| PUT | /api/trading/trades/{id} | Update trade |
+| DELETE | /api/trading/trades/{id} | Delete trade |
+| GET | /api/trading/analytics | Trade analytics (win rate, PnL, etc.) |
+| GET | /api/trading/capital | Current capital |
+| GET | /api/trading/compounding | Compounding history |
+| POST | /api/trading/compounding | Add compounding entry |
+| DELETE | /api/trading/compounding/{id} | Delete compounding entry |
 
 ### Assets
 | Method | URL | Description |
@@ -218,8 +266,17 @@ E:\Finapp\frontend\src\
 ## Important Fixes Applied
 1. **Asset.java** — `value` renamed to `asset_value` (H2 reserved keyword, kept for MySQL too for consistency)
 2. **Transaction.java & Asset.java** — enums stored as `VARCHAR` not `ENUM` type (H2 compatibility)
-3. **DataSeeder.java** — checks `count() == 0` before seeding to avoid duplicate entry errors on restart
-4. **CorsConfig.java** — allows `localhost:5173` and `localhost:3000`
+3. **DataSeeder.java** — checks `count() == 0` before seeding, links data to user ID 1
+4. **CorsConfig.java** — [DELETED] Merged into SecurityConfig.java with specific origins + credentials
+5. **SecurityConfig.java** — JWT auth, CORS with `allowCredentials(true)`, stateless session
+6. **BudgetLimit.java** — Changed `@Column(unique=true)` to composite unique constraint `@UniqueConstraint(columnNames={"user_id","category"})`
+7. **Circular Reference Fix** — Added `@JsonIgnore` to User collections, `@JsonIgnoreProperties` to BudgetLimit/Transaction/Asset.user
+8. **BudgetLimitService.java** — Auto-assigns orphan budgets (user=null) to current user or creates new defaults
+9. **TransactionService.java** — Auto-assigns orphan transactions to current user
+10. **AssetService.java** — Auto-assigns orphan assets to current user
+11. **AuthController.java** — Creates default budgets for new users on registration
+12. **Frontend package.json** — Added `react-router-dom` dependency
+13. **Frontend api.js** — Added JWT token interceptor, 401 error handling
 
 ---
 
@@ -236,12 +293,19 @@ E:\Finapp\frontend\src\
 - [x] Settings page to update budget limits
 - [x] MySQL persistent database
 - [x] Data seeder with initial sample data
+- [x] JWT Authentication (Login/Signup with JWT tokens)
+- [x] Multi-user support (each user has separate budgets, transactions, assets)
+- [x] Auto-assignment of orphan data to users on first login
+- [x] Circular reference fix in JSON serialization
+- [x] **Trading Module** — Stock trades with segments (Equity, Intraday, Swing, F&O, Crypto, Mutual Fund)
+- [x] **Trade Management** — Add, edit, delete trades with buy/sell prices, quantity, brokerage
+- [x] **Trading Analytics** — Win rate, PnL, segment-wise performance, open positions
+- [x] **Compounding Tracker** — Monthly capital growth with reinvestment tracking
+- [x] **Trade Cards** — Visual trade display with profit/loss indicators
 
 ## Features Pending (To Be Added)
-- [ ] JWT Authentication (Login/Signup)
 - [ ] Recharts pie/bar charts
 - [ ] CSV Export for transactions
 - [ ] Month-wise date filter
-- [ ] Multi-user support
 - [ ] Edit transaction (currently only add/delete)
 - [ ] Notifications/Alerts when budget limit exceeded
