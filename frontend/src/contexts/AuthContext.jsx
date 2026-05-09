@@ -80,6 +80,11 @@ export function AuthProvider({ children }) {
     delete axios.defaults.headers.common['Authorization'];
   }, []);
 
+  const updateUser = useCallback((userData) => {
+    setUser(userData);
+    localStorage.setItem('user', JSON.stringify(userData));
+  }, []);
+
   const value = {
     user,
     token,
@@ -87,6 +92,7 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    updateUser,
     loading
   };
 

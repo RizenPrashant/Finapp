@@ -4,6 +4,7 @@ import com.finapp.dto.TradeAnalyticsDTO;
 import com.finapp.dto.TradeDTO;
 import com.finapp.dto.CompoundingHistoryDTO;
 import com.finapp.model.Asset;
+import com.finapp.model.AssetCategory;
 import com.finapp.model.AssetType;
 import com.finapp.model.Trade;
 import com.finapp.model.CompoundingHistory;
@@ -207,7 +208,7 @@ public class TradingService {
                     .name(name)
                     .value(adjustment)
                     .type(type)
-                    .category("Trading")
+                    .category(AssetCategory.INVESTMENTS)
                     .date(LocalDate.now())
                     .description("Trading capital")
                     .user(user)

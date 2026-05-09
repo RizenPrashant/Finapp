@@ -77,3 +77,9 @@ export const createInvestment = (data) => api.post('/investments', data);
 export const updateInvestment = (id, data) => api.put(`/investments/${id}`, data);
 export const deleteInvestment = (id) => api.delete(`/investments/${id}`);
 export const getInvestmentAnalytics = () => api.get('/investments/analytics');
+
+// Profile APIs
+export const getProfile = () => api.get('/profile');
+export const updateProfile = (data) => api.put('/profile', data);
+
+export default api;

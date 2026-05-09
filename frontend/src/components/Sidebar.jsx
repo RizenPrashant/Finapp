@@ -5,7 +5,7 @@ const navItems = [
   { icon: TrendingUp, label: 'Insights' },
   { icon: Wallet, label: 'Transactions' },
   { icon: CandlestickChart, label: 'Trading' },
-  { icon: PieChart, label: 'Investments' },
+  { icon: PieChart, label: 'Assets' },
   { icon: BarChart3, label: 'Analytics' },
   { icon: Settings, label: 'Settings' },
 ];
@@ -30,7 +30,7 @@ export default function Sidebar({ activeView, onNavigate, darkMode, setDarkMode 
           </button>
         ))}
       </nav>
-      <div className="p-4 border-t border-gray-100 dark:border-gray-700 space-y-3">
+      <div className="p-4 border-t border-gray-100 dark:border-gray-700">
         <button
           onClick={() => setDarkMode(!darkMode)}
           className="w-full flex items-center gap-3 p-3 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
@@ -40,13 +40,6 @@ export default function Sidebar({ activeView, onNavigate, darkMode, setDarkMode 
             {darkMode ? 'Light Mode' : 'Dark Mode'}
           </span>
         </button>
-        <div className="flex items-center gap-3 p-2 bg-gray-100 dark:bg-gray-700 rounded-xl">
-          <div className="w-10 h-10 bg-slate-700 text-white rounded-full flex items-center justify-center font-bold">U</div>
-          <div>
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">User Account</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">View Profile</p>
-          </div>
-        </div>
       </div>
     </aside>
   );

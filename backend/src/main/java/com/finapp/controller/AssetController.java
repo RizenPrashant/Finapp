@@ -2,6 +2,7 @@ package com.finapp.controller;
 
 import com.finapp.dto.AssetDTO;
 import com.finapp.model.Asset;
+import com.finapp.model.AssetCategory;
 import com.finapp.model.AssetType;
 import com.finapp.model.User;
 import com.finapp.repository.UserRepository;
@@ -37,6 +38,11 @@ public class AssetController {
     @GetMapping("/type/{type}")
     public List<Asset> getByType(@PathVariable AssetType type) {
         return assetService.getByType(type, getCurrentUser());
+    }
+
+    @GetMapping("/category/{category}")
+    public List<Asset> getByCategory(@PathVariable AssetCategory category) {
+        return assetService.getByCategory(category, getCurrentUser());
     }
 
     @PostMapping

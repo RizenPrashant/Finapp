@@ -126,14 +126,14 @@ public class DataSeeder implements CommandLineRunner {
 
     private void seedAssets(User user) {
         List<Asset> assets = List.of(
-            Asset.builder().name("Savings Account").value(new BigDecimal("150000")).type(AssetType.ASSET).category("Bank").date(LocalDate.of(2025, 10, 1)).user(user).build(),
-            Asset.builder().name("Fixed Deposit").value(new BigDecimal("200000")).type(AssetType.ASSET).category("Bank").date(LocalDate.of(2025, 10, 1)).user(user).build(),
-            Asset.builder().name("Mutual Funds").value(new BigDecimal("85000")).type(AssetType.INVESTMENT).category("Market").date(LocalDate.of(2025, 10, 1)).user(user).build(),
-            Asset.builder().name("Stocks Portfolio").value(new BigDecimal("45000")).type(AssetType.INVESTMENT).category("Market").date(LocalDate.of(2025, 10, 1)).user(user).build(),
-            Asset.builder().name("Gold").value(new BigDecimal("30000")).type(AssetType.INVESTMENT).category("Commodity").date(LocalDate.of(2025, 10, 1)).user(user).build(),
-            Asset.builder().name("Credit Card Due").value(new BigDecimal("15000")).type(AssetType.LIABILITY).category("Credit Card").date(LocalDate.of(2025, 10, 1)).user(user).build(),
-            Asset.builder().name("Personal Loan").value(new BigDecimal("50000")).type(AssetType.DEBT).category("Loan").date(LocalDate.of(2025, 10, 1)).user(user).build(),
-            Asset.builder().name("Home Loan EMI").value(new BigDecimal("250000")).type(AssetType.DEBT).category("Loan").date(LocalDate.of(2025, 10, 1)).user(user).build()
+            Asset.builder().name("Savings Account").value(new BigDecimal("150000")).type(AssetType.ASSET).category(AssetCategory.BANK).date(LocalDate.of(2025, 10, 1)).user(user).build(),
+            Asset.builder().name("Fixed Deposit").value(new BigDecimal("200000")).type(AssetType.ASSET).category(AssetCategory.BANK).date(LocalDate.of(2025, 10, 1)).user(user).build(),
+            Asset.builder().name("Mutual Funds").value(new BigDecimal("85000")).type(AssetType.INVESTMENT).category(AssetCategory.INVESTMENTS).date(LocalDate.of(2025, 10, 1)).user(user).build(),
+            Asset.builder().name("Stocks Portfolio").value(new BigDecimal("45000")).type(AssetType.INVESTMENT).category(AssetCategory.INVESTMENTS).date(LocalDate.of(2025, 10, 1)).user(user).build(),
+            Asset.builder().name("Gold").value(new BigDecimal("30000")).type(AssetType.ASSET).category(AssetCategory.GOLD).date(LocalDate.of(2025, 10, 1)).user(user).build(),
+            Asset.builder().name("Credit Card Due").value(new BigDecimal("15000")).type(AssetType.LIABILITY).category(AssetCategory.OTHER).date(LocalDate.of(2025, 10, 1)).user(user).build(),
+            Asset.builder().name("Personal Loan").value(new BigDecimal("50000")).type(AssetType.DEBT).category(AssetCategory.OTHER).date(LocalDate.of(2025, 10, 1)).user(user).build(),
+            Asset.builder().name("Home Loan EMI").value(new BigDecimal("250000")).type(AssetType.DEBT).category(AssetCategory.OTHER).date(LocalDate.of(2025, 10, 1)).user(user).build()
         );
         assetRepository.saveAll(assets);
     }

@@ -32,13 +32,16 @@ public class Asset {
     @Column(name = "asset_value")
     private BigDecimal value;
 
-    @Enumerated(EnumType.STRING)
     @NotNull
     @Column(columnDefinition = "VARCHAR(20)")
     private AssetType type; // ASSET, LIABILITY, DEBT, INVESTMENT
 
-    @NotBlank
-    private String category;
+    @NotNull
+    @Column(columnDefinition = "VARCHAR(30)")
+    private AssetCategory category; // CASH, BANK, GOLD, PROPERTY, VEHICLES, INVESTMENTS, OTHER
+
+    @Column(columnDefinition = "VARCHAR(30)")
+    private InvestmentSubCategory subCategory; // For INVESTMENTS: STOCKS, MUTUAL_FUNDS, etc.
 
     private LocalDate date;
     private String description;

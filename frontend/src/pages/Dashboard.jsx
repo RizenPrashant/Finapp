@@ -17,7 +17,7 @@ import {
   deleteTransaction,
 } from '../api';
 
-export default function Dashboard({ onNavigate }) {
+export default function Dashboard({ onNavigate, onProfileClick }) {
   const [summary, setSummary] = useState(null);
   const [budgets, setBudgets] = useState([]);
   const [budgetSpent, setBudgetSpent] = useState({});
@@ -110,7 +110,7 @@ export default function Dashboard({ onNavigate }) {
   if (selectedBudget) {
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
-      <Header title="Financial Dashboard" subtitle="October 2025" budgets={budgets} budgetSpent={budgetSpent} />
+      <Header title="Financial Dashboard" subtitle="October 2025" budgets={budgets} budgetSpent={budgetSpent} onProfileClick={onProfileClick} />
       <div className="flex-1 overflow-y-auto p-8">
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
             <div className="flex items-center justify-between p-6 border-b border-gray-50 dark:border-gray-700">
@@ -198,7 +198,7 @@ export default function Dashboard({ onNavigate }) {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <Header title="Financial Dashboard" subtitle="October 2025" budgets={budgets} budgetSpent={budgetSpent} />
+      <Header title="Financial Dashboard" subtitle="October 2025" budgets={budgets} budgetSpent={budgetSpent} onProfileClick={onProfileClick} />
       <div className="flex-1 overflow-y-auto p-8 space-y-8">
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">

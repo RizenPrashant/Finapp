@@ -9,7 +9,7 @@ import { exportToXlsx } from '../utils/exportXlsx';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-export default function Transactions() {
+export default function Transactions({ onProfileClick }) {
   const [transactions, setTransactions] = useState([]);
   const [filter, setFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
@@ -82,7 +82,7 @@ export default function Transactions() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <Header title="Transactions" subtitle="All your transactions" />
+      <Header title="Transactions" subtitle="All your transactions" onProfileClick={onProfileClick} />
       <div className="flex-1 overflow-y-auto p-8 space-y-5">
 
         {/* Filter Bar */}

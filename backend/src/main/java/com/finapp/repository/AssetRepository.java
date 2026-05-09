@@ -1,6 +1,7 @@
 package com.finapp.repository;
 
 import com.finapp.model.Asset;
+import com.finapp.model.AssetCategory;
 import com.finapp.model.AssetType;
 import com.finapp.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,6 +24,8 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
     Optional<Asset> findByIdAndUser(Long id, User user);
 
     List<Asset> findByUserAndType(User user, AssetType type);
+
+    List<Asset> findByUserAndCategory(User user, AssetCategory category);
 
     @Query("SELECT COALESCE(SUM(a.value), 0) FROM Asset a WHERE a.user = :user AND a.type = :type")
     BigDecimal sumByUserAndType(@Param("user") User user, @Param("type") AssetType type);

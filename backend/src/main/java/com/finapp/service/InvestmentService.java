@@ -129,7 +129,7 @@ public class InvestmentService {
                     .name(assetName)
                     .value(totalCurrentValue)
                     .type(AssetType.INVESTMENT)
-                    .category("Investment")
+                    .category(AssetCategory.INVESTMENTS)
                     .date(LocalDate.now())
                     .description("Auto-generated from investments")
                     .user(user)

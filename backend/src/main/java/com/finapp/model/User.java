@@ -39,6 +39,19 @@ public class User {
     @Enumerated(EnumType.STRING)
     private Role role = Role.USER;
 
+    // Profile fields
+    @Column(name = "profile_picture", length = 1000000) // Store base64 image
+    private String profilePicture;
+
+    @Column(name = "phone")
+    private String phone;
+
+    @Column(name = "company")
+    private String company;
+
+    @Column(name = "bio", length = 500)
+    private String bio;
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Transaction> transactions;

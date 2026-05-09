@@ -54,7 +54,9 @@ export default function InvestmentCard({ investment, onEdit, onDelete }) {
           </div>
           <div>
             <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm line-clamp-1">{investment.name}</h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{typeLabels[investment.type]}</p>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${typeConfig.bg} ${typeConfig.color}`}>
+              {typeLabels[investment.type]}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-1">

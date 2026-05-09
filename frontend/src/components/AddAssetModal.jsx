@@ -1,28 +1,88 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Wallet, Building2, Gem, Home, Car, TrendingUp, PiggyBank, Briefcase, Landmark, Coins, Target } from 'lucide-react';
 
-const categoryOptions = {
-  ASSET: ['Bank Account', 'Fixed Deposit', 'Property', 'Vehicle', 'Others'],
-  LIABILITY: ['Credit Card', 'Personal Loan', 'Others'],
-  DEBT: ['Home Loan', 'Car Loan', 'Education Loan', 'Others'],
-  INVESTMENT: ['Mutual Fund', 'Stocks', 'Gold', 'Crypto', 'Others'],
+/**
+ * Hierarchical Asset Categories
+ * Assets
+ * ├── Cash
+ * ├── Bank (Savings, FD, etc.)
+ * ├── Gold
+ * ├── Property
+ * ├── Vehicles
+ * └── Investments
+ *       ├── Stocks
+ *       ├── Mutual Funds
+ *       ├── Crypto
+ *       ├── Trading
+ *       └── Rental Property
+ */
+
+// Main asset categories with icons
+const assetCategories = {
+  ASSET: [
+    { value: 'CASH', label: 'Cash', icon: Wallet, description: 'Physical cash and liquid funds' },
+    { value: 'BANK', label: 'Bank', icon: Landmark, description: 'Savings, current, and FD accounts' },
+    { value: 'GOLD', label: 'Gold', icon: Gem, description: 'Physical gold, jewelry, ETFs' },
+    { value: 'PROPERTY', label: 'Property', icon: Home, description: 'Real estate, land, buildings' },
+    { value: 'VEHICLES', label: 'Vehicles', icon: Car, description: 'Cars, bikes, other vehicles' },
+    { value: 'INVESTMENTS', label: 'Investments', icon: TrendingUp, description: 'Stocks, mutual funds, crypto' },
+  ],
+  LIABILITY: [
+    { value: 'CREDIT_CARD', label: 'Credit Card', icon: Wallet },
+    { value: 'PERSONAL_LOAN', label: 'Personal Loan', icon: Briefcase },
+    { value: 'OTHER', label: 'Other', icon: Target },
+  ],
+  DEBT: [
+    { value: 'HOME_LOAN', label: 'Home Loan', icon: Home },
+    { value: 'CAR_LOAN', label: 'Car Loan', icon: Car },
+    { value: 'EDUCATION_LOAN', label: 'Education Loan', icon: Landmark },
+    { value: 'OTHER', label: 'Other', icon: Target },
+  ],
 };
 
+// Investment sub-categories (when category = INVESTMENTS)
+const investmentSubCategories = [
+  { value: 'STOCKS', label: 'Stocks', icon: TrendingUp },
+  { value: 'MUTUAL_FUNDS', label: 'Mutual Funds', icon: PiggyBank },
+  { value: 'CRYPTO', label: 'Crypto', icon: Coins },
+  { value: 'TRADING', label: 'Trading', icon: TrendingUp },
+  { value: 'RENTAL_PROPERTY', label: 'Rental Property', icon: Home },
+  { value: 'OTHER', label: 'Other', icon: Target },
+];
+
 export default function AddAssetModal({ assetType, onClose, onSave }) {
+  const defaultCategory = assetCategories[assetType]?.[0]?.value || 'OTHER';
   const [form, setForm] = useState({
     name: '',
     value: '',
     type: assetType,
-    category: categoryOptions[assetType]?.[0] || 'Others',
+    category: defaultCategory,
+    subCategory: assetType === 'ASSET' && defaultCategory === 'INVESTMENTS' ? 'STOCKS' : null,
     date: new Date().toISOString().split('T')[0],
     description: '',
   });
   const [loading, setLoading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(defaultCategory);
+
+  const handleCategoryChange = (category) => {
+    setSelectedCategory(category);
+    setForm(prev => ({
+      ...prev,
+      category,
+      subCategory: category === 'INVESTMENTS' ? 'STOCKS' : null
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    await onSave({ ...form, value: parseFloat(form.value) });
+    const payload = {
+      ...form,
+      value: parseFloat(form.value),
+      // Only include subCategory if it's an Investment
+      subCategory: form.category === 'INVESTMENTS' ? form.subCategory : null
+    };
+    await onSave(payload);
     setLoading(false);
     onClose();
   };
@@ -60,18 +120,63 @@ export default function AddAssetModal({ assetType, onClose, onSave }) {
             />
           </div>
 
+          {/* Category Selection */}
           <div>
-            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Category</label>
-            <select
-              value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value })}
-              className="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 text-sm dark:text-white"
-            >
-              {(categoryOptions[assetType] || ['Others']).map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">
+              Category
+            </label>
+            <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto">
+              {(assetCategories[assetType] || []).map((cat) => {
+                const Icon = cat.icon;
+                const isSelected = selectedCategory === cat.value;
+                return (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => handleCategoryChange(cat.value)}
+                    className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                        : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    <Icon size={16} className={isSelected ? 'text-blue-500' : 'text-gray-500'} />
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{cat.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
+
+          {/* Investment Sub-Category (Only shown when category is INVESTMENTS) */}
+          {selectedCategory === 'INVESTMENTS' && (
+            <div className="animate-fadeIn">
+              <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">
+                Investment Type
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {investmentSubCategories.map((sub) => {
+                  const Icon = sub.icon;
+                  const isSelected = form.subCategory === sub.value;
+                  return (
+                    <button
+                      key={sub.value}
+                      type="button"
+                      onClick={() => setForm({ ...form, subCategory: sub.value })}
+                      className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition ${
+                        isSelected
+                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                          : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      <Icon size={16} className={isSelected ? 'text-purple-500' : 'text-gray-500'} />
+                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400 text-center">{sub.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Date</label>

@@ -1,6 +1,8 @@
 package com.finapp.dto;
 
+import com.finapp.model.AssetCategory;
 import com.finapp.model.AssetType;
+import com.finapp.model.InvestmentSubCategory;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -22,8 +24,10 @@ public class AssetDTO {
     @NotNull(message = "Type is required")
     private AssetType type;
 
-    @NotBlank(message = "Category is required")
-    private String category;
+    @NotNull(message = "Category is required")
+    private AssetCategory category;
+
+    private InvestmentSubCategory subCategory;
 
     private LocalDate date;
     private String description;
