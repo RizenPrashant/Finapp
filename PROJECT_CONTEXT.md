@@ -64,13 +64,16 @@ E:\Finapp\backend\src\main\java\com\finapp\
 │   ├── TransactionController.java
 │   ├── BudgetLimitController.java
 │   ├── AssetController.java
-│   └── TradeController.java     # Trading module API endpoints
+│   ├── TradeController.java     # Trading module API endpoints
+│   └── InvestmentController.java # Investment module API endpoints
 ├── service\
 │   ├── DashboardService.java
 │   ├── TransactionService.java   # Auto-assigns orphan transactions to user
 │   ├── BudgetLimitService.java   # Auto-assigns orphan budgets / creates defaults
 │   ├── AssetService.java         # Auto-assigns orphan assets to user
 │   ├── TradingService.java       # Trading analytics, PnL calculations, compounding
+│   ├── InvestmentService.java    # Investment CRUD + auto-update Investment Capital asset
+│   ├── InvestmentInterestService.java # Monthly interest calculation for FD/RD/Bonds/PPF
 │   └── JwtService.java           # JWT token generation & validation
 ├── repository\
 │   ├── UserRepository.java
@@ -78,7 +81,8 @@ E:\Finapp\backend\src\main\java\com\finapp\
 │   ├── BudgetLimitRepository.java
 │   ├── AssetRepository.java
 │   ├── TradeRepository.java          # Trading queries with analytics
-│   └── CompoundingHistoryRepository.java
+│   ├── CompoundingHistoryRepository.java
+│   └── InvestmentRepository.java     # Investment queries with type-wise analytics
 ├── model\
 │   ├── User.java                # User entity with @JsonIgnore on collections
 │   ├── Transaction.java         # @JsonIgnoreProperties on User to prevent circular ref
@@ -90,7 +94,10 @@ E:\Finapp\backend\src\main\java\com\finapp\
 │   ├── Trade.java               # Trading module - stock trades
 │   ├── TradeSegment.java        # enum: EQUITY, INTRADAY, SWING, FNO, CRYPTO, MUTUAL_FUND, LONG_TERM
 │   ├── TradeStatus.java         # enum: OPEN, CLOSED
-│   └── CompoundingHistory.java  # Capital compounding tracking
+│   ├── CompoundingHistory.java  # Capital compounding tracking
+│   ├── Investment.java          # Investment entity with interest configuration
+│   ├── InvestmentType.java      # enum: PROPERTY, GOLD, SILVER, STOCKS, MUTUAL_FUND, BONDS, FD, RD, PPF, NPS, CRYPTOCURRENCY, COMMODITY, REIT, OTHER
+│   └── InterestFrequency.java   # enum: MONTHLY, QUARTERLY, HALF_YEARLY, YEARLY
 └── dto\
     ├── RegisterRequest.java
     ├── LoginRequest.java
@@ -101,7 +108,8 @@ E:\Finapp\backend\src\main\java\com\finapp\
     ├── DashboardSummaryDTO.java
     ├── TradeDTO.java
     ├── CompoundingHistoryDTO.java
-    └── TradeAnalyticsDTO.java
+    ├── TradeAnalyticsDTO.java
+    └── InvestmentDTO.java       # Investment data with interest fields
 ```
 
 ### Security (JWT Auth)
@@ -167,6 +175,19 @@ E:\Finapp\backend\src\main\java\com\finapp\
 | PUT | /api/assets/{id} | Update asset |
 | DELETE | /api/assets/{id} | Delete asset |
 
+### Investments
+| Method | URL | Description |
+|--------|-----|-------------|
+| GET | /api/investments | All investments |
+| GET | /api/investments/type/{type} | By type (PROPERTY/GOLD/STOCKS/FD/etc.) |
+| GET | /api/investments/analytics | Investment analytics (total invested, current value, P&L) |
+| GET | /api/investments/type-wise | Type-wise breakdown counts and values |
+| POST | /api/investments | Create investment |
+| PUT | /api/investments/{id} | Update investment |
+| DELETE | /api/investments/{id} | Delete investment |
+
+**Note:** Investments automatically sync with "Investment Capital" asset in Insights.
+
 ---
 
 ## Frontend Structure
@@ -177,17 +198,21 @@ E:\Finapp\frontend\src\
 ├── api.js                         # All axios API calls to backend
 ├── index.css                      # Tailwind directives
 ├── components\
-│   ├── Sidebar.jsx                # Left nav: Dashboard, Insights, Transactions, Analytics, Settings
+│   ├── Sidebar.jsx                # Left nav: Dashboard, Insights, Transactions, Trading, Investments, Analytics, Settings
 │   ├── Header.jsx                 # Top bar with search and bell icon
 │   ├── StatsCard.jsx              # Clickable stat cards (Total Balance, Income, Expenses, Savings Rate)
 │   ├── BudgetCard.jsx             # Clickable budget cards with progress bar
 │   ├── TransactionRow.jsx         # Single transaction row with delete on hover
 │   ├── AddTransactionModal.jsx    # Modal to add transaction (CREDIT/DEBIT, category, amount, date)
-│   └── AddAssetModal.jsx          # Modal to add asset/liability/debt/investment
+│   ├── AddAssetModal.jsx          # Modal to add asset/liability/debt/investment
+│   ├── InvestmentCard.jsx         # Investment display card with P&L and interest status
+│   └── AddInvestmentModal.jsx     # Modal to add/edit investment with interest configuration
 └── pages\
     ├── Dashboard.jsx              # Main dashboard - stats + budget overview + transaction detail view
     ├── Insights.jsx               # Assets, Liabilities, Debt, Investments, Net Worth
     ├── Transactions.jsx           # All transactions with filter (ALL/CREDIT/DEBIT)
+    ├── Trading.jsx                # Trading module - stock trades, analytics, compounding
+    ├── Investments.jsx            # Investment module - detailed tracking with interest calculation
     ├── Analytics.jsx              # Bar charts (CSS-based) for income vs expense vs savings + budget utilization
     └── Settings.jsx               # Update budget limits with color picker
 ```
@@ -251,6 +276,58 @@ E:\Finapp\frontend\src\
 }
 ```
 
+### Investment
+```json
+{
+  "id": 1,
+  "name": "SBI Fixed Deposit",
+  "type": "FD",
+  "buyPrice": 100000.00,
+  "currentValue": 107500.00,
+  "quantity": 1,
+  "buyDate": "2024-01-15",
+  "notes": "5 year FD @ 7.5% p.a.",
+  // Interest Configuration
+  "interestEnabled": true,
+  "interestRate": 7.50,
+  "interestFrequency": "MONTHLY",
+  "lastInterestDate": "2025-04-01",
+  // Calculated Fields
+  "interestDue": true,
+  "monthsSinceLastInterest": 1,
+  "profitLoss": 7500.00,
+  "profitLossPercentage": 7.50,
+  "totalInvested": 100000.00,
+  "totalCurrentValue": 107500.00
+}
+```
+
+### Investment Types
+| Type | Description | Auto Interest |
+|------|-------------|---------------|
+| PROPERTY | Real estate, plots | No |
+| GOLD | Physical gold, gold ETFs | No |
+| SILVER | Physical silver | No |
+| STOCKS | Equity shares | No |
+| MUTUAL_FUND | MF units | No |
+| BONDS | Govt/corporate bonds | Yes (suggested) |
+| FD | Fixed Deposit | Yes (suggested) |
+| RD | Recurring Deposit | Yes (suggested) |
+| PPF | Public Provident Fund | Yes (suggested) |
+| NPS | National Pension Scheme | No |
+| CRYPTOCURRENCY | Bitcoin, Ethereum, etc. | No |
+| COMMODITY | Commodity trading | No |
+| REIT | Real Estate Investment Trust | No |
+| OTHER | Any other investment | No |
+
+### Interest Frequency
+| Frequency | Calculation |
+|-----------|-------------|
+| MONTHLY | Rate ÷ 12, due every month |
+| QUARTERLY | Rate ÷ 4, due every 3 months |
+| HALF_YEARLY | Rate ÷ 2, due every 6 months |
+| YEARLY | Full rate, due every 12 months |
+
 ---
 
 ## Budget Categories (used in frontend & seeded in DB)
@@ -277,6 +354,10 @@ E:\Finapp\frontend\src\
 11. **AuthController.java** — Creates default budgets for new users on registration
 12. **Frontend package.json** — Added `react-router-dom` dependency
 13. **Frontend api.js** — Added JWT token interceptor, 401 error handling
+14. **Investment Module** — Complete investment tracking with 14 types
+15. **Investment Interest System** — Configurable interest calculation with 4 frequencies
+16. **FinappApplication.java** — Added `@EnableScheduling` for monthly interest job
+17. **DataSeeder.java** — Seeds 10 sample investments with interest config for user ID 0
 
 ---
 
@@ -302,6 +383,11 @@ E:\Finapp\frontend\src\
 - [x] **Trading Analytics** — Win rate, PnL, segment-wise performance, open positions
 - [x] **Compounding Tracker** — Monthly capital growth with reinvestment tracking
 - [x] **Trade Cards** — Visual trade display with profit/loss indicators
+- [x] **Investment Module** — Detailed investment tracking (Property, Gold, Stocks, FD, RD, etc.)
+- [x] **Investment Interest Auto-Calculation** — Monthly scheduled job for FD/RD/Bonds/PPF
+- [x] **Interest Configuration** — Per-investment rate, frequency (Monthly/Quarterly/Half-Yearly/Yearly)
+- [x] **Investment-Insights Sync** — Auto-updates "Investment Capital" asset in Insights
+- [x] **Investment Analytics** — Type-wise breakdown, P&L tracking, profit/loss cards
 
 ## Features Pending (To Be Added)
 - [ ] Recharts pie/bar charts

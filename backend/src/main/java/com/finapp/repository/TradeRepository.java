@@ -29,6 +29,11 @@ public interface TradeRepository extends JpaRepository<Trade, Long> {
 
     List<Trade> findByUserAndStatusAndSegment(User user, TradeStatus status, TradeSegment segment);
 
+    List<Trade> findByUserAndBroker(User user, String broker);
+
+    @Query("SELECT DISTINCT t.broker FROM Trade t WHERE t.user = :user AND t.broker IS NOT NULL AND t.broker != ''")
+    List<String> findDistinctBrokersByUser(@Param("user") User user);
+
     // Analytics queries
     @Query("SELECT COUNT(t) FROM Trade t WHERE t.user = :user")
     Long countByUser(@Param("user") User user);
@@ -54,7 +59,7 @@ public interface TradeRepository extends JpaRepository<Trade, Long> {
     @Query("SELECT COALESCE(MIN(t.profitLoss), 0) FROM Trade t WHERE t.user = :user AND t.profitLoss < 0")
     BigDecimal findLargestLossByUser(@Param("user") User user);
 
-    @Query("SELECT COALESCE(SUM(t.investedAmount), 0) FROM Trade t WHERE t.user = :user")
+    @Query("SELECT COALESCE(SUM(t.investedAmount), 0) FROM Trade t WHERE t.user = :user AND t.status = 'OPEN'")
     BigDecimal sumInvestedAmountByUser(@Param("user") User user);
 
     @Query("SELECT COALESCE(SUM(t.investedAmount), 0) FROM Trade t WHERE t.user = :user AND t.status = 'OPEN'")

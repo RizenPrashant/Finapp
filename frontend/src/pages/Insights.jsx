@@ -96,14 +96,28 @@ export default function Insights() {
               {items.length === 0 ? (
                 <p className="text-center text-gray-400 dark:text-gray-500 py-12">No items yet. Add one!</p>
               ) : (
-                items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700 group transition">
+                // Sort: Auto-updated capitals first, then others by date
+                [...items].sort((a, b) => {
+                  const autoUpdatedAssets = ['Trading Capital', 'Investment Capital'];
+                  const aIsAuto = autoUpdatedAssets.includes(a.name);
+                  const bIsAuto = autoUpdatedAssets.includes(b.name);
+                  if (aIsAuto && !bIsAuto) return -1;
+                  if (!aIsAuto && bIsAuto) return 1;
+                  if (aIsAuto && bIsAuto) return autoUpdatedAssets.indexOf(a.name) - autoUpdatedAssets.indexOf(b.name);
+                  return new Date(b.date) - new Date(a.date);
+                }).map((item) => (
+                  <div key={item.id} className={`flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700 group transition ${['Trading Capital', 'Investment Capital'].includes(item.name) ? 'bg-blue-50/50 dark:bg-blue-900/10 border-l-4 border-l-blue-500' : ''}`}>
                     <div className="flex items-center gap-4">
                       <div className={`p-2.5 rounded-full ${selected.bg} ${selected.color}`}>
                         <span className="text-base">{selected.icon}</span>
                       </div>
                       <div>
-                        <p className="font-semibold text-slate-700 dark:text-slate-300 text-sm">{item.name}</p>
+                        <p className="font-semibold text-slate-700 dark:text-slate-300 text-sm">
+                          {item.name}
+                          {['Trading Capital', 'Investment Capital'].includes(item.name) && (
+                            <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Auto-Updated</span>
+                          )}
+                        </p>
                         <p className="text-xs text-gray-400 dark:text-gray-500">{item.category} · {item.date}</p>
                       </div>
                     </div>

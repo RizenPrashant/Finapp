@@ -51,6 +51,20 @@ public class TradeController {
         return ResponseEntity.ok(tradingService.getTradesBySegment(user, segment));
     }
 
+    @GetMapping("/trades/broker/{broker}")
+    public ResponseEntity<List<Trade>> getTradesByBroker(
+            @PathVariable String broker,
+            Authentication authentication) {
+        User user = userService.getCurrentUser(authentication);
+        return ResponseEntity.ok(tradingService.getTradesByBroker(user, broker));
+    }
+
+    @GetMapping("/brokers")
+    public ResponseEntity<List<String>> getBrokers(Authentication authentication) {
+        User user = userService.getCurrentUser(authentication);
+        return ResponseEntity.ok(tradingService.getBrokers(user));
+    }
+
     @PostMapping("/trades")
     public ResponseEntity<Trade> createTrade(
             @Valid @RequestBody TradeDTO dto,

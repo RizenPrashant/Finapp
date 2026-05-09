@@ -3,21 +3,27 @@ package com.finapp.service;
 import com.finapp.dto.TradeAnalyticsDTO;
 import com.finapp.dto.TradeDTO;
 import com.finapp.dto.CompoundingHistoryDTO;
+import com.finapp.model.Asset;
+import com.finapp.model.AssetType;
 import com.finapp.model.Trade;
 import com.finapp.model.CompoundingHistory;
 import com.finapp.model.TradeSegment;
 import com.finapp.model.TradeStatus;
 import com.finapp.model.User;
+import com.finapp.repository.AssetRepository;
 import com.finapp.repository.TradeRepository;
 import com.finapp.repository.CompoundingHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,6 +32,7 @@ public class TradingService {
 
     private final TradeRepository tradeRepository;
     private final CompoundingHistoryRepository compoundingHistoryRepository;
+    private final AssetRepository assetRepository;
 
     // ========== Trade CRUD ==========
 
@@ -50,6 +57,15 @@ public class TradingService {
         return tradeRepository.findByUserAndSegment(user, segment);
     }
 
+    public List<Trade> getTradesByBroker(User user, String broker) {
+        return tradeRepository.findByUserAndBroker(user, broker);
+    }
+
+    public List<String> getBrokers(User user) {
+        return tradeRepository.findDistinctBrokersByUser(user);
+    }
+
+    @Transactional
     public Trade createTrade(TradeDTO dto, User user) {
         Trade trade = Trade.builder()
                 .stockName(dto.getStockName())
@@ -68,14 +84,24 @@ public class TradingService {
                 .entryDate(dto.getEntryDate())
                 .exitDate(dto.getExitDate())
                 .notes(dto.getNotes())
+                .broker(dto.getBroker() != null ? dto.getBroker() : "ZERODHA")
                 .user(user)
                 .build();
-        return tradeRepository.save(trade);
+        Trade savedTrade = tradeRepository.save(trade);
+
+        // Auto-update trading capital in assets
+        updateTradingCapitalAssets(savedTrade, user);
+
+        return savedTrade;
     }
 
+    @Transactional
     public Trade updateTrade(Long id, TradeDTO dto, User user) {
         Trade existing = tradeRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new RuntimeException("Trade not found: " + id));
+        
+        // Reverse old asset changes before updating
+        reverseTradeAssetChanges(existing, user);
         
         existing.setStockName(dto.getStockName());
         existing.setSegment(dto.getSegment());
@@ -93,14 +119,101 @@ public class TradingService {
         existing.setEntryDate(dto.getEntryDate());
         existing.setExitDate(dto.getExitDate());
         existing.setNotes(dto.getNotes());
+        existing.setBroker(dto.getBroker() != null ? dto.getBroker() : existing.getBroker());
+
+        Trade savedTrade = tradeRepository.save(existing);
         
-        return tradeRepository.save(existing);
+        // Apply new asset changes
+        updateTradingCapitalAssets(savedTrade, user);
+
+        return savedTrade;
     }
 
     public void deleteTrade(Long id, User user) {
         Trade trade = tradeRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new RuntimeException("Trade not found: " + id));
+        // Reverse the asset changes before deleting
+        reverseTradeAssetChanges(trade, user);
         tradeRepository.delete(trade);
+    }
+
+    // ========== Auto-update Trading Capital in Assets ==========
+
+    @Transactional
+    public void updateTradingCapitalAssets(Trade trade, User user) {
+        String assetName = "Trading Capital";
+
+        if (trade.getStatus() == TradeStatus.OPEN) {
+            // For OPEN trades: Add invested amount to Trading Capital
+            BigDecimal investedAmount = trade.getInvestedAmount() != null ? trade.getInvestedAmount() : 
+                trade.getBuyPrice().multiply(new BigDecimal(trade.getQuantity()));
+            
+            // Add to main Trading Capital (total capital deployed) as INVESTMENT type
+            adjustTradingCapital(assetName, investedAmount, AssetType.INVESTMENT, user);
+
+        } else if (trade.getStatus() == TradeStatus.CLOSED) {
+            // For CLOSED trades: Remove invested amount from capital and add return amount
+            BigDecimal returnAmount = trade.getReturnAmount() != null ? trade.getReturnAmount() :
+                trade.getSellPrice().multiply(new BigDecimal(trade.getQuantity()));
+            BigDecimal investedAmount = trade.getInvestedAmount() != null ? trade.getInvestedAmount() :
+                trade.getBuyPrice().multiply(new BigDecimal(trade.getQuantity()));
+            
+            // Remove invested amount from Trading Capital (capital freed up)
+            adjustTradingCapital(assetName, investedAmount.negate(), AssetType.INVESTMENT, user);
+            
+            // Add return amount to Trading Capital (capital returned with profit)
+            adjustTradingCapital(assetName, returnAmount, AssetType.INVESTMENT, user);
+        }
+    }
+
+    @Transactional
+    public void reverseTradeAssetChanges(Trade trade, User user) {
+        String assetName = "Trading Capital";
+
+        if (trade.getStatus() == TradeStatus.OPEN) {
+            // Reverse OPEN trade: Deduct from Trading Capital
+            BigDecimal investedAmount = trade.getInvestedAmount() != null ? trade.getInvestedAmount() : 
+                trade.getBuyPrice().multiply(new BigDecimal(trade.getQuantity()));
+            adjustTradingCapital(assetName, investedAmount.negate(), AssetType.INVESTMENT, user);
+            
+        } else if (trade.getStatus() == TradeStatus.CLOSED) {
+            // Reverse CLOSED trade: Reverse the changes
+            BigDecimal returnAmount = trade.getReturnAmount() != null ? trade.getReturnAmount() : BigDecimal.ZERO;
+            BigDecimal investedAmount = trade.getInvestedAmount() != null ? trade.getInvestedAmount() :
+                trade.getBuyPrice().multiply(new BigDecimal(trade.getQuantity()));
+            
+            // Re-add the invested amount (as if trade is open again)
+            adjustTradingCapital(assetName, investedAmount, AssetType.INVESTMENT, user);
+            // Remove the return amount (reverse the sell)
+            adjustTradingCapital(assetName, returnAmount.negate(), AssetType.INVESTMENT, user);
+        }
+    }
+
+    private void adjustTradingCapital(String name, BigDecimal adjustment, AssetType type, User user) {
+        List<Asset> existingAssets = assetRepository.findByUser(user);
+        Optional<Asset> existingAsset = existingAssets.stream()
+                .filter(a -> a.getName().equals(name))
+                .findFirst();
+
+        if (existingAsset.isPresent()) {
+            Asset asset = existingAsset.get();
+            BigDecimal newValue = asset.getValue().add(adjustment);
+            asset.setValue(newValue.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : newValue);
+            asset.setDate(LocalDate.now());
+            assetRepository.save(asset);
+        } else if (adjustment.compareTo(BigDecimal.ZERO) > 0) {
+            // Only create if positive adjustment
+            Asset newAsset = Asset.builder()
+                    .name(name)
+                    .value(adjustment)
+                    .type(type)
+                    .category("Trading")
+                    .date(LocalDate.now())
+                    .description("Trading capital")
+                    .user(user)
+                    .build();
+            assetRepository.save(newAsset);
+        }
     }
 
     // Calculate trade metrics dynamically

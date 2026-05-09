@@ -37,11 +37,18 @@ export default function TradeCard({ trade, onEdit, onDelete }) {
               <TrendingDown size={20} className="text-red-600 dark:text-red-400" />
             )}
           </div>
-          <div>
-            <h3 className="font-bold text-slate-800 dark:text-slate-200">{trade.stockName}</h3>
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${getSegmentColor(trade.segment)}`}>
-              {trade.segment}
-            </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-bold text-slate-800 dark:text-slate-200 truncate">{trade.stockName}</h3>
+            <div className="flex gap-1 flex-wrap">
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${getSegmentColor(trade.segment)}`}>
+                {trade.segment}
+              </span>
+              {trade.broker && (
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 whitespace-nowrap">
+                  {trade.broker}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex gap-2">
@@ -61,40 +68,40 @@ export default function TradeCard({ trade, onEdit, onDelete }) {
       </div>
 
       {/* Trade Details */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Quantity</p>
-          <p className="font-semibold text-slate-800 dark:text-slate-200">{trade.quantity} shares</p>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2 mb-4">
+        <div className="min-w-0">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Qty</p>
+          <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm truncate">{trade.quantity} sh</p>
         </div>
-        <div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Buy Price</p>
-          <p className="font-semibold text-slate-800 dark:text-slate-200">{formatCurrency(trade.buyPrice)}</p>
+        <div className="min-w-0">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Buy</p>
+          <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm truncate" title={formatCurrency(trade.buyPrice)}>{formatCurrency(trade.buyPrice)}</p>
         </div>
         {!isOpen && trade.sellPrice && (
-          <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Sell Price</p>
-            <p className="font-semibold text-slate-800 dark:text-slate-200">{formatCurrency(trade.sellPrice)}</p>
+          <div className="min-w-0">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Sell</p>
+            <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm truncate" title={formatCurrency(trade.sellPrice)}>{formatCurrency(trade.sellPrice)}</p>
           </div>
         )}
-        <div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Invested</p>
-          <p className="font-semibold text-slate-800 dark:text-slate-200">{formatCurrency(trade.investedAmount)}</p>
+        <div className="min-w-0">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Invested</p>
+          <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm truncate" title={formatCurrency(trade.investedAmount)}>{formatCurrency(trade.investedAmount)}</p>
         </div>
       </div>
 
       {/* PnL Section */}
       {!isOpen && (
-        <div className={`rounded-xl p-3 mb-3 ${isProfit ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Profit/Loss</p>
-              <p className={`text-lg font-bold ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
+        <div className={`rounded-xl p-2.5 mb-3 ${isProfit ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">P&L</p>
+              <p className={`font-bold text-base truncate ${isProfit ? 'text-green-600' : 'text-red-600'}`} title={`${isProfit ? '+' : ''}${formatCurrency(trade.profitLoss)}`}>
                 {isProfit ? '+' : ''}{formatCurrency(trade.profitLoss)}
               </p>
             </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Return %</p>
-              <p className={`text-lg font-bold ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
+            <div className="text-right min-w-0 flex-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Return</p>
+              <p className={`font-bold text-base truncate ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
                 {isProfit ? '+' : ''}{formatPercentage(trade.profitLossPercentage)}
               </p>
             </div>
@@ -112,21 +119,21 @@ export default function TradeCard({ trade, onEdit, onDelete }) {
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-        <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <div className="flex items-center gap-1 min-w-0">
           <Calendar size={12} />
-          <span>Entry: {new Date(trade.entryDate).toLocaleDateString()}</span>
+          <span className="truncate">{new Date(trade.entryDate).toLocaleDateString()}</span>
         </div>
         {!isOpen && trade.exitDate && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 min-w-0">
             <Calendar size={12} />
-            <span>Exit: {new Date(trade.exitDate).toLocaleDateString()}</span>
+            <span className="truncate">{new Date(trade.exitDate).toLocaleDateString()}</span>
           </div>
         )}
       </div>
 
       {trade.notes && (
-        <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg">
+        <p className="mt-3 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg break-words">
           {trade.notes}
         </p>
       )}

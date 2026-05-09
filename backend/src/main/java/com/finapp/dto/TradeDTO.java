@@ -62,4 +62,7 @@ public class TradeDTO {
     private LocalDate exitDate;
 
     private String notes;
+
+    @NotBlank
+    private String broker = "ZERODHA";
 }

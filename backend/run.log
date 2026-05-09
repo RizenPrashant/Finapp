@@ -4930,3 +4930,5 @@ Hibernate:
         t1_0.type 
     from
         transactions t1_0
+2026-05-09T03:51:49.051+05:30  WARN 10728 --- [finapp-backend] [l-1 housekeeper] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Thread starvation or clock leap detected (housekeeper delta=6m43s164ms245µs300ns).
+2026-05-09T11:18:53.151+05:30  WARN 10728 --- [finapp-backend] [l-1 housekeeper] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Thread starvation or clock leap detected (housekeeper delta=7h13m39s225ms787µs100ns).

@@ -14,13 +14,26 @@ export default function AddTradeModal({ onClose, onSubmit, initialData }) {
     status: 'OPEN',
     entryDate: new Date().toISOString().split('T')[0],
     exitDate: '',
-    notes: ''
+    notes: '',
+    broker: 'ZERODHA'
   });
+
+  const [brokers, setBrokers] = useState(['ZERODHA', 'UPSTOX', 'ANGELONE', 'COINBASE']);
+  const [newBroker, setNewBroker] = useState('');
+  const [showAddBroker, setShowAddBroker] = useState(false);
 
   const segments = ['EQUITY', 'INTRADAY', 'SWING', 'FNO', 'CRYPTO', 'MUTUAL_FUND', 'LONG_TERM'];
   const tradeTypes = ['SWING', 'INTRADAY', 'LONG_TERM', 'SCALPING'];
   const positionTypes = ['LONG', 'SHORT'];
   const statuses = ['OPEN', 'CLOSED'];
+
+  // Load custom brokers from localStorage on mount
+  useEffect(() => {
+    const customBrokers = JSON.parse(localStorage.getItem('finapp_custom_brokers') || '[]').filter(b => b && b.trim() !== '');
+    if (customBrokers.length > 0) {
+      setBrokers(prev => [...new Set([...prev, ...customBrokers])]);
+    }
+  }, []);
 
   useEffect(() => {
     if (initialData) {
@@ -36,10 +49,27 @@ export default function AddTradeModal({ onClose, onSubmit, initialData }) {
         status: initialData.status || 'OPEN',
         entryDate: initialData.entryDate || new Date().toISOString().split('T')[0],
         exitDate: initialData.exitDate || '',
-        notes: initialData.notes || ''
+        notes: initialData.notes || '',
+        broker: initialData.broker || 'ZERODHA'
       });
     }
   }, [initialData]);
+
+  const handleAddBroker = () => {
+    if (newBroker.trim() && !brokers.includes(newBroker.trim().toUpperCase())) {
+      const upperBroker = newBroker.trim().toUpperCase();
+      const updatedBrokers = [...brokers, upperBroker];
+      setBrokers(updatedBrokers);
+      setFormData({ ...formData, broker: upperBroker });
+      setNewBroker('');
+      setShowAddBroker(false);
+
+      // Save to localStorage, filter out empty strings
+      const defaultBrokers = ['ZERODHA', 'UPSTOX', 'ANGELONE', 'COINBASE'];
+      const customBrokers = updatedBrokers.filter(b => b && b.trim() !== '' && !defaultBrokers.includes(b));
+      localStorage.setItem('finapp_custom_brokers', JSON.stringify(customBrokers));
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -162,6 +192,48 @@ export default function AddTradeModal({ onClose, onSubmit, initialData }) {
                 {statuses.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* Broker */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Broker *
+            </label>
+            <div className="flex gap-2">
+              <select
+                required
+                value={formData.broker}
+                onChange={(e) => setFormData({ ...formData, broker: e.target.value })}
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              >
+                {brokers.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+              <button
+                type="button"
+                onClick={() => setShowAddBroker(!showAddBroker)}
+                className="px-3 py-2 bg-slate-100 dark:bg-gray-700 text-slate-700 dark:text-gray-300 rounded-xl hover:bg-slate-200 dark:hover:bg-gray-600 transition-colors text-sm"
+              >
+                + New
+              </button>
+            </div>
+            {showAddBroker && (
+              <div className="flex gap-2 mt-2">
+                <input
+                  type="text"
+                  value={newBroker}
+                  onChange={(e) => setNewBroker(e.target.value)}
+                  placeholder="Enter broker name"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddBroker}
+                  className="px-3 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors text-sm"
+                >
+                  Add
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Quantity & Buy Price */}

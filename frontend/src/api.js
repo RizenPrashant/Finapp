@@ -56,6 +56,8 @@ export const getCategoryAnalytics = (params = {}) => api.get('/transactions/anal
 export const getTrades = () => api.get('/trading/trades');
 export const getTradesByStatus = (status) => api.get(`/trading/trades/status/${status}`);
 export const getTradesBySegment = (segment) => api.get(`/trading/trades/segment/${segment}`);
+export const getTradesByBroker = (broker) => api.get(`/trading/trades/broker/${broker}`);
+export const getBrokers = () => api.get('/trading/brokers');
 export const createTrade = (data) => api.post('/trading/trades', data);
 export const updateTrade = (id, data) => api.put(`/trading/trades/${id}`, data);
 export const deleteTrade = (id) => api.delete(`/trading/trades/${id}`);
@@ -66,3 +68,12 @@ export const getTradingCapital = () => api.get('/trading/capital');
 export const getCompoundingHistory = () => api.get('/trading/compounding');
 export const createCompoundingHistory = (data) => api.post('/trading/compounding', data);
 export const deleteCompoundingHistory = (id) => api.delete(`/trading/compounding/${id}`);
+
+// Investment APIs
+export const getInvestments = () => api.get('/investments');
+export const getInvestmentsByType = (type) => api.get(`/investments/type/${type}`);
+export const getInvestmentById = (id) => api.get(`/investments/${id}`);
+export const createInvestment = (data) => api.post('/investments', data);
+export const updateInvestment = (id, data) => api.put(`/investments/${id}`, data);
+export const deleteInvestment = (id) => api.delete(`/investments/${id}`);
+export const getInvestmentAnalytics = () => api.get('/investments/analytics');

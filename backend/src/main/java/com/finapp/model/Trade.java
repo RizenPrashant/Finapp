@@ -83,6 +83,9 @@ public class Trade {
 
     private String notes;
 
+    @Column(nullable = false)
+    private String broker = "ZERODHA";
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @JsonIgnoreProperties({"transactions", "assets", "budgets", "password"})

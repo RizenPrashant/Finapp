@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, TrendingUp, TrendingDown, Activity, DollarSign, Target, Percent, Briefcase } from 'lucide-react';
-import { getTrades, getTradesByStatus, getTradingAnalytics, deleteTrade, createTrade, updateTrade, getCompoundingHistory, createCompoundingHistory, deleteCompoundingHistory } from '../api';
+import { Plus, TrendingUp, TrendingDown, Activity, DollarSign, Target, Percent, Briefcase, Building2 } from 'lucide-react';
+import { getTrades, getTradesByStatus, getTradesByBroker, getBrokers, getTradingAnalytics, deleteTrade, createTrade, updateTrade, getCompoundingHistory, createCompoundingHistory, deleteCompoundingHistory } from '../api';
 import AddTradeModal from '../components/AddTradeModal';
 import TradeCard from '../components/TradeCard';
 
@@ -9,6 +9,8 @@ export default function Trading() {
   const [analytics, setAnalytics] = useState(null);
   const [compoundingHistory, setCompoundingHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
+  const [selectedBroker, setSelectedBroker] = useState('');
+  const [brokers, setBrokers] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCompoundingModal, setShowCompoundingModal] = useState(false);
   const [editingTrade, setEditingTrade] = useState(null);
@@ -17,22 +19,39 @@ export default function Trading() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [tradesRes, analyticsRes, compoundingRes] = await Promise.all([
-        activeTab === 'all' ? getTrades() : 
-        activeTab === 'open' ? getTradesByStatus('OPEN') :
-        activeTab === 'closed' ? getTradesByStatus('CLOSED') : getTrades(),
+
+      let tradesPromise;
+      if (selectedBroker) {
+        tradesPromise = getTradesByBroker(selectedBroker);
+      } else if (activeTab === 'all') {
+        tradesPromise = getTrades();
+      } else if (activeTab === 'open') {
+        tradesPromise = getTradesByStatus('OPEN');
+      } else if (activeTab === 'closed') {
+        tradesPromise = getTradesByStatus('CLOSED');
+      } else {
+        tradesPromise = getTrades();
+      }
+
+      const [tradesRes, analyticsRes, compoundingRes, brokersRes] = await Promise.all([
+        tradesPromise,
         getTradingAnalytics(),
-        getCompoundingHistory()
+        getCompoundingHistory(),
+        getBrokers()
       ]);
       setTrades(tradesRes.data);
       setAnalytics(analyticsRes.data);
       setCompoundingHistory(compoundingRes.data);
+      // Merge API brokers with custom brokers from localStorage, filter out empty/null
+      const apiBrokers = (brokersRes.data || []).filter(b => b && b.trim() !== '');
+      const customBrokers = JSON.parse(localStorage.getItem('finapp_custom_brokers') || '[]').filter(b => b && b.trim() !== '');
+      setBrokers([...new Set([...apiBrokers, ...customBrokers])]);
     } catch (error) {
       console.error('Error fetching trading data:', error);
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, selectedBroker]);
 
   useEffect(() => {
     fetchData();
@@ -54,6 +73,7 @@ export default function Trading() {
   const handleEditTrade = async (tradeData) => {
     await updateTrade(editingTrade.id, tradeData);
     setEditingTrade(null);
+    setShowAddModal(false);
     fetchData();
   };
 
@@ -104,62 +124,62 @@ export default function Trading() {
       {/* Analytics Cards */}
       {analytics && (
         <div className="p-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
             {/* Total Trades */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-3 mb-2">
-                <Activity size={20} className="text-blue-500" />
-                <span className="text-sm text-gray-500 dark:text-gray-400">Total Trades</span>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-sm min-w-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Activity size={18} className="text-blue-500 flex-shrink-0" />
+                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Trades</span>
               </div>
-              <p className="text-2xl font-bold text-slate-800 dark:text-slate-200">{analytics.totalTrades}</p>
+              <p className="text-xl font-bold text-slate-800 dark:text-slate-200 truncate" title={analytics.totalTrades}>{analytics.totalTrades}</p>
             </div>
 
             {/* Win Rate */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-3 mb-2">
-                <Target size={20} className="text-green-500" />
-                <span className="text-sm text-gray-500 dark:text-gray-400">Win Rate</span>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-sm min-w-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Target size={18} className="text-green-500 flex-shrink-0" />
+                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Win Rate</span>
               </div>
-              <p className="text-2xl font-bold text-slate-800 dark:text-slate-200">{formatPercentage(analytics.winRate)}</p>
-              <p className="text-xs text-gray-400">{analytics.winningTrades}W / {analytics.losingTrades}L</p>
+              <p className="text-xl font-bold text-slate-800 dark:text-slate-200 truncate" title={formatPercentage(analytics.winRate)}>{formatPercentage(analytics.winRate)}</p>
+              <p className="text-xs text-gray-400 truncate">{analytics.winningTrades}W / {analytics.losingTrades}L</p>
             </div>
 
             {/* Net PnL */}
-            <div className={`rounded-2xl p-4 shadow-sm ${(analytics.netPnL || 0) >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
-              <div className="flex items-center gap-3 mb-2">
-                <DollarSign size={20} className={(analytics.netPnL || 0) >= 0 ? 'text-green-600' : 'text-red-600'} />
-                <span className="text-sm text-gray-500 dark:text-gray-400">Net PnL</span>
+            <div className={`rounded-2xl p-3 shadow-sm min-w-0 ${(analytics.netPnL || 0) >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <DollarSign size={18} className={`flex-shrink-0 ${(analytics.netPnL || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`} />
+                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Net PnL</span>
               </div>
-              <p className={`text-2xl font-bold ${(analytics.netPnL || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <p className={`text-lg font-bold truncate ${(analytics.netPnL || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`} title={formatCurrency(analytics.netPnL)}>
                 {formatCurrency(analytics.netPnL)}
               </p>
             </div>
 
             {/* Realized PnL */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-3 mb-2">
-                <TrendingUp size={20} className="text-purple-500" />
-                <span className="text-sm text-gray-500 dark:text-gray-400">Realized PnL</span>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-sm min-w-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <TrendingUp size={18} className="text-purple-500 flex-shrink-0" />
+                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Realized</span>
               </div>
-              <p className="text-2xl font-bold text-slate-800 dark:text-slate-200">{formatCurrency(analytics.realizedPnL)}</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-200 truncate" title={formatCurrency(analytics.realizedPnL)}>{formatCurrency(analytics.realizedPnL)}</p>
             </div>
 
             {/* Open Positions */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-3 mb-2">
-                <Briefcase size={20} className="text-orange-500" />
-                <span className="text-sm text-gray-500 dark:text-gray-400">Open Positions</span>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-sm min-w-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Briefcase size={18} className="text-orange-500 flex-shrink-0" />
+                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Open</span>
               </div>
-              <p className="text-2xl font-bold text-slate-800 dark:text-slate-200">{analytics.openPositions}</p>
+              <p className="text-xl font-bold text-slate-800 dark:text-slate-200 truncate">{analytics.openPositions}</p>
             </div>
 
             {/* Capital Used */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-3 mb-2">
-                <Percent size={20} className="text-blue-500" />
-                <span className="text-sm text-gray-500 dark:text-gray-400">Capital Used</span>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-sm min-w-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Percent size={18} className="text-blue-500 flex-shrink-0" />
+                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Capital</span>
               </div>
-              <p className="text-2xl font-bold text-slate-800 dark:text-slate-200">{formatCurrency(analytics.totalCapitalUsed)}</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-200 truncate" title={formatCurrency(analytics.totalCapitalUsed)}>{formatCurrency(analytics.totalCapitalUsed)}</p>
             </div>
           </div>
 
@@ -194,22 +214,49 @@ export default function Trading() {
         </div>
       )}
 
-      {/* Tabs */}
+      {/* Tabs & Broker Filter */}
       <div className="px-6 pb-4">
-        <div className="flex gap-2">
-          {['all', 'open', 'closed'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-xl font-medium transition-colors ${
-                activeTab === tab
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex gap-2">
+            {['all', 'open', 'closed'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => { setActiveTab(tab); setSelectedBroker(''); }}
+                className={`px-4 py-2 rounded-xl font-medium transition-colors ${
+                  activeTab === tab && !selectedBroker
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)} Trades
+              </button>
+            ))}
+          </div>
+
+          <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
+
+          {/* Broker Filter */}
+          <div className="flex items-center gap-2">
+            <Building2 size={18} className="text-gray-500" />
+            <select
+              value={selectedBroker}
+              onChange={(e) => setSelectedBroker(e.target.value)}
+              className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
             >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)} Trades
-            </button>
-          ))}
+              <option value="">All Brokers</option>
+              {brokers.map((broker) => (
+                <option key={broker} value={broker}>{broker}</option>
+              ))}
+            </select>
+            {selectedBroker && (
+              <button
+                onClick={() => setSelectedBroker('')}
+                className="text-xs text-gray-500 hover:text-red-500 underline"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -224,7 +271,7 @@ export default function Trading() {
             <p className="text-gray-500 dark:text-gray-400">Add your first trade to start tracking your portfolio</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {trades.map((trade) => (
               <TradeCard
                 key={trade.id}
@@ -272,6 +319,7 @@ function AddCompoundingModal({ onClose, onSubmit }) {
   const [formData, setFormData] = useState({
     startingCapital: '',
     endingCapital: '',
+    profit: '',
     reinvested: false,
     month: new Date().toLocaleString('default', { month: 'short' }).toUpperCase(),
     year: new Date().getFullYear()
@@ -279,12 +327,24 @@ function AddCompoundingModal({ onClose, onSubmit }) {
 
   const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
+  // Auto-calculate profit when capital changes
+  const handleCapitalChange = (field, value) => {
+    const newFormData = { ...formData, [field]: value };
+    const start = parseFloat(newFormData.startingCapital) || 0;
+    const end = parseFloat(newFormData.endingCapital) || 0;
+    if (start > 0 && end > 0) {
+      newFormData.profit = (end - start).toFixed(2);
+    }
+    setFormData(newFormData);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit({
       ...formData,
       startingCapital: parseFloat(formData.startingCapital),
-      endingCapital: parseFloat(formData.endingCapital)
+      endingCapital: parseFloat(formData.endingCapital),
+      profit: parseFloat(formData.profit) || 0
     });
   };
 
@@ -320,7 +380,7 @@ function AddCompoundingModal({ onClose, onSubmit }) {
               type="number"
               required
               value={formData.startingCapital}
-              onChange={(e) => setFormData({ ...formData, startingCapital: e.target.value })}
+              onChange={(e) => handleCapitalChange('startingCapital', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               placeholder="10000"
             />
@@ -331,10 +391,23 @@ function AddCompoundingModal({ onClose, onSubmit }) {
               type="number"
               required
               value={formData.endingCapital}
-              onChange={(e) => setFormData({ ...formData, endingCapital: e.target.value })}
+              onChange={(e) => handleCapitalChange('endingCapital', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               placeholder="12000"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Profit Amount (₹) <span className="text-xs text-gray-400">(Auto-calculated, you can edit)</span>
+            </label>
+            <input
+              type="number"
+              value={formData.profit}
+              onChange={(e) => setFormData({ ...formData, profit: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              placeholder="2000"
+            />
+            <p className="text-xs text-gray-400 mt-1">Enter the exact profit you want to reinvest</p>
           </div>
           <div className="flex items-center gap-2">
             <input

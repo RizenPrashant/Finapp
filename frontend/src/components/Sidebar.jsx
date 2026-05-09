@@ -1,10 +1,11 @@
-import { LayoutGrid, TrendingUp, Wallet, BarChart3, CandlestickChart, Settings, Moon, Sun } from 'lucide-react';
+import { LayoutGrid, TrendingUp, Wallet, BarChart3, CandlestickChart, PieChart, Settings, Moon, Sun } from 'lucide-react';
 
 const navItems = [
   { icon: LayoutGrid, label: 'Dashboard' },
   { icon: TrendingUp, label: 'Insights' },
   { icon: Wallet, label: 'Transactions' },
   { icon: CandlestickChart, label: 'Trading' },
+  { icon: PieChart, label: 'Investments' },
   { icon: BarChart3, label: 'Analytics' },
   { icon: Settings, label: 'Settings' },
 ];

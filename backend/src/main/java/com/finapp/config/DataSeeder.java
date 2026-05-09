@@ -3,6 +3,7 @@ package com.finapp.config;
 import com.finapp.model.*;
 import com.finapp.repository.AssetRepository;
 import com.finapp.repository.BudgetLimitRepository;
+import com.finapp.repository.InvestmentRepository;
 import com.finapp.repository.TradeRepository;
 import com.finapp.repository.TransactionRepository;
 import com.finapp.repository.UserRepository;
@@ -24,6 +25,7 @@ public class DataSeeder implements CommandLineRunner {
     private final BudgetLimitRepository budgetLimitRepository;
     private final AssetRepository assetRepository;
     private final TradeRepository tradeRepository;
+    private final InvestmentRepository investmentRepository;
     private final UserRepository userRepository;
     private final EntityManager entityManager;
 
@@ -81,6 +83,10 @@ public class DataSeeder implements CommandLineRunner {
         if (tradeRepository.count() == 0) {
             System.out.println("=== DataSeeder: Seeding trades... ===");
             seedTrades(defaultUser);
+        }
+        if (investmentRepository.count() == 0) {
+            System.out.println("=== DataSeeder: Seeding investments... ===");
+            seedInvestments(defaultUser);
         }
         System.out.println("=== DataSeeder: Done! ===");
     }
@@ -147,6 +153,7 @@ public class DataSeeder implements CommandLineRunner {
                 .status(TradeStatus.OPEN)
                 .entryDate(LocalDate.of(2025, 9, 15))
                 .notes("Swing trade - expecting 10% upside")
+                .broker("ZERODHA")
                 .user(user)
                 .build(),
             Trade.builder()
@@ -161,6 +168,7 @@ public class DataSeeder implements CommandLineRunner {
                 .status(TradeStatus.OPEN)
                 .entryDate(LocalDate.of(2025, 10, 5))
                 .notes("Intraday momentum play")
+                .broker("UPSTOX")
                 .user(user)
                 .build(),
             Trade.builder()
@@ -175,6 +183,7 @@ public class DataSeeder implements CommandLineRunner {
                 .status(TradeStatus.OPEN)
                 .entryDate(LocalDate.of(2025, 8, 20))
                 .notes("Long term wealth creation")
+                .broker("ANGELONE")
                 .user(user)
                 .build(),
             Trade.builder()
@@ -189,6 +198,7 @@ public class DataSeeder implements CommandLineRunner {
                 .status(TradeStatus.OPEN)
                 .entryDate(LocalDate.of(2025, 10, 8))
                 .notes("Bank Nifty option short")
+                .broker("ZERODHA")
                 .user(user)
                 .build(),
             Trade.builder()
@@ -203,6 +213,7 @@ public class DataSeeder implements CommandLineRunner {
                 .status(TradeStatus.OPEN)
                 .entryDate(LocalDate.of(2025, 9, 1))
                 .notes("Crypto swing - target 60000")
+                .broker("COINBASE")
                 .user(user)
                 .build(),
             // CLOSED trades with profit/loss
@@ -223,6 +234,7 @@ public class DataSeeder implements CommandLineRunner {
                 .entryDate(LocalDate.of(2025, 7, 10))
                 .exitDate(LocalDate.of(2025, 8, 15))
                 .notes("Target achieved - 10% profit")
+                .broker("UPSTOX")
                 .user(user)
                 .build(),
             Trade.builder()
@@ -242,6 +254,7 @@ public class DataSeeder implements CommandLineRunner {
                 .entryDate(LocalDate.of(2025, 9, 5))
                 .exitDate(LocalDate.of(2025, 9, 5))
                 .notes("Stop loss hit")
+                .broker("ANGELONE")
                 .user(user)
                 .build(),
             Trade.builder()
@@ -261,6 +274,7 @@ public class DataSeeder implements CommandLineRunner {
                 .entryDate(LocalDate.of(2025, 6, 15))
                 .exitDate(LocalDate.of(2025, 9, 10))
                 .notes("Multi-bagger swing trade")
+                .broker("ZERODHA")
                 .user(user)
                 .build(),
             Trade.builder()
@@ -280,6 +294,7 @@ public class DataSeeder implements CommandLineRunner {
                 .entryDate(LocalDate.of(2025, 8, 25))
                 .exitDate(LocalDate.of(2025, 8, 25))
                 .notes("Quick scalp in crypto")
+                .broker("COINBASE")
                 .user(user)
                 .build(),
             Trade.builder()
@@ -299,9 +314,153 @@ public class DataSeeder implements CommandLineRunner {
                 .entryDate(LocalDate.of(2025, 5, 1))
                 .exitDate(LocalDate.of(2025, 10, 1))
                 .notes("Partial profit booking")
+                .broker("UPSTOX")
                 .user(user)
                 .build()
         );
         tradeRepository.saveAll(trades);
+    }
+
+    private void seedInvestments(User user) {
+        List<Investment> investments = List.of(
+            // FD - Monthly Interest
+            Investment.builder()
+                .name("SBI Fixed Deposit")
+                .type(InvestmentType.FD)
+                .buyPrice(new BigDecimal("100000.00"))
+                .currentValue(new BigDecimal("107500.00"))  // 7.5% returns
+                .quantity(1)
+                .buyDate(LocalDate.of(2024, 1, 15))
+                .notes("5 year FD @ 7.5% p.a., monthly interest payout")
+                .interestEnabled(true)
+                .interestRate(new BigDecimal("7.50"))
+                .interestFrequency(InterestFrequency.MONTHLY)
+                .lastInterestDate(LocalDate.of(2025, 4, 1))
+                .user(user)
+                .build(),
+            
+            // RD - Quarterly Interest
+            Investment.builder()
+                .name("Post Office RD")
+                .type(InvestmentType.RD)
+                .buyPrice(new BigDecimal("60000.00"))  // 5000 x 12 months
+                .currentValue(new BigDecimal("64500.00"))
+                .quantity(12)
+                .buyDate(LocalDate.of(2024, 6, 1))
+                .notes("Monthly 5000, 7.2% p.a., compounded quarterly")
+                .interestEnabled(true)
+                .interestRate(new BigDecimal("7.20"))
+                .interestFrequency(InterestFrequency.QUARTERLY)
+                .lastInterestDate(LocalDate.of(2025, 3, 1))
+                .user(user)
+                .build(),
+            
+            // Gold
+            Investment.builder()
+                .name("24K Gold Biscuit (50g)")
+                .type(InvestmentType.GOLD)
+                .buyPrice(new BigDecimal("75000.00"))  // 1500/g
+                .currentValue(new BigDecimal("85000.00"))  // 1700/g
+                .quantity(1)
+                .buyDate(LocalDate.of(2024, 3, 10))
+                .notes("Physical gold, stored in bank locker")
+                .user(user)
+                .build(),
+            
+            // Property
+            Investment.builder()
+                .name("Residential Plot - Noida")
+                .type(InvestmentType.PROPERTY)
+                .buyPrice(new BigDecimal("2500000.00"))
+                .currentValue(new BigDecimal("3200000.00"))
+                .quantity(1)
+                .buyDate(LocalDate.of(2023, 8, 20))
+                .notes("100 sq yards plot, Sector 150")
+                .user(user)
+                .build(),
+            
+            // Stocks
+            Investment.builder()
+                .name("Reliance Industries")
+                .type(InvestmentType.STOCKS)
+                .buyPrice(new BigDecimal("2450.00"))
+                .currentValue(new BigDecimal("2850.00"))
+                .quantity(50)
+                .buyDate(LocalDate.of(2024, 5, 15))
+                .notes("Long term holding")
+                .user(user)
+                .build(),
+            
+            // Mutual Fund
+            Investment.builder()
+                .name("SBI Blue Chip Fund")
+                .type(InvestmentType.MUTUAL_FUND)
+                .buyPrice(new BigDecimal("50000.00"))
+                .currentValue(new BigDecimal("58200.00"))
+                .quantity(1)
+                .buyDate(LocalDate.of(2024, 2, 1))
+                .notes("SIP 5000/month, Direct plan")
+                .user(user)
+                .build(),
+            
+            // Bonds - Half Yearly Interest
+            Investment.builder()
+                .name("RBI Floating Rate Bonds")
+                .type(InvestmentType.BONDS)
+                .buyPrice(new BigDecimal("200000.00"))
+                .currentValue(new BigDecimal("218000.00"))
+                .quantity(1)
+                .buyDate(LocalDate.of(2024, 4, 10))
+                .notes("7.15% p.a., interest paid semi-annually")
+                .interestEnabled(true)
+                .interestRate(new BigDecimal("7.15"))
+                .interestFrequency(InterestFrequency.HALF_YEARLY)
+                .lastInterestDate(LocalDate.of(2025, 4, 10))
+                .user(user)
+                .build(),
+            
+            // PPF - Yearly Interest
+            Investment.builder()
+                .name("PPF Account")
+                .type(InvestmentType.PPF)
+                .buyPrice(new BigDecimal("150000.00"))
+                .currentValue(new BigDecimal("172500.00"))
+                .quantity(1)
+                .buyDate(LocalDate.of(2023, 4, 5))
+                .notes("Yearly 1.5L, 7.1% tax-free")
+                .interestEnabled(true)
+                .interestRate(new BigDecimal("7.10"))
+                .interestFrequency(InterestFrequency.YEARLY)
+                .lastInterestDate(LocalDate.of(2025, 4, 5))
+                .user(user)
+                .build(),
+            
+            // Cryptocurrency
+            Investment.builder()
+                .name("Bitcoin (BTC)")
+                .type(InvestmentType.CRYPTOCURRENCY)
+                .buyPrice(new BigDecimal("45000.00"))  // 45L/BTC
+                .currentValue(new BigDecimal("52000.00"))  // 52L/BTC
+                .quantity(1)
+                .buyDate(LocalDate.of(2024, 7, 20))
+                .notes("0.001 BTC holding")
+                .user(user)
+                .build(),
+            
+            // Silver
+            Investment.builder()
+                .name("Silver Coins (1kg)")
+                .type(InvestmentType.SILVER)
+                .buyPrice(new BigDecimal("72000.00"))  // 72/kg
+                .currentValue(new BigDecimal("78000.00"))  // 78/kg
+                .quantity(1)
+                .buyDate(LocalDate.of(2024, 9, 1))
+                .notes("1 kg silver coins")
+                .user(user)
+                .build()
+        );
+        
+        investmentRepository.saveAll(investments);
+        System.out.println("=== DataSeeder: Seeded " + investments.size() + " investments ===");
     }
 }

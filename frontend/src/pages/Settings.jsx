@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Shield, ShieldOff } from 'lucide-react';
+import { Shield, ShieldOff, Building2, Plus, Trash2 } from 'lucide-react';
 import Header from '../components/Header';
-import { getBudgets, saveBudget } from '../api';
+import { getBudgets, saveBudget, getBrokers } from '../api';
 
 export const DELETE_LOCK_KEY = 'finapp_delete_locked';
+export const BROKERS_KEY = 'finapp_custom_brokers';
 
 export default function Settings() {
   const [budgets, setBudgets] = useState([]);
@@ -12,12 +13,42 @@ export default function Settings() {
   const [deleteLocked, setDeleteLocked] = useState(
     () => localStorage.getItem(DELETE_LOCK_KEY) === 'true'
   );
+  const [brokers, setBrokers] = useState([]);
+  const [newBrokerName, setNewBrokerName] = useState('');
 
   useEffect(() => {
-    getBudgets()
-      .then((res) => setBudgets(res.data.map((b) => ({ ...b, limitAmount: String(b.limitAmount) }))))
-      .finally(() => setLoading(false));
+    Promise.all([
+      getBudgets().then((res) => setBudgets(res.data.map((b) => ({ ...b, limitAmount: String(b.limitAmount) })))),
+      getBrokers().then((res) => {
+        // Merge API brokers with custom brokers from localStorage, filter out empty/null
+        const apiBrokers = (res.data || []).filter(b => b && b.trim() !== '');
+        const customBrokers = JSON.parse(localStorage.getItem(BROKERS_KEY) || '[]').filter(b => b && b.trim() !== '');
+        const merged = [...new Set([...apiBrokers, ...customBrokers])];
+        setBrokers(merged);
+      })
+    ]).finally(() => setLoading(false));
   }, []);
+
+  // Save custom brokers to localStorage whenever they change
+  useEffect(() => {
+    if (brokers.length > 0) {
+      const apiBrokers = ['ZERODHA', 'UPSTOX', 'ANGELONE', 'COINBASE']; // Default brokers from API
+      const customBrokers = brokers.filter(b => b && b.trim() !== '' && !apiBrokers.includes(b));
+      localStorage.setItem(BROKERS_KEY, JSON.stringify(customBrokers));
+    }
+  }, [brokers]);
+
+  const handleAddBroker = async () => {
+    if (newBrokerName.trim() && !brokers.includes(newBrokerName.trim().toUpperCase())) {
+      const upperName = newBrokerName.trim().toUpperCase();
+      setBrokers([...brokers, upperName]);
+      setNewBrokerName('');
+    }
+  };
+
+  const handleRemoveBroker = (brokerToRemove) => {
+    setBrokers(brokers.filter(b => b !== brokerToRemove));
+  };
 
   const toggleDeleteLock = () => {
     const next = !deleteLocked;
@@ -68,6 +99,65 @@ export default function Settings() {
                 deleteLocked ? 'translate-x-6' : 'translate-x-0'
               }`} />
             </button>
+          </div>
+
+          {/* Broker Management */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
+                <Building2 size={20} className="text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h2 className="font-bold text-slate-800 dark:text-slate-200">Brokers</h2>
+                <p className="text-xs text-gray-400 dark:text-gray-500">Manage your trading brokers</p>
+              </div>
+            </div>
+
+            {/* Add New Broker */}
+            <div className="flex gap-2 mb-4">
+              <input
+                type="text"
+                value={newBrokerName}
+                onChange={(e) => setNewBrokerName(e.target.value)}
+                placeholder="Enter broker name (e.g., GROWW, FYERS)"
+                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                onKeyPress={(e) => e.key === 'Enter' && handleAddBroker()}
+              />
+              <button
+                onClick={handleAddBroker}
+                disabled={!newBrokerName.trim()}
+                className="flex items-center gap-1 px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors text-sm disabled:opacity-50"
+              >
+                <Plus size={16} />
+                Add
+              </button>
+            </div>
+
+            {/* Brokers List */}
+            <div className="flex flex-wrap gap-2">
+              {brokers.length === 0 ? (
+                <p className="text-sm text-gray-400 dark:text-gray-500 italic">No brokers added yet. Add your first broker above.</p>
+              ) : (
+                brokers.map((broker) => (
+                  <div
+                    key={broker}
+                    className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-xl text-sm"
+                  >
+                    <span className="font-medium text-slate-700 dark:text-slate-300">{broker}</span>
+                    <button
+                      onClick={() => handleRemoveBroker(broker)}
+                      className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                      title="Remove broker"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
+              Note: Removing a broker from this list won't affect existing trades. New trades will use the updated list.
+            </p>
           </div>
 
           <h2 className="font-bold text-slate-800 dark:text-slate-200 mb-6">Budget Limits</h2>

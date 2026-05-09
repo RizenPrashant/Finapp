@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Insights from './pages/Insights';
 import Transactions from './pages/Transactions';
 import Trading from './pages/Trading';
+import Investments from './pages/Investments';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
@@ -33,6 +34,7 @@ function MainLayout() {
     Insights: () => <Insights />,
     Transactions: () => <Transactions />,
     Trading: () => <Trading />,
+    Investments: () => <Investments />,
     Analytics: () => <Analytics />,
     Settings: () => <Settings />,
   };
