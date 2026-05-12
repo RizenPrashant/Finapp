@@ -33,6 +33,7 @@ export const getDashboardSummary = () => api.get('/dashboard/summary');
 
 export const getTransactions = (params = {}) => api.get('/transactions', { params });
 export const getTransactionsByBudget = (budgetCategory) => api.get(`/transactions/budget/${encodeURIComponent(budgetCategory)}`);
+export const getTransactionsBySource = (source) => api.get(`/transactions/source/${encodeURIComponent(source)}`);
 export const getTransactionsByType = (type) => api.get(`/transactions/type/${type}`);
 export const createTransaction = (data) => api.post('/transactions', data);
 export const updateTransaction = (id, data) => api.put(`/transactions/${id}`, data);

@@ -49,6 +49,9 @@ public class Transaction {
 
     private String description;
 
+    @Column(name = "payment_source")
+    private String paymentSource;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @JsonIgnoreProperties({"transactions", "assets", "budgets", "password"})

@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft, Trash2, Edit3, TrendingUp, TrendingDown, DollarSign, PieChart, Target, ArrowUp, ArrowDown, Home, Gem, Briefcase, Building2, Landmark, Wallet, Receipt, CreditCard, Edit2 } from 'lucide-react';
+import { Plus, ArrowLeft, Trash2, Edit3, TrendingUp, TrendingDown, DollarSign, PieChart, Target, ArrowUp, ArrowDown, Home, Gem, Briefcase, Building2, Landmark, Wallet, Receipt, CreditCard, Edit2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import Header from '../components/Header';
 import AddAssetModal from '../components/AddAssetModal';
 import AddInvestmentModal from '../components/AddInvestmentModal';
+import AddTransactionModal from '../components/AddTransactionModal';
+import EditTransactionModal from '../components/EditTransactionModal';
 import InvestmentCard from '../components/InvestmentCard';
 import AssetCard from '../components/AssetCard';
 import { 
   getAssetsByType, createAsset, deleteAsset, updateAsset, getDashboardSummary,
-  getInvestments, getInvestmentsByType, createInvestment, updateInvestment, deleteInvestment, getInvestmentAnalytics
+  getInvestments, getInvestmentsByType, createInvestment, updateInvestment, deleteInvestment, getInvestmentAnalytics,
+  getTransactionsBySource, createTransaction, updateTransaction, deleteTransaction
 } from '../api';
 import { DELETE_LOCK_KEY } from './Settings';
 
@@ -49,6 +52,13 @@ export default function Insights({ onProfileClick }) {
   
   const [showInvestmentModal, setShowInvestmentModal] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState(null);
+
+  // Bank transactions drill-down
+  const [selectedBankAsset, setSelectedBankAsset] = useState(null); // asset object
+  const [bankTransactions, setBankTransactions] = useState([]);
+  const [bankTxLoading, setBankTxLoading] = useState(false);
+  const [showAddTxModal, setShowAddTxModal] = useState(false);
+  const [editingTx, setEditingTx] = useState(null);
   
   const deleteLocked = localStorage.getItem(DELETE_LOCK_KEY) === 'true';
 
@@ -141,6 +151,51 @@ export default function Insights({ onProfileClick }) {
     setShowAssetModal(true);
   };
 
+  // Bank / Credit Card transactions handlers
+  const openSourceTransactions = async (asset) => {
+    setSelectedBankAsset(asset);
+    setBankTxLoading(true);
+    try {
+      const res = await getTransactionsBySource(asset.name);
+      setBankTransactions(res.data);
+    } catch (e) {
+      console.error('Error loading transactions:', e);
+    }
+    setBankTxLoading(false);
+  };
+
+  const handleAddBankTx = async (data) => {
+    try {
+      await createTransaction({ ...data, paymentSource: selectedBankAsset.name });
+      const res = await getTransactionsBySource(selectedBankAsset.name);
+      setBankTransactions(res.data);
+      setShowAddTxModal(false);
+    } catch (e) {
+      alert('Failed to add transaction: ' + (e.response?.data?.message || e.message));
+    }
+  };
+
+  const handleEditBankTx = async (id, data) => {
+    try {
+      await updateTransaction(id, data);
+      const res = await getTransactionsBySource(selectedBankAsset.name);
+      setBankTransactions(res.data);
+      setEditingTx(null);
+    } catch (e) {
+      alert('Failed to update transaction: ' + (e.response?.data?.message || e.message));
+    }
+  };
+
+  const handleDeleteBankTx = async (id) => {
+    if (!window.confirm('Delete this transaction?')) return;
+    try {
+      await deleteTransaction(id);
+      setBankTransactions(prev => prev.filter(t => t.id !== id));
+    } catch (e) {
+      alert('Failed to delete: ' + (e.response?.data?.message || e.message));
+    }
+  };
+
   // Investment handlers
   const handleAddInvestment = async (data) => {
     try {
@@ -187,7 +242,7 @@ export default function Insights({ onProfileClick }) {
     setShowInvestmentModal(true);
   };
 
-  const fmt = (val) => val != null ? `₹${parseFloat(val).toLocaleString('en-IN')}` : '₹0';
+  const fmt = (val) => val != null ? `₹${parseFloat(val).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '₹0';
 
   const summaryMap = {
     ASSET: summary?.totalAssets,
@@ -197,6 +252,144 @@ export default function Insights({ onProfileClick }) {
   };
 
   const isProfit = investmentAnalytics?.netProfitLoss >= 0;
+
+  // ========== BANK TRANSACTIONS VIEW ==========
+  if (selectedBankAsset) {
+    const totalCredit = bankTransactions.filter(t => t.type === 'CREDIT').reduce((s, t) => s + parseFloat(t.amount), 0);
+    const totalDebit = bankTransactions.filter(t => t.type === 'DEBIT').reduce((s, t) => s + parseFloat(t.amount), 0);
+    const sorted = [...bankTransactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header title={selectedBankAsset.name} subtitle={selectedBankAsset.category === 'CREDIT_CARD' ? 'Credit Card Transactions' : 'Bank Transactions'} onProfileClick={onProfileClick} />
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* Back + Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setSelectedBankAsset(null)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 transition"
+              >
+                <ArrowLeft size={18} />
+              </button>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">{selectedBankAsset.name}</h2>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">{bankTransactions.length} transactions · Balance: {fmt(selectedBankAsset.value)}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowAddTxModal(true)}
+              className="flex items-center gap-2 bg-slate-900 dark:bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-slate-700 transition text-sm"
+            >
+              <Plus size={18} /> Add Transaction
+            </button>
+          </div>
+
+          {/* Summary */}
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Account Balance</p>
+              <p className="text-xl font-bold text-slate-800 dark:text-slate-200">{fmt(selectedBankAsset.value)}</p>
+            </div>
+            <div className="bg-green-50 dark:bg-green-900/20 rounded-2xl border border-green-100 dark:border-green-800 p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <ArrowDownCircle size={16} className="text-green-600" />
+                <p className="text-xs text-gray-500 dark:text-gray-400">Total Credit</p>
+              </div>
+              <p className="text-xl font-bold text-green-700 dark:text-green-400">+{fmt(totalCredit)}</p>
+            </div>
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-2xl border border-red-100 dark:border-red-800 p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <ArrowUpCircle size={16} className="text-red-600" />
+                <p className="text-xs text-gray-500 dark:text-gray-400">Total Debit</p>
+              </div>
+              <p className="text-xl font-bold text-red-700 dark:text-red-400">-{fmt(totalDebit)}</p>
+            </div>
+          </div>
+
+          {/* Transactions List */}
+          {bankTxLoading ? (
+            <div className="space-y-3">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="bg-gray-100 dark:bg-gray-700 rounded-2xl h-16 animate-pulse" />
+              ))}
+            </div>
+          ) : sorted.length === 0 ? (
+            <div className="text-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-600">
+              <Receipt size={40} className="text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+              <p className="text-slate-800 dark:text-slate-200 font-medium">No transactions yet</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Add transactions linked to {selectedBankAsset.name}</p>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                    <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Description</th>
+                    <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Category</th>
+                    <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                    <th className="text-right px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Amount</th>
+                    <th className="px-5 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                  {sorted.map(tx => (
+                    <tr key={tx.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-1.5 rounded-lg ${tx.type === 'CREDIT' ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                            {tx.type === 'CREDIT'
+                              ? <ArrowDownCircle size={14} className="text-green-600" />
+                              : <ArrowUpCircle size={14} className="text-red-600" />}
+                          </div>
+                          <span className="font-medium text-slate-700 dark:text-slate-300">{tx.title}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 text-gray-500 dark:text-gray-400">{tx.category}</td>
+                      <td className="px-5 py-3.5 text-gray-500 dark:text-gray-400">
+                        {new Date(tx.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td className={`px-5 py-3.5 text-right font-bold ${tx.type === 'CREDIT' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {tx.type === 'CREDIT' ? '+' : '-'}{fmt(tx.amount)}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => setEditingTx(tx)}
+                            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition">
+                            <Edit2 size={13} />
+                          </button>
+                          <button onClick={() => handleDeleteBankTx(tx.id)}
+                            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {showAddTxModal && (
+          <AddTransactionModal
+            budgetCategory="Miscellaneous"
+            prefilledSource={selectedBankAsset.name}
+            onClose={() => setShowAddTxModal(false)}
+            onSave={handleAddBankTx}
+          />
+        )}
+        {editingTx && (
+          <EditTransactionModal
+            transaction={editingTx}
+            onClose={() => setEditingTx(null)}
+            onSave={handleEditBankTx}
+          />
+        )}
+      </div>
+    );
+  }
 
   // ========== DETAIL VIEW ==========
   if (selectedType) {
@@ -367,6 +560,7 @@ export default function Insights({ onProfileClick }) {
                     asset={item}
                     onEdit={openEditAsset}
                     onDelete={handleDeleteAsset}
+                    onViewTransactions={openSourceTransactions}
                   />
                 ))}
               </div>

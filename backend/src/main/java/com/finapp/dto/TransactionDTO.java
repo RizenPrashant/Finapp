@@ -32,4 +32,6 @@ public class TransactionDTO {
     private LocalDate date;
 
     private String description;
+
+    private String paymentSource;
 }

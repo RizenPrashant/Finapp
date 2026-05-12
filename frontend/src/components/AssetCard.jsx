@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Edit2, Trash2, TrendingUp, TrendingDown, Building2, Wallet, Gem, Home, Car, DollarSign } from 'lucide-react';
+import { Edit2, Trash2, Building2, Wallet, Gem, Home, Car, DollarSign, Receipt, TrendingUp } from 'lucide-react';
 
 const assetIcons = {
   CASH: Wallet,
@@ -18,7 +17,7 @@ const assetTypeColors = {
   INVESTMENT: 'text-green-600 bg-green-50 dark:bg-green-900/20'
 };
 
-export default function AssetCard({ asset, onEdit, onDelete }) {
+export default function AssetCard({ asset, onEdit, onDelete, onViewTransactions }) {
   const Icon = assetIcons[asset.category] || DollarSign;
   const typeColor = assetTypeColors[asset.type] || assetTypeColors.ASSET;
   
@@ -44,6 +43,15 @@ export default function AssetCard({ asset, onEdit, onDelete }) {
         </div>
         
         <div className="flex items-center gap-1">
+          {(asset.category === 'BANK' || asset.category === 'CREDIT_CARD') && onViewTransactions && (
+            <button
+              onClick={() => onViewTransactions(asset)}
+              title="View Transactions"
+              className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            >
+              <Receipt size={14} />
+            </button>
+          )}
           <button
             onClick={() => onEdit(asset)}
             className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"

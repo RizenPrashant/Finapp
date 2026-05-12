@@ -10,6 +10,7 @@ import Transactions from './pages/Transactions';
 import Trading from './pages/Trading';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
+import Compounding from './pages/Compounding';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import { updateProfile } from './api';
@@ -47,6 +48,7 @@ function MainLayout() {
     Insights: (onNavigate, onProfileClick) => <Insights onNavigate={onNavigate} onProfileClick={onProfileClick} />,
     Transactions: (onNavigate, onProfileClick) => <Transactions onProfileClick={onProfileClick} />,
     Trading: (onNavigate, onProfileClick) => <Trading onProfileClick={onProfileClick} />,
+    Compounding: (onNavigate, onProfileClick) => <Compounding onProfileClick={onProfileClick} />,
     Analytics: (onNavigate, onProfileClick) => <Analytics onProfileClick={onProfileClick} />,
     Settings: (onNavigate, onProfileClick) => <Settings onProfileClick={onProfileClick} />,
   };

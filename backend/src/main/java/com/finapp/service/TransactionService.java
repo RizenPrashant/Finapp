@@ -55,6 +55,10 @@ public class TransactionService {
         return transactionRepository.findByUserAndBudgetCategoryIgnoreCase(user, budgetCategory);
     }
 
+    public List<Transaction> getByPaymentSource(String paymentSource, User user) {
+        return transactionRepository.findByUserAndPaymentSourceIgnoreCaseOrderByDateDesc(user, paymentSource);
+    }
+
     public List<Transaction> getByType(TransactionType type, User user) {
         return transactionRepository.findByUserAndType(user, type);
     }
@@ -68,6 +72,7 @@ public class TransactionService {
                 .budgetCategory(dto.getBudgetCategory())
                 .date(dto.getDate())
                 .description(dto.getDescription())
+                .paymentSource(dto.getPaymentSource())
                 .user(user)
                 .build();
         return transactionRepository.save(transaction);
@@ -83,6 +88,7 @@ public class TransactionService {
         existing.setBudgetCategory(dto.getBudgetCategory());
         existing.setDate(dto.getDate());
         existing.setDescription(dto.getDescription());
+        existing.setPaymentSource(dto.getPaymentSource());
         return transactionRepository.save(existing);
     }
 

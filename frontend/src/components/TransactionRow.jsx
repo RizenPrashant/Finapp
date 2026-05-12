@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowDownLeft, ArrowUpRight, Trash2, Pencil, AlertTriangle } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Trash2, Pencil, AlertTriangle, Building2, CreditCard } from 'lucide-react';
 
 function DeleteConfirmDialog({ transaction, onConfirm, onCancel }) {
   return (
@@ -61,7 +61,15 @@ export default function TransactionRow({ transaction, onDelete, onEdit, deleteLo
           </div>
           <div>
             <p className="font-semibold text-slate-700 dark:text-slate-300 text-sm">{transaction.title}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">{transaction.date} · {transaction.category}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-xs text-gray-400 dark:text-gray-500">{transaction.date} · {transaction.category}</p>
+              {transaction.paymentSource && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[10px] font-semibold">
+                  <Building2 size={9} />
+                  {transaction.paymentSource}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">

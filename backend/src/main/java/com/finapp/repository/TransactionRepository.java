@@ -76,6 +76,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.type = :type AND LOWER(t.budgetCategory) != 'income'")
     BigDecimal sumExpensesByType(TransactionType type);
 
+    List<Transaction> findByUserAndPaymentSourceIgnoreCaseOrderByDateDesc(User user, String paymentSource);
+
     // User-specific analytics
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user = :user AND t.type = :type")
     BigDecimal sumByUserAndType(@Param("user") User user, @Param("type") TransactionType type);

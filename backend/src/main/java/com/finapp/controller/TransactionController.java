@@ -54,6 +54,11 @@ public class TransactionController {
         return transactionService.getByType(type, getCurrentUser());
     }
 
+    @GetMapping("/source/{source}")
+    public List<Transaction> getByPaymentSource(@PathVariable String source) {
+        return transactionService.getByPaymentSource(source, getCurrentUser());
+    }
+
     @PostMapping
     public ResponseEntity<Transaction> create(@Valid @RequestBody TransactionDTO dto) {
         return ResponseEntity.ok(transactionService.create(dto, getCurrentUser()));
