@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowDownLeft, ArrowUpRight, Trash2, Pencil, AlertTriangle, Building2, CreditCard } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Trash2, Pencil, AlertTriangle, Building2, CreditCard, Gift } from 'lucide-react';
 
 function DeleteConfirmDialog({ transaction, onConfirm, onCancel }) {
   return (
@@ -63,12 +63,19 @@ export default function TransactionRow({ transaction, onDelete, onEdit, deleteLo
             <p className="font-semibold text-slate-700 dark:text-slate-300 text-sm">{transaction.title}</p>
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-xs text-gray-400 dark:text-gray-500">{transaction.date} · {transaction.category}</p>
-              {transaction.paymentSource && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[10px] font-semibold">
-                  <Building2 size={9} />
-                  {transaction.paymentSource}
-                </span>
-              )}
+              {transaction.paymentSource && (() => {
+                const isCashback = transaction.category === 'Cashback Earned' || transaction.category === 'Cashback Redeemed' || transaction.budgetCategory === 'Cashback';
+                return (
+                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${
+                    isCashback
+                      ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'
+                      : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                  }`}>
+                    {isCashback ? <Gift size={9} /> : <Building2 size={9} />}
+                    {transaction.paymentSource}
+                  </span>
+                );
+              })()}
             </div>
           </div>
         </div>

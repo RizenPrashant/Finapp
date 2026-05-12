@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, Building2, CreditCard } from 'lucide-react';
-import { getAssetsByType } from '../api';
+import { X, Building2, CreditCard, Gift } from 'lucide-react';
+import { getAssetsByType, getCashbackWallets } from '../api';
 
 const categoryOptions = {
   'Monthly Food Expense': ['Groceries', 'Dining Out', 'Cafe', 'Food Delivery'],
@@ -25,16 +25,19 @@ export default function AddTransactionModal({ budgetCategory, onClose, onSave, p
   const [loading, setLoading] = useState(false);
   const [banks, setBanks] = useState([]);
   const [creditCards, setCreditCards] = useState([]);
+  const [cashbackWallets, setCashbackWallets] = useState([]);
 
   useEffect(() => {
     const fetchSources = async () => {
       try {
-        const [assetRes, liabRes] = await Promise.all([
+        const [assetRes, liabRes, cbRes] = await Promise.all([
           getAssetsByType('ASSET'),
           getAssetsByType('LIABILITY'),
+          getCashbackWallets(),
         ]);
         setBanks((assetRes.data || []).filter(a => a.category === 'BANK'));
         setCreditCards((liabRes.data || []).filter(a => a.category === 'CREDIT_CARD'));
+        setCashbackWallets(cbRes.data || []);
       } catch (e) {
         console.error('Failed to load payment sources', e);
       }
@@ -53,6 +56,7 @@ export default function AddTransactionModal({ budgetCategory, onClose, onSave, p
   const allSources = [
     ...banks.map(b => ({ name: b.name, type: 'Bank', icon: Building2 })),
     ...creditCards.map(c => ({ name: c.name, type: 'Credit Card', icon: CreditCard })),
+    ...cashbackWallets.map(w => ({ name: w.platform, type: 'Cashback', icon: Gift, emoji: w.icon, balance: w.balance })),
   ];
 
   const inputCls = 'w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 text-sm dark:text-white';
@@ -97,13 +101,22 @@ export default function AddTransactionModal({ budgetCategory, onClose, onSave, p
                 {allSources.map(src => {
                   const Icon = src.icon;
                   const selected = form.paymentSource === src.name;
+                  const isCashback = src.type === 'Cashback';
                   return (
                     <button key={src.name} type="button"
                       onClick={() => setForm({ ...form, paymentSource: src.name })}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${selected ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-                      <Icon size={12} />
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                        selected
+                          ? isCashback ? 'bg-purple-600 text-white border-purple-600' : 'bg-slate-900 text-white border-slate-900'
+                          : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}>
+                      {isCashback
+                        ? <span className="text-sm leading-none">{src.emoji}</span>
+                        : <Icon size={12} />}
                       {src.name}
-                      <span className={`text-[10px] ${selected ? 'text-gray-300' : 'text-gray-400'}`}>({src.type})</span>
+                      {isCashback
+                        ? <span className={`text-[10px] ${selected ? 'text-purple-200' : 'text-gray-400'}`}>₹{parseFloat(src.balance || 0).toLocaleString('en-IN')}</span>
+                        : <span className={`text-[10px] ${selected ? 'text-gray-300' : 'text-gray-400'}`}>({src.type})</span>}
                     </button>
                   );
                 })}

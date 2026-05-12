@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { ChevronLeft, ChevronRight, Download, Gift } from 'lucide-react';
 import Header from '../components/Header';
 import TransactionRow from '../components/TransactionRow';
 import EditTransactionModal from '../components/EditTransactionModal';
 import { DELETE_LOCK_KEY } from '../pages/Settings';
-import { getTransactions, updateTransaction, deleteTransaction } from '../api';
+import { getTransactions, updateTransaction, deleteTransaction, getCashbackWallets, getCashbackEntriesByWallet } from '../api';
 import { exportToXlsx } from '../utils/exportXlsx';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -24,6 +24,39 @@ export default function Transactions({ onProfileClick }) {
   const [allMonths, setAllMonths] = useState(false);
   const [customStartDate, setCustomStartDate] = useState(now.toISOString().split('T')[0]);
   const [customEndDate, setCustomEndDate] = useState(now.toISOString().split('T')[0]);
+  const [cashbackWallets, setCashbackWallets] = useState([]);
+  const [selectedWalletId, setSelectedWalletId] = useState(null);
+  const [cashbackMode, setCashbackMode] = useState(false);
+
+  useEffect(() => {
+    getCashbackWallets().then(r => setCashbackWallets(r.data)).catch(() => {});
+  }, []);
+
+  const handleWalletSelect = useCallback(async (walletId) => {
+    if (walletId === null) {
+      setCashbackMode(false);
+      setSelectedWalletId(null);
+      return;
+    }
+    setCashbackMode(true);
+    setSelectedWalletId(walletId);
+    setLoading(true);
+    const res = await getCashbackEntriesByWallet(walletId);
+    const mapped = (res.data || []).map(e => ({
+      id: e.id,
+      title: e.description,
+      amount: e.amount,
+      type: e.type === 'EARNED' ? 'CREDIT' : 'DEBIT',
+      category: e.type === 'EARNED' ? 'Cashback Earned' : 'Cashback Redeemed',
+      budgetCategory: 'Cashback',
+      date: e.date,
+      description: e.source || '',
+      paymentSource: e.wallet?.platform || '',
+      isCashback: true,
+    }));
+    setTransactions(mapped);
+    setLoading(false);
+  }, []);
 
   const fetchTransactions = async (month, year, type, all, fType, date, startDate, endDate) => {
     setLoading(true);
@@ -49,8 +82,9 @@ export default function Transactions({ onProfileClick }) {
   };
 
   useEffect(() => {
+    if (cashbackMode) return;
     fetchTransactions(selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate);
-  }, [selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate]);
+  }, [selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate, cashbackMode]);
 
   const handleDelete = async (id) => {
     await deleteTransaction(id);
@@ -92,8 +126,36 @@ export default function Transactions({ onProfileClick }) {
 
         {/* Filter Bar */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 space-y-3">
-          {/* Filter Type Tabs */}
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Cashback Wallet Filter */}
+          {cashbackWallets.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap pb-2 border-b border-gray-100 dark:border-gray-700">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"><Gift size={13} /> Cashback</span>
+              <button
+                onClick={() => handleWalletSelect(null)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  !cashbackMode ? 'bg-slate-900 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}>
+                All Transactions
+              </button>
+              {cashbackWallets.map(w => (
+                <button key={w.id}
+                  onClick={() => handleWalletSelect(w.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    cashbackMode && selectedWalletId === w.id
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600'
+                  }`}>
+                  <span>{w.icon}</span> {w.platform}
+                  {cashbackMode && selectedWalletId === w.id && (
+                    <span className="ml-1 bg-white/20 px-1 rounded text-[10px]">₹{parseFloat(w.balance).toLocaleString('en-IN')}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+        {/* Filter Type Tabs */}
+          <div className={`flex items-center gap-2 flex-wrap ${cashbackMode ? 'opacity-40 pointer-events-none' : ''}`}>
             {['daily','monthly','yearly','all','custom'].map((f) => (
               <button
                 key={f}
@@ -114,8 +176,9 @@ export default function Transactions({ onProfileClick }) {
             </button>
           </div>
 
+          {/* Date Pickers — hidden in cashback mode */}
           {/* Daily Picker */}
-          {filterType === 'daily' && (
+          {!cashbackMode && filterType === 'daily' && (
             <input
               type="date"
               value={selectedDate}
@@ -125,7 +188,7 @@ export default function Transactions({ onProfileClick }) {
           )}
 
           {/* Monthly Picker */}
-          {filterType === 'monthly' && (
+          {!cashbackMode && filterType === 'monthly' && (
             <div className="flex items-center gap-3">
               <button onClick={prevMonth} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                 <ChevronLeft size={18} />
@@ -138,7 +201,7 @@ export default function Transactions({ onProfileClick }) {
           )}
 
           {/* Yearly Picker */}
-          {filterType === 'yearly' && (
+          {!cashbackMode && filterType === 'yearly' && (
             <div className="flex items-center gap-3">
               <button onClick={() => setSelectedYear((y) => y - 1)} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                 <ChevronLeft size={18} />
@@ -151,7 +214,7 @@ export default function Transactions({ onProfileClick }) {
           )}
 
           {/* Custom Date Range Picker */}
-          {filterType === 'custom' && (
+          {!cashbackMode && filterType === 'custom' && (
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <label className="text-sm text-gray-500 dark:text-gray-400">From:</label>

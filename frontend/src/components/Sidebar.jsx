@@ -1,4 +1,4 @@
-import { LayoutGrid, TrendingUp, Wallet, BarChart3, CandlestickChart, Settings, Moon, Sun, Repeat2 } from 'lucide-react';
+import { LayoutGrid, TrendingUp, Wallet, BarChart3, CandlestickChart, Settings, Moon, Sun, Repeat2, Gift } from 'lucide-react';
 
 const navItems = [
   { icon: LayoutGrid, label: 'Dashboard' },
@@ -6,6 +6,7 @@ const navItems = [
   { icon: Wallet, label: 'Transactions' },
   { icon: CandlestickChart, label: 'Trading' },
   { icon: Repeat2, label: 'Compounding' },
+  { icon: Gift, label: 'Cashback' },
   { icon: BarChart3, label: 'Analytics' },
   { icon: Settings, label: 'Settings' },
 ];

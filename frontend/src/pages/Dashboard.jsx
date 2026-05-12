@@ -15,6 +15,7 @@ import {
   createTransaction,
   updateTransaction,
   deleteTransaction,
+  getCashbackWallets,
 } from '../api';
 
 export default function Dashboard({ onNavigate, onProfileClick }) {
@@ -26,6 +27,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
   const [showModal, setShowModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [cashbackTotal, setCashbackTotal] = useState(0);
   const deleteLocked = localStorage.getItem(DELETE_LOCK_KEY) === 'true';
 
   const fetchSummary = useCallback(async () => {
@@ -51,6 +53,10 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
 
   useEffect(() => {
     Promise.all([fetchSummary(), fetchBudgets()]).finally(() => setLoading(false));
+    getCashbackWallets().then(r => {
+      const total = (r.data || []).reduce((s, w) => s + parseFloat(w.balance || 0), 0);
+      setCashbackTotal(total);
+    }).catch(() => {});
   }, [fetchSummary, fetchBudgets]);
 
   const handleBudgetClick = async (budget) => {
@@ -201,11 +207,12 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
       <Header title="Financial Dashboard" subtitle="October 2025" budgets={budgets} budgetSpent={budgetSpent} onProfileClick={onProfileClick} />
       <div className="flex-1 overflow-y-auto p-8 space-y-8">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5">
           <StatsCard title="Total Balance" value={fmt(summary?.totalBalance)} change="+12.5%" positive icon="💰" onClick={() => handleStatClick('BALANCE')} />
           <StatsCard title="Total Income" value={fmt(summary?.totalIncome)} change="+5.2%" positive icon="📈" onClick={() => handleStatClick('CREDIT')} />
           <StatsCard title="Total Expenses" value={fmt(summary?.totalExpenses)} change="+8.1%" positive={false} icon="📉" onClick={() => handleStatClick('DEBIT')} />
           <StatsCard title="Savings Rate" value={`${summary?.savingsRate?.toFixed(1) ?? 0}%`} change="+2.3%" positive icon="🏦" onClick={() => handleStatClick('SAVINGS')} />
+          <StatsCard title="Cashback Balance" value={`₹${cashbackTotal.toLocaleString('en-IN')}`} change="" positive icon="🎁" onClick={() => onNavigate('Cashback')} />
         </div>
 
         {/* Budget Overview */}

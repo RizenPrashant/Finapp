@@ -79,6 +79,15 @@ export const updateInvestment = (id, data) => api.put(`/investments/${id}`, data
 export const deleteInvestment = (id) => api.delete(`/investments/${id}`);
 export const getInvestmentAnalytics = () => api.get('/investments/analytics');
 
+// Cashback APIs
+export const getCashbackWallets = () => api.get('/cashback/wallets');
+export const createCashbackWallet = (data) => api.post('/cashback/wallets', data);
+export const deleteCashbackWallet = (id) => api.delete(`/cashback/wallets/${id}`);
+export const getCashbackEntries = () => api.get('/cashback/entries');
+export const getCashbackEntriesByWallet = (walletId) => api.get(`/cashback/entries/wallet/${walletId}`);
+export const createCashbackEntry = (data) => api.post('/cashback/entries', data);
+export const deleteCashbackEntry = (id) => api.delete(`/cashback/entries/${id}`);
+
 // Profile APIs
 export const getProfile = () => api.get('/profile');
 export const updateProfile = (data) => api.put('/profile', data);
