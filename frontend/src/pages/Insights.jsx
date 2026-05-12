@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, ArrowLeft, Trash2, Edit3, TrendingUp, TrendingDown, DollarSign, PieChart, Target, ArrowUp, ArrowDown, Home, Gem, Briefcase, Building2, Landmark, Wallet, Receipt, CreditCard, Edit2 } from 'lucide-react';
 import Header from '../components/Header';
 import AddAssetModal from '../components/AddAssetModal';
-import EditAssetModal from '../components/EditAssetModal';
 import AddInvestmentModal from '../components/AddInvestmentModal';
 import InvestmentCard from '../components/InvestmentCard';
 import AssetCard from '../components/AssetCard';
@@ -46,7 +45,6 @@ export default function Insights({ onProfileClick }) {
   
   // Modals
   const [showAssetModal, setShowAssetModal] = useState(false);
-  const [showEditAssetModal, setShowEditAssetModal] = useState(false);
   const [editingAsset, setEditingAsset] = useState(null);
   
   const [showInvestmentModal, setShowInvestmentModal] = useState(false);
@@ -98,55 +96,90 @@ export default function Insights({ onProfileClick }) {
 
   // Asset handlers
   const handleAddAsset = async (data) => {
-    await createAsset(data);
-    const res = await getAssetsByType(selectedType);
-    setAssets(res.data);
-    fetchSummary();
-    setShowAssetModal(false);
+    try {
+      console.log('Adding asset:', data);
+      await createAsset(data);
+      const res = await getAssetsByType(selectedType);
+      setAssets(res.data);
+      fetchSummary();
+      setShowAssetModal(false);
+    } catch (error) {
+      console.error('Error adding asset:', error);
+      alert('Failed to add asset: ' + (error.response?.data?.message || error.message));
+    }
   };
 
   const handleEditAsset = async (data) => {
-    await updateAsset(editingAsset.id, data);
-    const res = await getAssetsByType(selectedType);
-    setAssets(res.data);
-    fetchSummary();
-    setShowEditAssetModal(false);
-    setEditingAsset(null);
+    try {
+      const { id, ...updateData } = data;
+      console.log('Editing asset:', id, updateData);
+      await updateAsset(id, updateData);
+      const res = await getAssetsByType(selectedType);
+      setAssets(res.data);
+      fetchSummary();
+      setShowAssetModal(false);
+      setEditingAsset(null);
+    } catch (error) {
+      console.error('Error updating asset:', error);
+      alert('Failed to update asset: ' + (error.response?.data?.message || error.message));
+    }
   };
 
   const handleDeleteAsset = async (id) => {
-    await deleteAsset(id);
-    setAssets((prev) => prev.filter((i) => i.id !== id));
-    fetchSummary();
+    try {
+      await deleteAsset(id);
+      setAssets((prev) => prev.filter((i) => i.id !== id));
+      fetchSummary();
+    } catch (error) {
+      console.error('Error deleting asset:', error);
+      alert('Failed to delete asset: ' + (error.response?.data?.message || error.message));
+    }
   };
 
   const openEditAsset = (asset) => {
     setEditingAsset(asset);
-    setShowEditAssetModal(true);
+    setShowAssetModal(true);
   };
 
   // Investment handlers
   const handleAddInvestment = async (data) => {
-    await createInvestment(data);
-    const res = investmentTab === 'ALL' ? await getInvestments() : await getInvestmentsByType(investmentTab);
-    setInvestments(res.data);
-    fetchSummary();
-    setShowInvestmentModal(false);
+    try {
+      console.log('Adding investment:', data);
+      await createInvestment(data);
+      const res = investmentTab === 'ALL' ? await getInvestments() : await getInvestmentsByType(investmentTab);
+      setInvestments(res.data);
+      fetchSummary();
+      setShowInvestmentModal(false);
+    } catch (error) {
+      console.error('Error adding investment:', error);
+      alert('Failed to add investment: ' + (error.response?.data?.message || error.message));
+    }
   };
 
   const handleEditInvestment = async (data) => {
-    await updateInvestment(editingInvestment.id, data);
-    const res = investmentTab === 'ALL' ? await getInvestments() : await getInvestmentsByType(investmentTab);
-    setInvestments(res.data);
-    fetchSummary();
-    setShowInvestmentModal(false);
-    setEditingInvestment(null);
+    try {
+      console.log('Editing investment:', editingInvestment.id, data);
+      await updateInvestment(editingInvestment.id, data);
+      const res = investmentTab === 'ALL' ? await getInvestments() : await getInvestmentsByType(investmentTab);
+      setInvestments(res.data);
+      fetchSummary();
+      setShowInvestmentModal(false);
+      setEditingInvestment(null);
+    } catch (error) {
+      console.error('Error updating investment:', error);
+      alert('Failed to update investment: ' + (error.response?.data?.message || error.message));
+    }
   };
 
   const handleDeleteInvestment = async (id) => {
-    await deleteInvestment(id);
-    setInvestments((prev) => prev.filter((i) => i.id !== id));
-    fetchSummary();
+    try {
+      await deleteInvestment(id);
+      setInvestments((prev) => prev.filter((i) => i.id !== id));
+      fetchSummary();
+    } catch (error) {
+      console.error('Error deleting investment:', error);
+      alert('Failed to delete investment: ' + (error.response?.data?.message || error.message));
+    }
   };
 
   const openEditInvestment = (inv) => {
@@ -345,20 +378,14 @@ export default function Insights({ onProfileClick }) {
         {showAssetModal && (
           <AddAssetModal
             assetType={selectedType}
-            onClose={() => setShowAssetModal(false)}
-            onSave={handleAddAsset}
-          />
-        )}
-        {showEditAssetModal && editingAsset && (
-          <EditAssetModal
-            asset={editingAsset}
-            onClose={() => { setShowEditAssetModal(false); setEditingAsset(null); }}
-            onSave={handleEditAsset}
+            onClose={() => { setShowAssetModal(false); setEditingAsset(null); }}
+            onSave={editingAsset ? handleEditAsset : handleAddAsset}
+            editingAsset={editingAsset}
           />
         )}
         {showInvestmentModal && (
           <AddInvestmentModal
-            isOpen={showInvestmentModal}
+            isOpen={true}
             onClose={() => { setShowInvestmentModal(false); setEditingInvestment(null); }}
             onSave={editingInvestment ? handleEditInvestment : handleAddInvestment}
             editingInvestment={editingInvestment}
@@ -396,7 +423,7 @@ export default function Insights({ onProfileClick }) {
             <div
               key={card.type}
               onClick={() => handleCardClick(card.type)}
-              className={`bg-white dark:bg-gray-800 rounded-2xl border-2 ${card.border} dark:border-gray-700 shadow-sm p-6 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all group`}
+              className={`bg-white dark:bg-gray-800 rounded-2xl border ${card.border} dark:border-gray-700 shadow-sm p-6 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all group`}
             >
               <div className="flex items-center justify-between mb-4">
                 <div className={`w-14 h-14 ${card.bg} ${card.darkBg} rounded-2xl flex items-center justify-center`}>

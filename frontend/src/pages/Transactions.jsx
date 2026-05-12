@@ -17,13 +17,15 @@ export default function Transactions({ onProfileClick }) {
   const deleteLocked = localStorage.getItem(DELETE_LOCK_KEY) === 'true';
 
   const now = new Date();
-  const [filterType, setFilterType] = useState('monthly'); // daily, monthly, yearly, all
+  const [filterType, setFilterType] = useState('monthly'); // daily, monthly, yearly, all, custom
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedDate, setSelectedDate] = useState(now.toISOString().split('T')[0]);
   const [allMonths, setAllMonths] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState(now.toISOString().split('T')[0]);
+  const [customEndDate, setCustomEndDate] = useState(now.toISOString().split('T')[0]);
 
-  const fetchTransactions = async (month, year, type, all, fType, date) => {
+  const fetchTransactions = async (month, year, type, all, fType, date, startDate, endDate) => {
     setLoading(true);
     const params = {};
     if (fType === 'daily') {
@@ -34,6 +36,9 @@ export default function Transactions({ onProfileClick }) {
       params.year = year;
     } else if (fType === 'yearly') {
       params.year = year;
+    } else if (fType === 'custom') {
+      params.startDate = startDate;
+      params.endDate = endDate;
     }
     // all = no date params
     if (type !== 'ALL') params.type = type;
@@ -44,8 +49,8 @@ export default function Transactions({ onProfileClick }) {
   };
 
   useEffect(() => {
-    fetchTransactions(selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate);
-  }, [selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate]);
+    fetchTransactions(selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate);
+  }, [selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate]);
 
   const handleDelete = async (id) => {
     await deleteTransaction(id);
@@ -54,7 +59,7 @@ export default function Transactions({ onProfileClick }) {
 
   const handleEdit = async (id, data) => {
     await updateTransaction(id, data);
-    fetchTransactions(selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate);
+    fetchTransactions(selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate);
   };
 
   const handleExport = async () => {
@@ -88,8 +93,8 @@ export default function Transactions({ onProfileClick }) {
         {/* Filter Bar */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 space-y-3">
           {/* Filter Type Tabs */}
-          <div className="flex items-center gap-2">
-            {['daily','monthly','yearly','all'].map((f) => (
+          <div className="flex items-center gap-2 flex-wrap">
+            {['daily','monthly','yearly','all','custom'].map((f) => (
               <button
                 key={f}
                 onClick={() => { setFilterType(f); setAllMonths(f === 'all'); }}
@@ -97,7 +102,7 @@ export default function Transactions({ onProfileClick }) {
                   filterType === f ? 'bg-slate-900 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
-                {f === 'all' ? 'All Time' : f}
+                {f === 'all' ? 'All Time' : f === 'custom' ? 'Custom Range' : f}
               </button>
             ))}
             <button
@@ -142,6 +147,31 @@ export default function Transactions({ onProfileClick }) {
               <button onClick={() => setSelectedYear((y) => y + 1)} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                 <ChevronRight size={18} />
               </button>
+            </div>
+          )}
+
+          {/* Custom Date Range Picker */}
+          {filterType === 'custom' && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-500 dark:text-gray-400">From:</label>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="border border-gray-200 dark:border-gray-600 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-500 dark:text-gray-400">To:</label>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  min={customStartDate}
+                  className="border border-gray-200 dark:border-gray-600 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 dark:bg-gray-700 dark:text-white"
+                />
+              </div>
             </div>
           )}
         </div>

@@ -8,7 +8,6 @@ import Dashboard from './pages/Dashboard';
 import Insights from './pages/Insights';
 import Transactions from './pages/Transactions';
 import Trading from './pages/Trading';
-import Assets from './pages/Assets';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
@@ -48,7 +47,6 @@ function MainLayout() {
     Insights: (onNavigate, onProfileClick) => <Insights onNavigate={onNavigate} onProfileClick={onProfileClick} />,
     Transactions: (onNavigate, onProfileClick) => <Transactions onProfileClick={onProfileClick} />,
     Trading: (onNavigate, onProfileClick) => <Trading onProfileClick={onProfileClick} />,
-    Assets: (onNavigate, onProfileClick) => <Assets onProfileClick={onProfileClick} />,
     Analytics: (onNavigate, onProfileClick) => <Analytics onProfileClick={onProfileClick} />,
     Settings: (onNavigate, onProfileClick) => <Settings onProfileClick={onProfileClick} />,
   };

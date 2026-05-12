@@ -49,9 +49,11 @@ function CustomBarLabel({ x, y, width, value }) {
 
 export default function Analytics() {
   const now = new Date();
-  const [filterType, setFilterType] = useState('monthly');
+  const [filterType, setFilterType] = useState('monthly'); // monthly, yearly, weekly, custom
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [customStartDate, setCustomStartDate] = useState(now.toISOString().split('T')[0]);
+  const [customEndDate, setCustomEndDate] = useState(now.toISOString().split('T')[0]);
 
   const [summary, setSummary] = useState(null);
   const [budgets, setBudgets] = useState([]);
@@ -81,10 +83,11 @@ export default function Analytics() {
 
     // Category analytics based on filter
     const catParams = filterType === 'monthly' ? { month: selectedMonth + 1, year: selectedYear }
-      : filterType === 'yearly' ? { year: selectedYear } : {};
+      : filterType === 'yearly' ? { year: selectedYear }
+      : filterType === 'custom' ? { startDate: customStartDate, endDate: customEndDate } : {};
     const catRes = await getCategoryAnalytics(catParams);
     setCategoryData(catRes.data);
-  }, [selectedYear, selectedMonth, filterType]);
+  }, [selectedYear, selectedMonth, filterType, customStartDate, customEndDate]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -136,10 +139,10 @@ export default function Analytics() {
 
         {/* Filter Bar */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 flex items-center gap-3 flex-wrap">
-          {['monthly', 'yearly', 'weekly'].map((f) => (
+          {['monthly', 'yearly', 'weekly', 'custom'].map((f) => (
             <button key={f} onClick={() => setFilterType(f)}
               className={`px-4 py-2 rounded-xl text-sm font-semibold capitalize transition ${filterType === f ? 'bg-slate-900 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-              {f}
+              {f === 'custom' ? 'Custom Range' : f}
             </button>
           ))}
           {filterType === 'monthly' && (
@@ -157,6 +160,29 @@ export default function Analytics() {
             </div>
           )}
           {filterType === 'weekly' && <span className="text-sm text-gray-400 dark:text-gray-500 ml-2">Last 8 weeks</span>}
+          {filterType === 'custom' && (
+            <div className="flex items-center gap-3 ml-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-500 dark:text-gray-400">From:</label>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-500 dark:text-gray-400">To:</label>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  min={customStartDate}
+                  className="border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Summary Cards */}

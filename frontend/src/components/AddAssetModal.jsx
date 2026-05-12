@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Wallet, Building2, Gem, Home, Car, TrendingUp, PiggyBank, Briefcase, Landmark, Coins, Target } from 'lucide-react';
 
 /**
@@ -50,7 +50,7 @@ const investmentSubCategories = [
   { value: 'OTHER', label: 'Other', icon: Target },
 ];
 
-export default function AddAssetModal({ assetType, onClose, onSave }) {
+export default function AddAssetModal({ assetType, onClose, onSave, editingAsset }) {
   const defaultCategory = assetCategories[assetType]?.[0]?.value || 'OTHER';
   const [form, setForm] = useState({
     name: '',
@@ -63,6 +63,22 @@ export default function AddAssetModal({ assetType, onClose, onSave }) {
   });
   const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(defaultCategory);
+
+  // Populate form when editing
+  useEffect(() => {
+    if (editingAsset) {
+      setForm({
+        name: editingAsset.name || '',
+        value: editingAsset.value?.toString() || '',
+        type: editingAsset.type, // Keep original type, don't change
+        category: editingAsset.category || defaultCategory,
+        subCategory: editingAsset.subCategory || null,
+        date: editingAsset.date || new Date().toISOString().split('T')[0],
+        description: editingAsset.description || '',
+      });
+      setSelectedCategory(editingAsset.category || defaultCategory);
+    }
+  }, [editingAsset, defaultCategory]);
 
   const handleCategoryChange = (category) => {
     setSelectedCategory(category);
@@ -80,7 +96,9 @@ export default function AddAssetModal({ assetType, onClose, onSave }) {
       ...form,
       value: parseFloat(form.value),
       // Only include subCategory if it's an Investment
-      subCategory: form.category === 'INVESTMENTS' ? form.subCategory : null
+      subCategory: form.category === 'INVESTMENTS' ? form.subCategory : null,
+      // Include id when editing so backend knows to update
+      ...(editingAsset && { id: editingAsset.id })
     };
     await onSave(payload);
     setLoading(false);
@@ -93,7 +111,9 @@ export default function AddAssetModal({ assetType, onClose, onSave }) {
         <button onClick={onClose} className="absolute top-5 right-5 text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition">
           <X size={22} />
         </button>
-        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-6 text-center">Add {assetType.charAt(0) + assetType.slice(1).toLowerCase()}</h2>
+        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-6 text-center">
+          {editingAsset ? 'Update' : 'Add'} {assetType.charAt(0) + assetType.slice(1).toLowerCase()}
+        </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Name</label>
@@ -193,7 +213,7 @@ export default function AddAssetModal({ assetType, onClose, onSave }) {
               Cancel
             </button>
             <button type="submit" disabled={loading} className="flex-1 py-3 font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-700 text-sm transition disabled:opacity-60">
-              {loading ? 'Saving...' : 'Add'}
+              {loading ? 'Saving...' : (editingAsset ? 'Update' : 'Add')}
             </button>
           </div>
         </form>
