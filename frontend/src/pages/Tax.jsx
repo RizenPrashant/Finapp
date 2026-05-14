@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Calculator, TrendingDown, TrendingUp, Info, Save, RefreshCw, ChevronDown, ChevronUp, Wallet, Building, Briefcase, PiggyBank, Home, Heart, GraduationCap, Gift, ArrowRight } from 'lucide-react';
+import { Calculator, TrendingDown, TrendingUp, Info, Save, RefreshCw, ChevronDown, ChevronUp, Wallet, Building, Briefcase, PiggyBank, Home, Heart, GraduationCap, Gift, ArrowRight, Sparkles, AlertCircle, Search, X, Plus, Check } from 'lucide-react';
 import Header from '../components/Header';
+import { getTaxProfile, saveTaxProfile, autoCalculateTax, calculateTax as apiCalculateTax, compareTaxRegimes, toggleTransactionTaxInclude } from '../api';
+import api from '../api';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -21,7 +23,7 @@ const OLD_REGIME_SLABS = [
   { limit: Infinity, rate: 30, label: 'Above ₹10L' }
 ];
 
-const FINANCIAL_YEARS = ['2023-24', '2024-25', '2025-26'];
+const FINANCIAL_YEARS = ['2023-24', '2024-25', '2025-26', '2026-27'];
 
 export default function Tax({ onProfileClick }) {
   const [loading, setLoading] = useState(false);
@@ -30,7 +32,7 @@ export default function Tax({ onProfileClick }) {
   const [showComparison, setShowComparison] = useState(false);
 
   // Tax Profile State
-  const [financialYear, setFinancialYear] = useState('2024-25');
+  const [financialYear, setFinancialYear] = useState('2025-26');
   const [regime, setRegime] = useState('NEW');
   const [employmentType, setEmploymentType] = useState('SALARIED');
 
@@ -57,6 +59,16 @@ export default function Tax({ onProfileClick }) {
   // Calculation Results
   const [taxResult, setTaxResult] = useState(null);
   const [comparisonResult, setComparisonResult] = useState(null);
+
+  // Auto-calculation Details
+  const [autoCalcDetails, setAutoCalcDetails] = useState(null);
+  const [showTransactionBreakdown, setShowTransactionBreakdown] = useState(false);
+
+  // Transaction Selector Modal
+  const [showTransactionSelector, setShowTransactionSelector] = useState(false);
+  const [availableTransactions, setAvailableTransactions] = useState([]);
+  const [transactionSearchQuery, setTransactionSearchQuery] = useState('');
+  const [selectedTransactionsForTax, setSelectedTransactionsForTax] = useState([]);
 
   const fmt = (val) => {
     if (!val || isNaN(val)) return '₹0';
@@ -171,6 +183,44 @@ export default function Tax({ onProfileClick }) {
     };
   }, [regime, calculateTax]);
 
+  // Load saved profile on mount and FY change
+  useEffect(() => {
+    loadSavedProfile();
+  }, [financialYear]);
+
+  const loadSavedProfile = async () => {
+    try {
+      setLoading(true);
+      const response = await getTaxProfile(financialYear);
+      const profile = response.data;
+
+      if (profile) {
+        setRegime(profile.regime || 'NEW');
+        setEmploymentType(profile.employmentType || 'SALARIED');
+        setSalaryIncome(profile.salaryIncome?.toString() || '');
+        setBusinessIncome(profile.businessIncome?.toString() || '');
+        setInterestIncome(profile.interestIncome?.toString() || '');
+        setRentalIncome(profile.rentalIncome?.toString() || '');
+        setCapitalGainsST(profile.capitalGainsST?.toString() || '');
+        setCapitalGainsLT(profile.capitalGainsLT?.toString() || '');
+        setOtherIncome(profile.otherIncome?.toString() || '');
+        setSection80C(profile.section80C?.toString() || '');
+        setSection80D(profile.section80D?.toString() || '');
+        setSection80E(profile.section80E?.toString() || '');
+        setSection80G(profile.section80G?.toString() || '');
+        setSection80CCD1B(profile.section80CCD1B?.toString() || '');
+        setSection24B(profile.section24B?.toString() || '');
+        setHraExemption(profile.hraExemption?.toString() || '');
+        setLtaExemption(profile.ltaExemption?.toString() || '');
+        setStandardDeduction(profile.standardDeduction?.toString() || '50000');
+      }
+    } catch (error) {
+      console.error('Failed to load tax profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Auto-calculate on change
   useEffect(() => {
     const result = calculateTax();
@@ -179,19 +229,251 @@ export default function Tax({ onProfileClick }) {
 
   const handleSave = async () => {
     setSaving(true);
-    // Here you would call the API to save the tax profile
-    await new Promise(r => setTimeout(r, 500)); // Simulate API call
-    setSaving(false);
+    try {
+      const profileData = {
+        financialYear,
+        regime,
+        employmentType,
+        salaryIncome: parseFloat(salaryIncome) || 0,
+        businessIncome: parseFloat(businessIncome) || 0,
+        interestIncome: parseFloat(interestIncome) || 0,
+        rentalIncome: parseFloat(rentalIncome) || 0,
+        capitalGainsST: parseFloat(capitalGainsST) || 0,
+        capitalGainsLT: parseFloat(capitalGainsLT) || 0,
+        otherIncome: parseFloat(otherIncome) || 0,
+        section80C: parseFloat(section80C) || 0,
+        section80D: parseFloat(section80D) || 0,
+        section80E: parseFloat(section80E) || 0,
+        section80G: parseFloat(section80G) || 0,
+        section80CCD1B: parseFloat(section80CCD1B) || 0,
+        section24B: parseFloat(section24B) || 0,
+        hraExemption: parseFloat(hraExemption) || 0,
+        ltaExemption: parseFloat(ltaExemption) || 0,
+        standardDeduction: parseFloat(standardDeduction) || 50000,
+      };
+      await saveTaxProfile(profileData);
+      alert('Tax profile saved successfully!');
+    } catch (error) {
+      console.error('Failed to save tax profile:', error);
+      alert('Failed to save tax profile. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAutoCalculate = async () => {
     setLoading(true);
-    // Simulate auto-calculation from transactions
-    await new Promise(r => setTimeout(r, 1000));
-    setSalaryIncome('800000');
-    setInterestIncome('25000');
-    setOtherIncome('15000');
-    setLoading(false);
+    try {
+      const response = await autoCalculateTax(financialYear);
+      const result = response.data;
+      const profile = result.profile;
+
+      // Store the full auto-calculation details
+      setAutoCalcDetails(result);
+      setShowTransactionBreakdown(true);
+
+      // Update all income fields from auto-calculation
+      setSalaryIncome(profile.salaryIncome?.toString() || '');
+      setBusinessIncome(profile.businessIncome?.toString() || '');
+      setInterestIncome(profile.interestIncome?.toString() || '');
+      setRentalIncome(profile.rentalIncome?.toString() || '');
+      setCapitalGainsST(profile.capitalGainsST?.toString() || '');
+      setCapitalGainsLT(profile.capitalGainsLT?.toString() || '');
+      setOtherIncome(profile.otherIncome?.toString() || '');
+      setEmploymentType(profile.employmentType || 'SALARIED');
+    } catch (error) {
+      console.error('Failed to auto-calculate:', error);
+      alert('Failed to auto-calculate from transactions. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Open transaction selector modal - show ALL FY transactions
+  const handleOpenTransactionSelector = async () => {
+    setLoading(true);
+    try {
+      // Parse financial year dates
+      const startYear = parseInt(financialYear.split('-')[0]);
+      const startDate = new Date(startYear, 3, 1); // April 1
+      const endDate = new Date(startYear + 1, 2, 31); // March 31
+
+      // Fetch ALL CREDIT transactions for the financial year
+      const startStr = startDate.getFullYear() + '-' + String(startDate.getMonth() + 1).padStart(2, '0') + '-' + String(startDate.getDate()).padStart(2, '0');
+      const endStr = endDate.getFullYear() + '-' + String(endDate.getMonth() + 1).padStart(2, '0') + '-' + String(endDate.getDate()).padStart(2, '0');
+
+      const response = await api.get(`/transactions?start=${startStr}&end=${endStr}&type=CREDIT`);
+      const allTransactions = response.data || [];
+
+      console.log('Fetched transactions:', allTransactions.length, allTransactions);
+
+      // Store ALL transactions, not just available ones
+      setAvailableTransactions(allTransactions);
+      setSelectedTransactionsForTax([]);
+      setTransactionSearchQuery('');
+      setShowTransactionSelector(true);
+    } catch (error) {
+      console.error('Failed to fetch transactions:', error);
+      alert('Failed to load transactions. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add selected transactions to tax calculation
+  const handleAddSelectedTransactions = () => {
+    if (selectedTransactionsForTax.length === 0) {
+      alert('Please select at least one transaction');
+      return;
+    }
+
+    // Add selected transactions to auto-calculation with default type OTHER
+    const newTransactions = selectedTransactionsForTax.map(tx => ({
+      transactionId: tx.id,
+      title: tx.title,
+      category: tx.category,
+      amount: tx.amount,
+      date: tx.date,
+      incomeType: 'OTHER',
+      explanation: 'Other income - taxable (manually selected)',
+      includeInTax: true
+    }));
+
+    setAutoCalcDetails(prev => {
+      if (!prev) return prev;
+
+      const updatedTransactions = [...prev.categorizedTransactions, ...newTransactions];
+
+      // Recalculate category summary
+      const newCategorySummary = { ...prev.categorySummary };
+      newTransactions.forEach(tx => {
+        newCategorySummary[tx.incomeType] = (newCategorySummary[tx.incomeType] || 0) + tx.amount;
+      });
+
+      // Update profile totals
+      const newProfile = { ...prev.profile };
+      const otherTotal = newTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+      newProfile.otherIncome = (newProfile.otherIncome || 0) + otherTotal;
+
+      return {
+        ...prev,
+        categorizedTransactions: updatedTransactions,
+        categorySummary: newCategorySummary,
+        profile: newProfile
+      };
+    });
+
+    // Update other income field
+    const addedAmount = selectedTransactionsForTax.reduce((sum, tx) => sum + tx.amount, 0);
+    setOtherIncome(prev => (parseInput(prev) + addedAmount).toString());
+
+    setShowTransactionSelector(false);
+    setSelectedTransactionsForTax([]);
+  };
+
+  const handleToggleTransactionTax = async (transactionId, currentValue) => {
+    try {
+      const newValue = !currentValue;
+      await toggleTransactionTaxInclude(transactionId, newValue);
+
+      // Update local state
+      setAutoCalcDetails(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          categorizedTransactions: prev.categorizedTransactions.map(tx =>
+            tx.transactionId === transactionId
+              ? { ...tx, includeInTax: newValue, incomeType: newValue ? tx.incomeType.replace('USER_EXCLUDED', 'OTHER') : 'USER_EXCLUDED' }
+              : tx
+          )
+        };
+      });
+
+      // Re-run auto-calculate to update totals
+      handleAutoCalculate();
+    } catch (error) {
+      console.error('Failed to toggle transaction:', error);
+      alert('Failed to update transaction. Please try again.');
+    }
+  };
+
+  // Update income type of a transaction in the auto-calculation
+  const handleUpdateIncomeType = (transactionId, newIncomeType) => {
+    setAutoCalcDetails(prev => {
+      if (!prev) return prev;
+
+      const updatedTransactions = prev.categorizedTransactions.map(tx => {
+        if (tx.transactionId === transactionId) {
+          // Update explanation based on new type
+          const explanations = {
+            'SALARY': 'Salary/Wage income - taxable',
+            'BUSINESS': 'Business/Freelance income - taxable',
+            'INTEREST': 'Interest income (FD/Savings) - taxable',
+            'RENTAL': 'Rental income - taxable',
+            'CAPITAL_GAINS_ST': 'Capital Gains (Short Term) - taxable at 15%/slab rate',
+            'DIVIDEND': 'Dividend income - taxable (if > ₹10L)',
+            'OTHER': 'Other income - taxable',
+            'EXCLUDED': 'Not taxable income'
+          };
+          return {
+            ...tx,
+            incomeType: newIncomeType,
+            explanation: explanations[newIncomeType] || 'Income - taxable',
+            includeInTax: newIncomeType !== 'EXCLUDED'
+          };
+        }
+        return tx;
+      });
+
+      // Recalculate category summary
+      const newCategorySummary = {};
+      updatedTransactions.forEach(tx => {
+        if (tx.includeInTax) {
+          newCategorySummary[tx.incomeType] = (newCategorySummary[tx.incomeType] || 0) + tx.amount;
+        }
+      });
+
+      // Update profile with new totals
+      const newProfile = { ...prev.profile };
+      newProfile.salaryIncome = updatedTransactions
+        .filter(tx => tx.incomeType === 'SALARY' && tx.includeInTax)
+        .reduce((sum, tx) => sum + tx.amount, 0);
+      newProfile.businessIncome = updatedTransactions
+        .filter(tx => tx.incomeType === 'BUSINESS' && tx.includeInTax)
+        .reduce((sum, tx) => sum + tx.amount, 0);
+      newProfile.interestIncome = updatedTransactions
+        .filter(tx => tx.incomeType === 'INTEREST' && tx.includeInTax)
+        .reduce((sum, tx) => sum + tx.amount, 0);
+      newProfile.rentalIncome = updatedTransactions
+        .filter(tx => tx.incomeType === 'RENTAL' && tx.includeInTax)
+        .reduce((sum, tx) => sum + tx.amount, 0);
+      newProfile.capitalGainsST = updatedTransactions
+        .filter(tx => tx.incomeType === 'CAPITAL_GAINS_ST' && tx.includeInTax)
+        .reduce((sum, tx) => sum + tx.amount, 0);
+      newProfile.otherIncome = updatedTransactions
+        .filter(tx => ['DIVIDEND', 'OTHER'].includes(tx.incomeType) && tx.includeInTax)
+        .reduce((sum, tx) => sum + tx.amount, 0);
+
+      return {
+        ...prev,
+        categorizedTransactions: updatedTransactions,
+        categorySummary: newCategorySummary,
+        profile: newProfile
+      };
+    });
+
+    // Also update the income fields to reflect changes
+    setTimeout(() => {
+      if (autoCalcDetails?.profile) {
+        const updatedProfile = autoCalcDetails.profile;
+        setSalaryIncome(updatedProfile.salaryIncome?.toString() || '');
+        setBusinessIncome(updatedProfile.businessIncome?.toString() || '');
+        setInterestIncome(updatedProfile.interestIncome?.toString() || '');
+        setRentalIncome(updatedProfile.rentalIncome?.toString() || '');
+        setCapitalGainsST(updatedProfile.capitalGainsST?.toString() || '');
+        setOtherIncome(updatedProfile.otherIncome?.toString() || '');
+      }
+    }, 0);
   };
 
   const handleCompare = () => {
@@ -259,7 +541,7 @@ export default function Tax({ onProfileClick }) {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <Header title="Tax Calculator" subtitle="Indian Income Tax (FY 2024-25)" onProfileClick={onProfileClick} />
+      <Header title="Tax Calculator" subtitle={`Indian Income Tax (FY ${financialYear})`} onProfileClick={onProfileClick} />
 
       <div className="flex-1 overflow-y-auto p-6">
         {/* Top Controls */}
@@ -344,6 +626,56 @@ export default function Tax({ onProfileClick }) {
                 <p className="text-xs text-gray-400 mt-1">Effective Rate: {taxResult.effectiveRate}%</p>
               )}
             </div>
+
+            {/* Projected Tax (if partial year income) */}
+            {(() => {
+              const currentMonth = new Date().getMonth(); // 0-11
+              const fyStartMonth = 3; // April
+              const monthsCompleted = currentMonth >= fyStartMonth
+                ? currentMonth - fyStartMonth + 1
+                : 12 - (fyStartMonth - currentMonth - 1);
+
+              if (monthsCompleted <= 0 || monthsCompleted >= 12) return null;
+
+              const projectedMultiplier = 12 / monthsCompleted;
+              const projectedIncome = taxResult.totalIncome * projectedMultiplier;
+              const projectedTaxableIncome = Math.max(0, projectedIncome - taxResult.totalDeductions);
+
+              // Calculate projected tax
+              const slabs = regime === 'NEW' ? NEW_REGIME_SLABS : OLD_REGIME_SLABS;
+              let projectedTax = 0;
+              let remainingIncome = projectedTaxableIncome;
+              let previousLimit = 0;
+
+              for (const slab of slabs) {
+                if (remainingIncome <= 0) break;
+                const slabAmount = Math.min(remainingIncome, slab.limit - previousLimit);
+                projectedTax += slabAmount * (slab.rate / 100);
+                remainingIncome -= slabAmount;
+                previousLimit = slab.limit;
+              }
+
+              // Apply rebate
+              const rebateLimit = regime === 'NEW' ? 700000 : 500000;
+              const maxRebate = regime === 'NEW' ? 25000 : 12500;
+              if (projectedTaxableIncome <= rebateLimit) {
+                projectedTax = Math.max(0, projectedTax - maxRebate);
+              }
+
+              // Add cess
+              const projectedCess = projectedTax * 0.04;
+              const projectedFinalTax = projectedTax + projectedCess;
+
+              return (
+                <div className="col-span-2 md:col-span-1 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800 p-4">
+                  <p className="text-xs text-gray-500 mb-1">Projected FY Tax ({monthsCompleted} months)</p>
+                  <p className="text-xl font-bold text-indigo-600">{fmt(projectedFinalTax)}</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Based on ₹{fmt(projectedIncome)} projected income
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -379,6 +711,209 @@ export default function Tax({ onProfileClick }) {
                 <p className="text-lg font-semibold">{fmt(comparisonResult.otherTax)}</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Auto-Calculation Transaction Breakdown */}
+        {showTransactionBreakdown && autoCalcDetails && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-blue-200 dark:border-blue-800 shadow-sm p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Sparkles size={20} className="text-blue-500" />
+                Auto-Calculated from Transactions
+              </h3>
+              <button
+                onClick={() => setShowTransactionBreakdown(false)}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Hide
+              </button>
+            </div>
+
+            {/* Summary by Category */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              {autoCalcDetails.categorySummary && Object.entries(autoCalcDetails.categorySummary).map(([type, amount]) => (
+                <div key={type} className={`p-3 rounded-xl text-center ${
+                  type === 'EXCLUDED' || type === 'USER_EXCLUDED' ? 'bg-gray-100 dark:bg-gray-700' :
+                  type === 'SALARY' ? 'bg-blue-50 dark:bg-blue-900/20' :
+                  type === 'BUSINESS' ? 'bg-purple-50 dark:bg-purple-900/20' :
+                  type === 'INTEREST' ? 'bg-yellow-50 dark:bg-yellow-900/20' :
+                  type === 'RENTAL' ? 'bg-orange-50 dark:bg-orange-900/20' :
+                  type === 'CAPITAL_GAINS_ST' ? 'bg-pink-50 dark:bg-pink-900/20' :
+                  'bg-green-50 dark:bg-green-900/20'
+                }`}>
+                  <p className="text-xs text-gray-500 capitalize">{type.replace(/_/g, ' ').toLowerCase()}</p>
+                  <p className="font-semibold">{fmt(amount)}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Transaction List */}
+            <div className="border border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden">
+              <div className="bg-gray-50 dark:bg-gray-700 px-4 py-2 text-sm font-medium text-gray-600 flex items-center justify-between">
+                <span>{autoCalcDetails.categorizedTransactions?.length || 0} transactions analyzed</span>
+                <span className="text-xs text-gray-400">☑ = include in tax</span>
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {autoCalcDetails.categorizedTransactions?.map((tx, idx) => (
+                  <div key={idx} className={`flex items-center px-4 py-3 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
+                    !tx.includeInTax ? 'opacity-60 bg-gray-50 dark:bg-gray-800/50' : ''
+                  }`}>
+                    {/* Checkbox Toggle */}
+                    <label className="flex items-center cursor-pointer mr-3">
+                      <input
+                        type="checkbox"
+                        checked={tx.includeInTax}
+                        onChange={() => handleToggleTransactionTax(tx.transactionId, tx.includeInTax)}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </label>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className={`font-medium text-sm truncate ${!tx.includeInTax ? 'line-through text-gray-400' : ''}`}>
+                          {tx.title}
+                        </p>
+                        {!tx.includeInTax && (
+                          <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">Excluded</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <span>{tx.category}</span>
+                        <span>•</span>
+                        <span>{new Date(tx.date).toLocaleDateString('en-IN')}</span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">{tx.explanation}</p>
+                    </div>
+                    <div className="text-right ml-4 flex flex-col items-end gap-1">
+                      {/* Amount Badge */}
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                        !tx.includeInTax ? 'bg-gray-200 text-gray-500 line-through' :
+                        tx.incomeType === 'EXCLUDED' ? 'bg-gray-100 text-gray-600' :
+                        tx.incomeType === 'SALARY' ? 'bg-blue-100 text-blue-700' :
+                        tx.incomeType === 'BUSINESS' ? 'bg-purple-100 text-purple-700' :
+                        tx.incomeType === 'INTEREST' ? 'bg-yellow-100 text-yellow-700' :
+                        tx.incomeType === 'RENTAL' ? 'bg-orange-100 text-orange-700' :
+                        tx.incomeType === 'CAPITAL_GAINS_ST' ? 'bg-pink-100 text-pink-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {tx.includeInTax ? '+' : '✗'}
+                        {fmt(tx.amount)}
+                      </span>
+
+                      {/* Change Type Dropdown - Show for all transactions */}
+                      <select
+                        value={tx.incomeType}
+                        onChange={(e) => handleUpdateIncomeType(tx.transactionId, e.target.value)}
+                        className="text-xs border border-gray-300 dark:border-gray-500 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 cursor-pointer hover:border-blue-400"
+                        title="Change income type"
+                      >
+                        <option value="SALARY">Salary</option>
+                        <option value="BUSINESS">Business</option>
+                        <option value="INTEREST">Interest</option>
+                        <option value="RENTAL">Rental</option>
+                        <option value="CAPITAL_GAINS_ST">Capital Gains</option>
+                        <option value="DIVIDEND">Dividend</option>
+                        <option value="OTHER">Other</option>
+                        <option value="EXCLUDED">Not Taxable</option>
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Unclassified Transactions Section */}
+            {(() => {
+              const unclassifiedTxns = autoCalcDetails.categorizedTransactions?.filter(
+                tx => tx.incomeType === 'OTHER' || tx.incomeType === 'EXCLUDED' || tx.incomeType === 'USER_EXCLUDED'
+              ) || [];
+
+              if (unclassifiedTxns.length === 0) return null;
+
+              return (
+                <div className="mt-6 border border-amber-200 dark:border-amber-800 rounded-xl overflow-hidden">
+                  <div className="bg-amber-50 dark:bg-amber-900/20 px-4 py-2 text-sm font-medium text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                    <AlertCircle size={16} />
+                    <span>Unclassified Transactions ({unclassifiedTxns.length})</span>
+                    <span className="text-xs text-amber-600 dark:text-amber-400 ml-2">
+                      Select correct income type for these transactions
+                    </span>
+                  </div>
+
+                  <div className="max-h-64 overflow-y-auto">
+                    {unclassifiedTxns.map((tx, idx) => (
+                      <div key={idx} className="flex items-center px-4 py-3 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-amber-50/50 dark:hover:bg-amber-900/10">
+                        <label className="flex items-center cursor-pointer mr-3">
+                          <input
+                            type="checkbox"
+                            checked={tx.includeInTax && tx.incomeType !== 'EXCLUDED' && tx.incomeType !== 'USER_EXCLUDED'}
+                            onChange={() => handleToggleTransactionTax(tx.transactionId, tx.includeInTax)}
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        </label>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm truncate">{tx.title}</p>
+                            <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                              {tx.incomeType === 'USER_EXCLUDED' ? 'Excluded by you' : 'Not classified'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <span>{tx.category}</span>
+                            <span>•</span>
+                            <span>{new Date(tx.date).toLocaleDateString('en-IN')}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-right ml-4 flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-600">{fmt(tx.amount)}</span>
+
+                          {/* Income Type Selector */}
+                          <select
+                            value={tx.incomeType}
+                            onChange={(e) => handleUpdateIncomeType(tx.transactionId, e.target.value)}
+                            className="text-xs border border-amber-300 dark:border-amber-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 cursor-pointer hover:border-blue-400 focus:ring-1 focus:ring-blue-500"
+                          >
+                            <option value="" disabled>Select Type ▼</option>
+                            <option value="SALARY">💼 Salary</option>
+                            <option value="BUSINESS">🏢 Business</option>
+                            <option value="INTEREST">🏦 Interest</option>
+                            <option value="RENTAL">🏠 Rental</option>
+                            <option value="CAPITAL_GAINS_ST">📈 Capital Gains</option>
+                            <option value="DIVIDEND">💰 Dividend</option>
+                            <option value="OTHER">📝 Other Income</option>
+                            <option value="EXCLUDED">🚫 Not Taxable</option>
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Add More Transactions Button */}
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={handleOpenTransactionSelector}
+                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition shadow-lg font-medium"
+              >
+                <Plus size={20} />
+                <span>Add More Transactions from FY {financialYear}</span>
+                <Search size={18} className="ml-1" />
+              </button>
+            </div>
+
+            {/* Calculation Explanation */}
+            {autoCalcDetails.calculationExplanation && (
+              <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+                <p className="text-sm text-blue-800 dark:text-blue-200 whitespace-pre-line">
+                  {autoCalcDetails.calculationExplanation}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -825,6 +1360,185 @@ export default function Tax({ onProfileClick }) {
                     ? 'Section 87A: Full tax rebate up to ₹25,000 if taxable income is ≤ ₹7L'
                     : 'Section 87A: Full tax rebate up to ₹12,500 if taxable income is ≤ ₹5L'}
                 </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Transaction Selector Modal */}
+        {showTransactionSelector && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                <div>
+                  <h3 className="text-lg font-semibold">Add Transactions to Tax</h3>
+                  <p className="text-sm text-gray-500">
+                    Select transactions from FY {financialYear} to include in tax calculation
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowTransactionSelector(false)}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Search Bar */}
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                <div className="relative">
+                  <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search transactions by title or category..."
+                    value={transactionSearchQuery}
+                    onChange={(e) => setTransactionSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Transaction List - Show ALL transactions for the FY */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {(() => {
+                  // Get already added transaction IDs
+                  const alreadyAddedIds = new Set(autoCalcDetails?.categorizedTransactions?.map(tx => tx.transactionId || tx.id) || []);
+
+                  // Filter by search query
+                  const filteredTxns = availableTransactions.filter(tx =>
+                    tx.title?.toLowerCase().includes(transactionSearchQuery.toLowerCase()) ||
+                    tx.category?.toLowerCase().includes(transactionSearchQuery.toLowerCase())
+                  );
+
+                  const notAddedTxns = filteredTxns.filter(tx => !alreadyAddedIds.has(tx.id));
+                  const addedTxns = filteredTxns.filter(tx => alreadyAddedIds.has(tx.id));
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Section: NOT YET ADDED */}
+                      {notAddedTxns.length > 0 && (
+                        <>
+                          <p className="text-xs font-medium text-blue-600 uppercase tracking-wider mb-2 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                            Available to Add ({notAddedTxns.length})
+                          </p>
+                          <div className="space-y-2">
+                            {notAddedTxns.map(tx => (
+                              <label
+                                key={tx.id}
+                                className={`flex items-center p-3 rounded-xl border cursor-pointer transition ${
+                                  selectedTransactionsForTax.find(st => st.id === tx.id)
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                    : 'border-gray-200 dark:border-gray-600 hover:border-blue-300 bg-white dark:bg-gray-700'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={!!selectedTransactionsForTax.find(st => st.id === tx.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedTransactionsForTax([...selectedTransactionsForTax, tx]);
+                                    } else {
+                                      setSelectedTransactionsForTax(selectedTransactionsForTax.filter(st => st.id !== tx.id));
+                                    }
+                                  }}
+                                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm truncate">{tx.title}</p>
+                                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                                    <span>{tx.category}</span>
+                                    <span>•</span>
+                                    <span>{new Date(tx.date).toLocaleDateString('en-IN')}</span>
+                                  </div>
+                                </div>
+                                <span className="font-semibold text-green-600 ml-4">+{fmt(tx.amount)}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </>
+                      )}
+
+                      {/* Section: ALREADY ADDED */}
+                      {addedTxns.length > 0 && (
+                        <>
+                          <p className="text-xs font-medium text-green-600 uppercase tracking-wider mb-2 flex items-center gap-2 mt-4">
+                            <Check size={14} />
+                            Already in Tax ({addedTxns.length})
+                          </p>
+                          <div className="space-y-2">
+                            {addedTxns.map(tx => {
+                              // Find the income type from autoCalcDetails
+                              const addedTx = autoCalcDetails?.categorizedTransactions?.find(
+                                t => (t.transactionId || t.id) === tx.id
+                              );
+                              return (
+                                <div
+                                  key={tx.id}
+                                  className="flex items-center p-3 rounded-xl border border-green-100 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10"
+                                >
+                                  <span className="text-green-500 mr-3">
+                                    <Check size={16} />
+                                  </span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-medium text-sm truncate">{tx.title}</p>
+                                      <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                                        {addedTx?.incomeType || 'Added'}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                      <span>{tx.category}</span>
+                                      <span>•</span>
+                                      <span>{new Date(tx.date).toLocaleDateString('en-IN')}</span>
+                                    </div>
+                                  </div>
+                                  <span className="font-semibold text-green-600 ml-4">{fmt(tx.amount)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+
+                      {/* No transactions at all */}
+                      {filteredTxns.length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                          <p className="font-medium">No transactions found</p>
+                          <p className="text-sm mt-1">No CREDIT transactions for FY {financialYear}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="text-sm text-gray-500">
+                  {selectedTransactionsForTax.length} selected
+                  {selectedTransactionsForTax.length > 0 && (
+                    <span className="ml-2 text-green-600 font-medium">
+                      ({fmt(selectedTransactionsForTax.reduce((sum, tx) => sum + tx.amount, 0))})
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowTransactionSelector(false)}
+                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddSelectedTransactions}
+                    disabled={selectedTransactionsForTax.length === 0}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition font-medium"
+                  >
+                    Add to Tax
+                  </button>
+                </div>
               </div>
             </div>
           </div>

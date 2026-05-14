@@ -15,6 +15,7 @@ E:\Finapp\backend\src\main\java\com\finapp\controller\UdharController.java
 E:\Finapp\backend\src\main\java\com\finapp\controller\UserProfileController.java
 E:\Finapp\backend\src\main\java\com\finapp\dto\AssetDTO.java
 E:\Finapp\backend\src\main\java\com\finapp\dto\AuthResponse.java
+E:\Finapp\backend\src\main\java\com\finapp\dto\AutoCalculatedTaxDTO.java
 E:\Finapp\backend\src\main\java\com\finapp\dto\BudgetLimitDTO.java
 E:\Finapp\backend\src\main\java\com\finapp\dto\CashbackEntryDTO.java
 E:\Finapp\backend\src\main\java\com\finapp\dto\CashbackWalletDTO.java

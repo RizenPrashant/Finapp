@@ -1,5 +1,6 @@
 package com.finapp.service;
 
+import com.finapp.dto.AutoCalculatedTaxDTO;
 import com.finapp.dto.TaxCalculationDTO;
 import com.finapp.model.TaxProfile;
 import com.finapp.model.Transaction;
@@ -211,11 +212,15 @@ public class TaxCalculationService {
     }
 
     // Auto-calculate income from transactions for a financial year
-    public TaxProfile autoCalculateIncomeFromTransactions(Long userId, String financialYear) {
+    public AutoCalculatedTaxDTO autoCalculateIncomeFromTransactions(Long userId, String financialYear) {
         // Parse financial year (e.g., "2024-25" -> Apr 2024 to Mar 2025)
         int startYear = Integer.parseInt(financialYear.split("-")[0]);
         LocalDate startDate = LocalDate.of(startYear, 4, 1);
         LocalDate endDate = LocalDate.of(startYear + 1, 3, 31);
+
+        AutoCalculatedTaxDTO result = new AutoCalculatedTaxDTO();
+        List<AutoCalculatedTaxDTO.TransactionDetail> categorizedTxns = new ArrayList<>();
+        Map<String, BigDecimal> categorySummary = new HashMap<>();
 
         TaxProfile profile = new TaxProfile();
         profile.setFinancialYear(financialYear);
@@ -226,33 +231,172 @@ public class TaxCalculationService {
         List<Transaction> credits = transactionRepository.findByUserIdAndTypeAndDateBetween(
                 userId, TransactionType.CREDIT, startDate, endDate);
 
-        // Categorize income
+        // Categorize income from transactions
         BigDecimal salaryIncome = BigDecimal.ZERO;
+        BigDecimal businessIncome = BigDecimal.ZERO;
         BigDecimal interestIncome = BigDecimal.ZERO;
+        BigDecimal rentalIncome = BigDecimal.ZERO;
+        BigDecimal capitalGainsST = BigDecimal.ZERO;
+        BigDecimal capitalGainsLT = BigDecimal.ZERO;
         BigDecimal otherIncome = BigDecimal.ZERO;
+        BigDecimal excludedIncome = BigDecimal.ZERO;
+
+        int includedCount = 0;
+        int excludedCount = 0;
 
         for (Transaction t : credits) {
             BigDecimal amount = t.getAmount();
             String category = t.getCategory() != null ? t.getCategory().toUpperCase() : "";
+            String title = t.getTitle() != null ? t.getTitle().toUpperCase() : "";
+            Boolean includeInTax = t.getIncludeInTax() != null ? t.getIncludeInTax() : true;
 
-            if (category.contains("SALARY") || category.contains("WAGE")) {
-                salaryIncome = salaryIncome.add(amount);
-            } else if (category.contains("INTEREST") || category.contains("FD") || category.contains("SAVINGS")) {
-                interestIncome = interestIncome.add(amount);
-            } else if (category.contains("INVESTMENT") || category.contains("CAPITAL")) {
-                // Could be capital gains - simplified for now
-                otherIncome = otherIncome.add(amount);
-            } else {
-                otherIncome = otherIncome.add(amount);
+            AutoCalculatedTaxDTO.TransactionDetail detail = new AutoCalculatedTaxDTO.TransactionDetail();
+            detail.setTransactionId(t.getId());
+            detail.setTitle(t.getTitle());
+            detail.setCategory(t.getCategory());
+            detail.setAmount(amount);
+            detail.setDate(t.getDate());
+            detail.setIncludeInTax(includeInTax);
+
+            // If user marked this transaction as NOT taxable, skip it
+            if (!includeInTax) {
+                excludedIncome = excludedIncome.add(amount);
+                detail.setIncomeType("USER_EXCLUDED");
+                detail.setExplanation("User marked as not taxable");
+                categorySummary.merge("USER_EXCLUDED", amount, BigDecimal::add);
+                excludedCount++;
+                categorizedTxns.add(detail);
+                continue;
             }
+
+            includedCount++;
+
+            // Salary Income
+            if (category.contains("SALARY") || category.contains("WAGE") ||
+                title.contains("SALARY") || title.contains("PAYROLL")) {
+                salaryIncome = salaryIncome.add(amount);
+                detail.setIncomeType("SALARY");
+                detail.setExplanation("Salary/Wage income - taxable");
+                categorySummary.merge("SALARY", amount, BigDecimal::add);
+            }
+            // Business / Freelance Income
+            else if (category.contains("BUSINESS") || category.contains("FREELANCE") ||
+                     category.contains("CONSULTING") || category.contains("PROFESSION") ||
+                     title.contains("CLIENT") || title.contains("PROJECT") ||
+                     title.contains("FREELANCE") || title.contains("CONSULTING")) {
+                businessIncome = businessIncome.add(amount);
+                detail.setIncomeType("BUSINESS");
+                detail.setExplanation("Business/Freelance income - taxable");
+                categorySummary.merge("BUSINESS", amount, BigDecimal::add);
+            }
+            // Interest Income
+            else if (category.contains("INTEREST") || category.contains("FD") ||
+                     category.contains("SAVINGS") || category.contains("RD") ||
+                     title.contains("INTEREST") || title.contains("FD MATURITY") ||
+                     title.contains("SAVINGS INTEREST")) {
+                interestIncome = interestIncome.add(amount);
+                detail.setIncomeType("INTEREST");
+                detail.setExplanation("Interest income (FD/Savings) - taxable");
+                categorySummary.merge("INTEREST", amount, BigDecimal::add);
+            }
+            // Rental Income
+            else if (category.contains("RENT") || category.contains("RENTAL") ||
+                     category.contains("PROPERTY") ||
+                     title.contains("RENT") || title.contains("TENANT") ||
+                     title.contains("HOUSE RENT") || title.contains("LEASE")) {
+                rentalIncome = rentalIncome.add(amount);
+                detail.setIncomeType("RENTAL");
+                detail.setExplanation("Rental income - taxable");
+                categorySummary.merge("RENTAL", amount, BigDecimal::add);
+            }
+            // Dividend Income
+            else if (category.contains("DIVIDEND") ||
+                     title.contains("DIVIDEND") || title.contains("DIVIDEND PAYOUT")) {
+                otherIncome = otherIncome.add(amount);
+                detail.setIncomeType("DIVIDEND");
+                detail.setExplanation("Dividend income - taxable (if > ₹10L)");
+                categorySummary.merge("DIVIDEND", amount, BigDecimal::add);
+            }
+            // Capital Gains from Investments/Trading
+            else if (category.contains("INVESTMENT") || category.contains("CAPITAL") ||
+                     category.contains("TRADING") || category.contains("STOCK") ||
+                     title.contains("PROFIT") || title.contains("GAIN") ||
+                     title.contains("STOCK SOLD") || title.contains("MUTUAL FUND REDEMPTION")) {
+                capitalGainsST = capitalGainsST.add(amount);
+                detail.setIncomeType("CAPITAL_GAINS_ST");
+                detail.setExplanation("Capital Gains (Short Term) - taxable at 15%/slab rate");
+                categorySummary.merge("CAPITAL_GAINS_ST", amount, BigDecimal::add);
+            }
+            // Cashback, Gifts, Refunds - not taxable mostly
+            else if (category.contains("CASHBACK") || category.contains("REFUND") ||
+                     category.contains("GIFT")) {
+                excludedIncome = excludedIncome.add(amount);
+                detail.setIncomeType("EXCLUDED");
+                detail.setExplanation("Cashback/Refund/Gift - not taxable income");
+                categorySummary.merge("EXCLUDED", amount, BigDecimal::add);
+            }
+            // Everything else as Other Income
+            else {
+                otherIncome = otherIncome.add(amount);
+                detail.setIncomeType("OTHER");
+                detail.setExplanation("Other income - taxable");
+                categorySummary.merge("OTHER", amount, BigDecimal::add);
+            }
+
+            categorizedTxns.add(detail);
         }
 
         profile.setSalaryIncome(salaryIncome);
+        profile.setBusinessIncome(businessIncome);
         profile.setInterestIncome(interestIncome);
+        profile.setRentalIncome(rentalIncome);
+        profile.setCapitalGainsST(capitalGainsST);
+        profile.setCapitalGainsLT(capitalGainsLT);
         profile.setOtherIncome(otherIncome);
         profile.setStandardDeduction(BigDecimal.valueOf(50000));
 
-        return profile;
+        // Auto-detect employment type based on income sources
+        if (salaryIncome.compareTo(BigDecimal.ZERO) > 0 && businessIncome.compareTo(BigDecimal.ZERO) == 0) {
+            profile.setEmploymentType(TaxProfile.EmploymentType.SALARIED);
+        } else if (businessIncome.compareTo(BigDecimal.ZERO) > 0 && salaryIncome.compareTo(BigDecimal.ZERO) == 0) {
+            profile.setEmploymentType(TaxProfile.EmploymentType.BUSINESS);
+        } else if (salaryIncome.compareTo(BigDecimal.ZERO) > 0 && businessIncome.compareTo(BigDecimal.ZERO) > 0) {
+            profile.setEmploymentType(TaxProfile.EmploymentType.BUSINESS);
+        }
+
+        // Calculate tax
+        TaxCalculationDTO taxCalc = calculateTax(profile);
+
+        // Build explanation
+        StringBuilder explanation = new StringBuilder();
+        explanation.append("Analyzed ").append(credits.size()).append(" credit transactions.\n");
+        explanation.append("✓ ").append(includedCount).append(" included in tax calculation\n");
+        if (excludedCount > 0) {
+            explanation.append("✗ ").append(excludedCount).append(" excluded by user\n");
+        }
+        explanation.append("\nIncome Sources:\n");
+        if (salaryIncome.compareTo(BigDecimal.ZERO) > 0)
+            explanation.append("  • Salary: ₹").append(salaryIncome).append("\n");
+        if (businessIncome.compareTo(BigDecimal.ZERO) > 0)
+            explanation.append("  • Business: ₹").append(businessIncome).append("\n");
+        if (interestIncome.compareTo(BigDecimal.ZERO) > 0)
+            explanation.append("  • Interest: ₹").append(interestIncome).append("\n");
+        if (rentalIncome.compareTo(BigDecimal.ZERO) > 0)
+            explanation.append("  • Rental: ₹").append(rentalIncome).append("\n");
+        if (capitalGainsST.compareTo(BigDecimal.ZERO) > 0)
+            explanation.append("  • Capital Gains (ST): ₹").append(capitalGainsST).append("\n");
+        if (otherIncome.compareTo(BigDecimal.ZERO) > 0)
+            explanation.append("  • Other: ₹").append(otherIncome).append("\n");
+        if (excludedIncome.compareTo(BigDecimal.ZERO) > 0)
+            explanation.append("  • Excluded (non-taxable): ₹").append(excludedIncome).append("\n");
+
+        result.setProfile(profile);
+        result.setCategorizedTransactions(categorizedTxns);
+        result.setCategorySummary(categorySummary);
+        result.setTaxCalculation(taxCalc);
+        result.setCalculationExplanation(explanation.toString());
+
+        return result;
     }
 
     // Calculate projected annual tax based on current income run-rate

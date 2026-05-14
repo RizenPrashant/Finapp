@@ -4,6 +4,7 @@ import com.finapp.dto.TransactionDTO;
 import com.finapp.model.Transaction;
 import com.finapp.model.TransactionType;
 import com.finapp.model.User;
+import com.finapp.repository.TransactionRepository;
 import com.finapp.repository.UserRepository;
 import com.finapp.service.TransactionService;
 import jakarta.validation.Valid;
@@ -24,6 +25,7 @@ import java.util.Map;
 public class TransactionController {
 
     private final TransactionService transactionService;
+    private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
 
     private User getCurrentUser() {
@@ -36,8 +38,15 @@ public class TransactionController {
     public List<Transaction> getAll(
             @RequestParam(required = false) Integer month,
             @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) TransactionType type) {
+            @RequestParam(required = false) TransactionType type,
+            @RequestParam(required = false) String start,
+            @RequestParam(required = false) String end) {
         User user = getCurrentUser();
+        if (start != null && end != null) {
+            LocalDate startDate = LocalDate.parse(start);
+            LocalDate endDate = LocalDate.parse(end);
+            return transactionRepository.findByUserAndTypeAndDateBetweenOrderByDateDesc(user, type != null ? type : TransactionType.CREDIT, startDate, endDate);
+        }
         if (month != null && year != null) return transactionService.getByMonthAndYear(month, year, type, user);
         if (year != null) return transactionService.getByYear(year, type, user);
         if (type != null) return transactionService.getByType(type, user);
@@ -102,5 +111,16 @@ public class TransactionController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         transactionService.delete(id, getCurrentUser());
         return ResponseEntity.noContent().build();
+    }
+
+    // Toggle whether a transaction should be included in tax calculation
+    @PutMapping("/{id}/tax-toggle")
+    public ResponseEntity<Transaction> toggleTaxInclude(@PathVariable Long id, @RequestParam boolean includeInTax) {
+        User user = getCurrentUser();
+        Transaction transaction = transactionRepository.findByIdAndUser(id, user)
+                .orElseThrow(() -> new RuntimeException("Transaction not found"));
+        transaction.setIncludeInTax(includeInTax);
+        transactionRepository.save(transaction);
+        return ResponseEntity.ok(transaction);
     }
 }

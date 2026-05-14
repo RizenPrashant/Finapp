@@ -34,6 +34,7 @@ com\finapp\dto\TransactionDTO.class
 com\finapp\model\InvestmentSubCategory.class
 com\finapp\repository\CashbackWalletRepository.class
 com\finapp\service\InvestmentInterestService$InterestProjection.class
+com\finapp\dto\AutoCalculatedTaxDTO.class
 com\finapp\model\CashbackWallet.class
 com\finapp\service\UserProfileService.class
 com\finapp\model\Trade$TradeType.class
@@ -114,5 +115,6 @@ com\finapp\service\DashboardService.class
 com\finapp\service\TradingService.class
 com\finapp\dto\TaxCalculationDTO$TaxSlabDTO.class
 com\finapp\repository\BudgetLimitRepository.class
+com\finapp\dto\AutoCalculatedTaxDTO$TransactionDetail.class
 com\finapp\dto\UserProfileDTO.class
 com\finapp\controller\BudgetLimitController.class

@@ -62,6 +62,10 @@ public class Transaction {
     @Builder.Default
     private Boolean isUdhar = false;
 
+    @Column(name = "include_in_tax")
+    @Builder.Default
+    private Boolean includeInTax = true; // Default to true for CREDIT transactions
+
     @OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnoreProperties({"transaction"})
     private List<UdharTransactionLink> udharLinks;

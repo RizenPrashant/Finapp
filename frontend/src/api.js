@@ -105,6 +105,10 @@ export const compareTaxRegimes = (data) => api.post('/tax/compare', data);
 export const autoCalculateTax = (financialYear) => api.get(`/tax/auto-calculate/${financialYear}`);
 export const getFinancialYears = () => api.get('/tax/financial-years');
 
+// Toggle transaction tax inclusion
+export const toggleTransactionTaxInclude = (id, includeInTax) =>
+    api.put(`/transactions/${id}/tax-toggle?includeInTax=${includeInTax}`);
+
 // Profile APIs
 export const getProfile = () => api.get('/profile');
 export const updateProfile = (data) => api.put('/profile', data);

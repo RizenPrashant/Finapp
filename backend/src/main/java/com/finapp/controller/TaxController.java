@@ -1,5 +1,6 @@
 package com.finapp.controller;
 
+import com.finapp.dto.AutoCalculatedTaxDTO;
 import com.finapp.dto.TaxCalculationDTO;
 import com.finapp.model.TaxProfile;
 import com.finapp.model.User;
@@ -85,12 +86,12 @@ public class TaxController {
     }
 
     @GetMapping("/auto-calculate/{financialYear}")
-    public ResponseEntity<TaxProfile> autoCalculate(@PathVariable String financialYear) {
+    public ResponseEntity<AutoCalculatedTaxDTO> autoCalculate(@PathVariable String financialYear) {
         User user = getCurrentUser();
-        TaxProfile profile = taxCalculationService.autoCalculateIncomeFromTransactions(
+        AutoCalculatedTaxDTO result = taxCalculationService.autoCalculateIncomeFromTransactions(
                 user.getId(), financialYear);
-        profile.setUser(user);
-        return ResponseEntity.ok(profile);
+        result.getProfile().setUser(user);
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/projected")
