@@ -97,13 +97,13 @@ export const settleUdhar = (data) => api.post('/udhar/settle', data);
 export const getUdharTransactions = (id) => api.get(`/udhar/records/${id}/transactions`);
 export const getUdharSummary = () => api.get('/udhar/summary');
 
-// Tax APIs - TEMP: Disabled for separate commit
-// export const getTaxProfile = (financialYear) => api.get(`/tax/profile/${financialYear}`);
-// export const saveTaxProfile = (data) => api.post('/tax/profile', data);
-// export const calculateTax = (data) => api.post('/tax/calculate', data);
-// export const compareTaxRegimes = (data) => api.post('/tax/compare', data);
-// export const autoCalculateTax = (financialYear) => api.get(`/tax/auto-calculate/${financialYear}`);
-// export const getFinancialYears = () => api.get('/tax/financial-years');
+// Tax APIs
+export const getTaxProfile = (financialYear) => api.get(`/tax/profile/${financialYear}`);
+export const saveTaxProfile = (data) => api.post('/tax/profile', data);
+export const calculateTax = (data) => api.post('/tax/calculate', data);
+export const compareTaxRegimes = (data) => api.post('/tax/compare', data);
+export const autoCalculateTax = (financialYear) => api.get(`/tax/auto-calculate/${financialYear}`);
+export const getFinancialYears = () => api.get('/tax/financial-years');
 
 // Profile APIs
 export const getProfile = () => api.get('/profile');

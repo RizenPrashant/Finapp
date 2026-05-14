@@ -8,7 +8,7 @@ const navItems = [
   { icon: Repeat2, label: 'Compounding' },
   { icon: Gift, label: 'Cashback' },
   { icon: HandCoins, label: 'Udhar' },
-  // { icon: Calculator, label: 'Tax' },  // TEMP: Disabled for separate commit
+  { icon: Calculator, label: 'Tax' },
   { icon: BarChart3, label: 'Analytics' },
   { icon: Settings, label: 'Settings' },
 ];
