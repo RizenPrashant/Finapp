@@ -49,6 +49,18 @@ public class CashbackService {
         return entryRepository.findByUserOrderByDateDesc(user);
     }
 
+    public BigDecimal getTotalEarned(User user) {
+        return walletRepository.findByUserOrderByPlatformAsc(user).stream()
+                .map(CashbackWallet::getTotalEarned)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    public BigDecimal getTotalRedeemed(User user) {
+        return walletRepository.findByUserOrderByPlatformAsc(user).stream()
+                .map(CashbackWallet::getTotalRedeemed)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
     public List<CashbackEntry> getEntriesByWallet(Long walletId, User user) {
         CashbackWallet wallet = walletRepository.findByIdAndUser(walletId, user)
                 .orElseThrow(() -> new RuntimeException("Wallet not found: " + walletId));

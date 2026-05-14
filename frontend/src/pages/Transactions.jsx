@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Download, Gift } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Gift, Plus } from 'lucide-react';
 import Header from '../components/Header';
 import TransactionRow from '../components/TransactionRow';
 import EditTransactionModal from '../components/EditTransactionModal';
-import { DELETE_LOCK_KEY } from '../pages/Settings';
-import { getTransactions, updateTransaction, deleteTransaction, getCashbackWallets, getCashbackEntriesByWallet } from '../api';
+import AddTransactionModal from '../components/AddTransactionModal';
+import { DELETE_LOCK_KEY, FILTER_PREFS_KEY } from '../pages/Settings';
+import { getTransactions, updateTransaction, deleteTransaction, createTransaction, getCashbackWallets, getCashbackEntriesByWallet } from '../api';
 import { exportToXlsx } from '../utils/exportXlsx';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -17,7 +18,15 @@ export default function Transactions({ onProfileClick }) {
   const deleteLocked = localStorage.getItem(DELETE_LOCK_KEY) === 'true';
 
   const now = new Date();
-  const [filterType, setFilterType] = useState('monthly'); // daily, monthly, yearly, all, custom
+  const getDefaultFilter = () => {
+    const saved = localStorage.getItem(FILTER_PREFS_KEY);
+    if (saved) {
+      const prefs = JSON.parse(saved);
+      return prefs.transactions || 'monthly';
+    }
+    return 'monthly';
+  };
+  const [filterType, setFilterType] = useState(getDefaultFilter()); // daily, monthly, yearly, all, custom
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedDate, setSelectedDate] = useState(now.toISOString().split('T')[0]);
@@ -27,6 +36,7 @@ export default function Transactions({ onProfileClick }) {
   const [cashbackWallets, setCashbackWallets] = useState([]);
   const [selectedWalletId, setSelectedWalletId] = useState(null);
   const [cashbackMode, setCashbackMode] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
     getCashbackWallets().then(r => setCashbackWallets(r.data)).catch(() => {});
@@ -94,6 +104,16 @@ export default function Transactions({ onProfileClick }) {
   const handleEdit = async (id, data) => {
     await updateTransaction(id, data);
     fetchTransactions(selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate);
+  };
+
+  const handleSave = async (data) => {
+    await createTransaction(data);
+    if (cashbackMode) {
+      // Refresh cashback view
+      handleWalletSelect(selectedWalletId);
+    } else {
+      fetchTransactions(selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate);
+    }
   };
 
   const handleExport = async () => {
@@ -239,22 +259,30 @@ export default function Transactions({ onProfileClick }) {
           )}
         </div>
 
-        {/* Summary Strip */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Income</p>
-            <p className="text-lg font-bold text-green-600 dark:text-green-400">₹{monthlyIncome.toLocaleString('en-IN')}</p>
+        {/* Summary Strip + Add Button */}
+        <div className="flex items-center gap-4">
+          <div className="flex-1 grid grid-cols-3 gap-4">
+            <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Income</p>
+              <p className="text-lg font-bold text-green-600 dark:text-green-400">₹{monthlyIncome.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Expenses</p>
+              <p className="text-lg font-bold text-red-500 dark:text-red-400">₹{monthlyExpense.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Net</p>
+              <p className={`text-lg font-bold ${monthlyIncome - monthlyExpense >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-500 dark:text-red-400'}`}>
+                ₹{Math.abs(monthlyIncome - monthlyExpense).toLocaleString('en-IN')}
+              </p>
+            </div>
           </div>
-          <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Expenses</p>
-            <p className="text-lg font-bold text-red-500 dark:text-red-400">₹{monthlyExpense.toLocaleString('en-IN')}</p>
-          </div>
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Net</p>
-            <p className={`text-lg font-bold ${monthlyIncome - monthlyExpense >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-500 dark:text-red-400'}`}>
-              ₹{Math.abs(monthlyIncome - monthlyExpense).toLocaleString('en-IN')}
-            </p>
-          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-5 py-3 bg-slate-900 dark:bg-blue-600 text-white rounded-xl font-semibold hover:bg-slate-700 transition text-sm whitespace-nowrap"
+          >
+            <Plus size={18} /> Add Transaction
+          </button>
         </div>
 
         {/* Transactions List */}
@@ -298,6 +326,14 @@ export default function Transactions({ onProfileClick }) {
           transaction={editingTransaction}
           onClose={() => setEditingTransaction(null)}
           onSave={handleEdit}
+        />
+      )}
+
+      {showAddModal && (
+        <AddTransactionModal
+          budgetCategory="Miscellaneous"
+          onClose={() => setShowAddModal(false)}
+          onSave={handleSave}
         />
       )}
     </div>

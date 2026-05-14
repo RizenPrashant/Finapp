@@ -12,6 +12,8 @@ import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import Compounding from './pages/Compounding';
 import Cashback from './pages/Cashback';
+import Udhar from './pages/Udhar';
+// import Tax from './pages/Tax';  // TEMP: Disabled for separate commit
 import Login from './pages/Login';
 import Register from './pages/Register';
 import { updateProfile } from './api';
@@ -51,6 +53,8 @@ function MainLayout() {
     Trading: (onNavigate, onProfileClick) => <Trading onProfileClick={onProfileClick} />,
     Compounding: (onNavigate, onProfileClick) => <Compounding onProfileClick={onProfileClick} />,
     Cashback: (onNavigate, onProfileClick) => <Cashback onProfileClick={onProfileClick} />,
+    Udhar: (onNavigate, onProfileClick) => <Udhar onProfileClick={onProfileClick} />,
+    // Tax: (onNavigate, onProfileClick) => <Tax onProfileClick={onProfileClick} />,  // TEMP: Disabled for separate commit
     Analytics: (onNavigate, onProfileClick) => <Analytics onProfileClick={onProfileClick} />,
     Settings: (onNavigate, onProfileClick) => <Settings onProfileClick={onProfileClick} />,
   };

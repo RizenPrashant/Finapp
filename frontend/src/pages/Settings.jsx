@@ -1,10 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Shield, ShieldOff, Building2, Plus, Trash2 } from 'lucide-react';
+import { Shield, ShieldOff, Building2, Plus, Trash2, Calendar, Filter } from 'lucide-react';
 import Header from '../components/Header';
 import { getBudgets, saveBudget, getBrokers } from '../api';
 
 export const DELETE_LOCK_KEY = 'finapp_delete_locked';
 export const BROKERS_KEY = 'finapp_custom_brokers';
+export const FILTER_PREFS_KEY = 'finapp_filter_preferences';
+
+const DEFAULT_FILTER_PREFS = {
+  dashboard: 'monthly',
+  transactions: 'monthly',
+  cashback: 'monthly',
+  udhar: 'monthly',
+  trading: 'monthly',
+}; // 'custom' is also available for all sections
 
 export default function Settings() {
   const [budgets, setBudgets] = useState([]);
@@ -15,6 +24,10 @@ export default function Settings() {
   );
   const [brokers, setBrokers] = useState([]);
   const [newBrokerName, setNewBrokerName] = useState('');
+  const [filterPrefs, setFilterPrefs] = useState(() => {
+    const saved = localStorage.getItem(FILTER_PREFS_KEY);
+    return saved ? JSON.parse(saved) : DEFAULT_FILTER_PREFS;
+  });
 
   useEffect(() => {
     Promise.all([
@@ -37,6 +50,11 @@ export default function Settings() {
       localStorage.setItem(BROKERS_KEY, JSON.stringify(customBrokers));
     }
   }, [brokers]);
+
+  // Save filter preferences to localStorage
+  useEffect(() => {
+    localStorage.setItem(FILTER_PREFS_KEY, JSON.stringify(filterPrefs));
+  }, [filterPrefs]);
 
   const handleAddBroker = async () => {
     if (newBrokerName.trim() && !brokers.includes(newBrokerName.trim().toUpperCase())) {
@@ -158,6 +176,136 @@ export default function Settings() {
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
               Note: Removing a broker from this list won't affect existing trades. New trades will use the updated list.
             </p>
+          </div>
+
+          {/* Default Filter Preferences */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
+                <Filter size={20} className="text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <h2 className="font-bold text-slate-800 dark:text-slate-200">Default Filters</h2>
+                <p className="text-xs text-gray-400 dark:text-gray-500">Set default date filters for each section</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Dashboard Filter */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <Calendar size={16} className="text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Dashboard</p>
+                    <p className="text-xs text-gray-400">Default time period</p>
+                  </div>
+                </div>
+                <select
+                  value={filterPrefs.dashboard}
+                  onChange={(e) => setFilterPrefs({ ...filterPrefs, dashboard: e.target.value })}
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                  <option value="all">All Time</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+
+              {/* Transactions Filter */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <Calendar size={16} className="text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Transactions</p>
+                    <p className="text-xs text-gray-400">Default time period</p>
+                  </div>
+                </div>
+                <select
+                  value={filterPrefs.transactions}
+                  onChange={(e) => setFilterPrefs({ ...filterPrefs, transactions: e.target.value })}
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                  <option value="all">All Time</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+
+              {/* Cashback Filter */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <Calendar size={16} className="text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Cashback</p>
+                    <p className="text-xs text-gray-400">Default time period</p>
+                  </div>
+                </div>
+                <select
+                  value={filterPrefs.cashback}
+                  onChange={(e) => setFilterPrefs({ ...filterPrefs, cashback: e.target.value })}
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                  <option value="all">All Time</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+
+              {/* Udhar Filter */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <Calendar size={16} className="text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Udhar</p>
+                    <p className="text-xs text-gray-400">Default time period</p>
+                  </div>
+                </div>
+                <select
+                  value={filterPrefs.udhar}
+                  onChange={(e) => setFilterPrefs({ ...filterPrefs, udhar: e.target.value })}
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                  <option value="all">All Time</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+
+              {/* Trading Filter */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <Calendar size={16} className="text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Trading</p>
+                    <p className="text-xs text-gray-400">Default time period</p>
+                  </div>
+                </div>
+                <select
+                  value={filterPrefs.trading}
+                  onChange={(e) => setFilterPrefs({ ...filterPrefs, trading: e.target.value })}
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                  <option value="all">All Time</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+            </div>
           </div>
 
           <h2 className="font-bold text-slate-800 dark:text-slate-200 mb-6">Budget Limits</h2>

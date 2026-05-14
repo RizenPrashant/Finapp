@@ -64,6 +64,14 @@ public class User {
     @JsonIgnore
     private List<Budget> budgets;
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<UdharRecord> udharRecords;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<CashbackWallet> cashbackWallets;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
@@ -56,4 +57,12 @@ public class Transaction {
     @JoinColumn(name = "user_id", nullable = false)
     @JsonIgnoreProperties({"transactions", "assets", "budgets", "password"})
     private User user;
+
+    @Column(name = "is_udhar")
+    @Builder.Default
+    private Boolean isUdhar = false;
+
+    @OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnoreProperties({"transaction"})
+    private List<UdharTransactionLink> udharLinks;
 }

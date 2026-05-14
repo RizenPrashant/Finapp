@@ -1,12 +1,15 @@
 package com.finapp.service;
 
 import com.finapp.dto.TransactionDTO;
+import com.finapp.dto.UdharRecordDTO;
 import com.finapp.model.Transaction;
 import com.finapp.model.TransactionType;
+import com.finapp.model.UdharRecord;
 import com.finapp.model.User;
 import com.finapp.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
@@ -22,6 +25,7 @@ import java.util.Map;
 public class TransactionService {
 
     private final TransactionRepository transactionRepository;
+    private final UdharService udharService;
 
     public List<Transaction> getAll(User user) {
         List<Transaction> transactions = transactionRepository.findByUser(user);
@@ -63,7 +67,10 @@ public class TransactionService {
         return transactionRepository.findByUserAndType(user, type);
     }
 
+    @Transactional
     public Transaction create(TransactionDTO dto, User user) {
+        boolean isUdhar = dto.getIsUdhar() != null && dto.getIsUdhar();
+
         Transaction transaction = Transaction.builder()
                 .title(dto.getTitle())
                 .amount(dto.getAmount())
@@ -73,9 +80,28 @@ public class TransactionService {
                 .date(dto.getDate())
                 .description(dto.getDescription())
                 .paymentSource(dto.getPaymentSource())
+                .isUdhar(isUdhar)
                 .user(user)
                 .build();
-        return transactionRepository.save(transaction);
+
+        transaction = transactionRepository.save(transaction);
+
+        // If udhar transaction, create udhar record
+        if (isUdhar && dto.getUdharPersonName() != null && dto.getUdharType() != null) {
+            UdharRecord.UdharType udharType = UdharRecord.UdharType.valueOf(dto.getUdharType());
+
+            UdharRecordDTO udharDTO = new UdharRecordDTO();
+            udharDTO.setPersonName(dto.getUdharPersonName());
+            udharDTO.setMobileNumber(dto.getUdharMobileNumber());
+            udharDTO.setTotalAmount(dto.getAmount());
+            udharDTO.setType(udharType);
+            udharDTO.setDate(dto.getDate());
+            udharDTO.setNotes(dto.getDescription());
+
+            udharService.createRecord(udharDTO, user);
+        }
+
+        return transaction;
     }
 
     public Transaction update(Long id, TransactionDTO dto, User user) {

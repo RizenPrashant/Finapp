@@ -34,4 +34,10 @@ public class TransactionDTO {
     private String description;
 
     private String paymentSource;
+
+    // Udhar fields
+    private Boolean isUdhar;
+    private String udharPersonName;
+    private String udharMobileNumber;
+    private String udharType; // GIVEN or TAKEN
 }

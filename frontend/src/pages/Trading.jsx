@@ -1,8 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Plus, TrendingUp, TrendingDown, Activity, DollarSign, Target, Percent, Briefcase, Building2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Plus, TrendingUp, TrendingDown, Activity, DollarSign, Target, Percent, Briefcase, Building2, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { getTrades, getTradesByStatus, getTradesByBroker, getBrokers, getTradingAnalytics, deleteTrade, createTrade, updateTrade, getCompoundingHistory, createCompoundingHistory, deleteCompoundingHistory } from '../api';
 import AddTradeModal from '../components/AddTradeModal';
 import TradeCard from '../components/TradeCard';
+import { FILTER_PREFS_KEY } from '../pages/Settings';
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 export default function Trading() {
   const [trades, setTrades] = useState([]);
@@ -15,6 +18,23 @@ export default function Trading() {
   const [showCompoundingModal, setShowCompoundingModal] = useState(false);
   const [editingTrade, setEditingTrade] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Date filters - default from settings
+  const now = new Date();
+  const getDefaultFilter = () => {
+    const saved = localStorage.getItem(FILTER_PREFS_KEY);
+    if (saved) {
+      const prefs = JSON.parse(saved);
+      return prefs.trading || 'monthly';
+    }
+    return 'monthly';
+  };
+  const [dateFilterType, setDateFilterType] = useState(getDefaultFilter());
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [selectedDate, setSelectedDate] = useState(now.toISOString().split('T')[0]);
+  const [customStartDate, setCustomStartDate] = useState(now.toISOString().split('T')[0]);
+  const [customEndDate, setCustomEndDate] = useState(now.toISOString().split('T')[0]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -85,6 +105,65 @@ export default function Trading() {
     return `${(value || 0).toFixed(2)}%`;
   };
 
+  // Date filter logic for trades
+  const filteredTrades = useMemo(() => {
+    if (dateFilterType === 'all') return trades;
+
+    return trades.filter(t => {
+      const tradeDate = new Date(t.entryDate || t.date);
+      const tradeYear = tradeDate.getFullYear();
+      const tradeMonth = tradeDate.getMonth();
+
+      switch (dateFilterType) {
+        case 'daily':
+          return (t.entryDate || t.date) === selectedDate;
+        case 'weekly': {
+          const start = new Date(selectedDate);
+          start.setDate(start.getDate() - start.getDay()); // Sunday
+          const end = new Date(start);
+          end.setDate(end.getDate() + 6); // Saturday
+          return tradeDate >= start && tradeDate <= end;
+        }
+        case 'monthly':
+          return tradeYear === selectedYear && tradeMonth === selectedMonth;
+        case 'yearly':
+          return tradeYear === selectedYear;
+        case 'custom': {
+          const start = new Date(customStartDate);
+          const end = new Date(customEndDate);
+          end.setHours(23, 59, 59);
+          return tradeDate >= start && tradeDate <= end;
+        }
+        default:
+          return true;
+      }
+    });
+  }, [trades, dateFilterType, selectedDate, selectedMonth, selectedYear, customStartDate, customEndDate]);
+
+  // Calculate filtered analytics
+  const filteredAnalytics = useMemo(() => {
+    if (!analytics || dateFilterType === 'all') return analytics;
+
+    const totalTrades = filteredTrades.length;
+    const winningTrades = filteredTrades.filter(t => (t.pnl || 0) > 0).length;
+    const losingTrades = filteredTrades.filter(t => (t.pnl || 0) < 0).length;
+    const netPnL = filteredTrades.reduce((s, t) => s + (t.pnl || 0), 0);
+    const realizedPnL = filteredTrades.filter(t => t.status === 'CLOSED').reduce((s, t) => s + (t.pnl || 0), 0);
+    const openPositions = filteredTrades.filter(t => t.status === 'OPEN').length;
+
+    return {
+      ...analytics,
+      totalTrades,
+      winningTrades,
+      losingTrades,
+      winRate: totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0,
+      netPnL,
+      realizedPnL,
+      openPositions,
+      capitalUsed: filteredTrades.filter(t => t.status === 'OPEN').reduce((s, t) => s + ((t.quantity || 0) * (t.entryPrice || 0)), 0)
+    };
+  }, [filteredTrades, analytics, dateFilterType]);
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -121,8 +200,113 @@ export default function Trading() {
         </div>
       </div>
 
-      {/* Analytics Cards */}
-      {analytics && (
+      {/* Date Filter Bar */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1 text-gray-400 mr-2">
+            <Calendar size={16} />
+            <span className="text-xs font-medium uppercase">Period</span>
+          </div>
+          {['daily', 'weekly', 'monthly', 'yearly', 'all', 'custom'].map((type) => (
+            <button
+              key={type}
+              onClick={() => setDateFilterType(type)}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+                dateFilterType === type
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}>
+              {type.charAt(0).toUpperCase() + type.slice(1)}
+            </button>
+          ))}
+
+          {/* Date Navigation */}
+          {dateFilterType === 'daily' && (
+            <div className="flex items-center gap-2 ml-auto">
+              <button onClick={() => {
+                const d = new Date(selectedDate);
+                d.setDate(d.getDate() - 1);
+                setSelectedDate(d.toISOString().split('T')[0]);
+              }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronLeft size={16} /></button>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 dark:bg-gray-700 dark:text-white"
+              />
+              <button onClick={() => {
+                const d = new Date(selectedDate);
+                d.setDate(d.getDate() + 1);
+                setSelectedDate(d.toISOString().split('T')[0]);
+              }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronRight size={16} /></button>
+            </div>
+          )}
+
+          {dateFilterType === 'weekly' && (
+            <div className="flex items-center gap-2 ml-auto">
+              <button onClick={() => {
+                const d = new Date(selectedDate);
+                d.setDate(d.getDate() - 7);
+                setSelectedDate(d.toISOString().split('T')[0]);
+              }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronLeft size={16} /></button>
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                Week of {new Date(selectedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+              </span>
+              <button onClick={() => {
+                const d = new Date(selectedDate);
+                d.setDate(d.getDate() + 7);
+                setSelectedDate(d.toISOString().split('T')[0]);
+              }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronRight size={16} /></button>
+            </div>
+          )}
+
+          {dateFilterType === 'monthly' && (
+            <div className="flex items-center gap-2 ml-auto">
+              <button onClick={() => {
+                if (selectedMonth === 0) { setSelectedMonth(11); setSelectedYear(y => y - 1); }
+                else setSelectedMonth(m => m - 1);
+              }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronLeft size={16} /></button>
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-300 min-w-[100px] text-center">
+                {MONTHS[selectedMonth]} {selectedYear}
+              </span>
+              <button onClick={() => {
+                if (selectedMonth === 11) { setSelectedMonth(0); setSelectedYear(y => y + 1); }
+                else setSelectedMonth(m => m + 1);
+              }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronRight size={16} /></button>
+            </div>
+          )}
+
+          {dateFilterType === 'yearly' && (
+            <div className="flex items-center gap-2 ml-auto">
+              <button onClick={() => setSelectedYear(y => y - 1)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronLeft size={16} /></button>
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-300 min-w-[60px] text-center">{selectedYear}</span>
+              <button onClick={() => setSelectedYear(y => y + 1)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronRight size={16} /></button>
+            </div>
+          )}
+
+          {dateFilterType === 'custom' && (
+            <div className="flex items-center gap-2 ml-auto">
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 dark:bg-gray-700 dark:text-white"
+              />
+              <span className="text-gray-400">to</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                min={customStartDate}
+                className="border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Analytics Cards - Using Filtered Data */}
+      {filteredAnalytics && (
         <div className="p-6">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
             {/* Total Trades */}
@@ -131,7 +315,10 @@ export default function Trading() {
                 <Activity size={18} className="text-blue-500 flex-shrink-0" />
                 <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Trades</span>
               </div>
-              <p className="text-xl font-bold text-slate-800 dark:text-slate-200 truncate" title={analytics.totalTrades}>{analytics.totalTrades}</p>
+              <p className="text-xl font-bold text-slate-800 dark:text-slate-200 truncate" title={filteredAnalytics.totalTrades}>
+                {filteredAnalytics.totalTrades}
+                {dateFilterType !== 'all' && <span className="text-xs text-gray-400 ml-1">(filtered)</span>}
+              </p>
             </div>
 
             {/* Win Rate */}
@@ -140,8 +327,8 @@ export default function Trading() {
                 <Target size={18} className="text-green-500 flex-shrink-0" />
                 <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Win Rate</span>
               </div>
-              <p className="text-xl font-bold text-slate-800 dark:text-slate-200 truncate" title={formatPercentage(analytics.winRate)}>{formatPercentage(analytics.winRate)}</p>
-              <p className="text-xs text-gray-400 truncate">{analytics.winningTrades}W / {analytics.losingTrades}L</p>
+              <p className="text-xl font-bold text-slate-800 dark:text-slate-200 truncate" title={formatPercentage(filteredAnalytics.winRate)}>{formatPercentage(filteredAnalytics.winRate)}</p>
+              <p className="text-xs text-gray-400 truncate">{filteredAnalytics.winningTrades}W / {filteredAnalytics.losingTrades}L</p>
             </div>
 
             {/* Net PnL */}
@@ -150,8 +337,8 @@ export default function Trading() {
                 <DollarSign size={18} className={`flex-shrink-0 ${(analytics.netPnL || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`} />
                 <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Net PnL</span>
               </div>
-              <p className={`text-lg font-bold truncate ${(analytics.netPnL || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`} title={formatCurrency(analytics.netPnL)}>
-                {formatCurrency(analytics.netPnL)}
+              <p className={`text-lg font-bold truncate ${(filteredAnalytics.netPnL || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`} title={formatCurrency(filteredAnalytics.netPnL)}>
+                {formatCurrency(filteredAnalytics.netPnL)}
               </p>
             </div>
 
@@ -161,7 +348,7 @@ export default function Trading() {
                 <TrendingUp size={18} className="text-purple-500 flex-shrink-0" />
                 <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Realized</span>
               </div>
-              <p className="text-lg font-bold text-slate-800 dark:text-slate-200 truncate" title={formatCurrency(analytics.realizedPnL)}>{formatCurrency(analytics.realizedPnL)}</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-200 truncate" title={formatCurrency(filteredAnalytics.realizedPnL)}>{formatCurrency(filteredAnalytics.realizedPnL)}</p>
             </div>
 
             {/* Open Positions */}
@@ -170,7 +357,7 @@ export default function Trading() {
                 <Briefcase size={18} className="text-orange-500 flex-shrink-0" />
                 <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Open</span>
               </div>
-              <p className="text-xl font-bold text-slate-800 dark:text-slate-200 truncate">{analytics.openPositions}</p>
+              <p className="text-xl font-bold text-slate-800 dark:text-slate-200 truncate">{filteredAnalytics.openPositions}</p>
             </div>
 
             {/* Capital Used */}
@@ -179,7 +366,7 @@ export default function Trading() {
                 <Percent size={18} className="text-blue-500 flex-shrink-0" />
                 <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Capital</span>
               </div>
-              <p className="text-lg font-bold text-slate-800 dark:text-slate-200 truncate" title={formatCurrency(analytics.totalCapitalUsed)}>{formatCurrency(analytics.totalCapitalUsed)}</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-200 truncate" title={formatCurrency(filteredAnalytics.capitalUsed)}>{formatCurrency(filteredAnalytics.capitalUsed)}</p>
             </div>
           </div>
 
@@ -260,19 +447,23 @@ export default function Trading() {
         </div>
       </div>
 
-      {/* Trades Grid */}
+      {/* Trades Grid - Using Filtered Data */}
       <div className="px-6 pb-6">
-        {trades.length === 0 ? (
+        {filteredTrades.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-12 text-center">
             <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
               <Activity size={24} className="text-gray-400" />
             </div>
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">No trades yet</h3>
-            <p className="text-gray-500 dark:text-gray-400">Add your first trade to start tracking your portfolio</p>
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">
+              {trades.length === 0 ? 'No trades yet' : 'No trades for this period'}
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400">
+              {trades.length === 0 ? 'Add your first trade to start tracking your portfolio' : 'Try changing the date filter'}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {trades.map((trade) => (
+            {filteredTrades.map((trade) => (
               <TradeCard
                 key={trade.id}
                 trade={trade}

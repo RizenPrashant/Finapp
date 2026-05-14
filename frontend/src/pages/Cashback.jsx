@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Wallet, Gift, X, ChevronRight, ArrowLeft, TrendingUp } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Wallet, Gift, X, ChevronRight, ArrowLeft, TrendingUp, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
 import Header from '../components/Header';
 import {
   getCashbackWallets, createCashbackWallet, deleteCashbackWallet,
   getCashbackEntriesByWallet, createCashbackEntry, deleteCashbackEntry
 } from '../api';
+import { FILTER_PREFS_KEY } from '../pages/Settings';
 
 const PLATFORM_PRESETS = [
   { name: 'Swiggy Money', color: '#FC8019', emoji: '🍔' },
@@ -22,6 +23,8 @@ const PLATFORM_PRESETS = [
 ];
 
 const fmt = (val) => `₹${parseFloat(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 const EMOJI_OPTIONS = [
   '💰','💳','🏦','🎁','🛒','📦','🍔','🍕','📱','💎','⭐','🔥',
@@ -259,6 +262,23 @@ export default function Cashback({ onProfileClick }) {
   const [showAddWallet, setShowAddWallet] = useState(false);
   const [showAddEntry, setShowAddEntry] = useState(false);
 
+  // Date filters - read default from settings
+  const now = new Date();
+  const getDefaultFilter = () => {
+    const saved = localStorage.getItem(FILTER_PREFS_KEY);
+    if (saved) {
+      const prefs = JSON.parse(saved);
+      return prefs.cashback || 'monthly';
+    }
+    return 'monthly';
+  };
+  const [filterType, setFilterType] = useState(getDefaultFilter()); // daily, weekly, monthly, yearly, all, custom
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [selectedDate, setSelectedDate] = useState(now.toISOString().split('T')[0]);
+  const [customStartDate, setCustomStartDate] = useState(now.toISOString().split('T')[0]);
+  const [customEndDate, setCustomEndDate] = useState(now.toISOString().split('T')[0]);
+
   const fetchWallets = useCallback(async () => {
     setLoading(true);
     try {
@@ -313,15 +333,84 @@ export default function Cashback({ onProfileClick }) {
     if (selectedWallet) await fetchEntries(selectedWallet.id);
   };
 
+  // Filter entries based on date
+  const filteredEntries = useMemo(() => {
+    if (filterType === 'all') return entries;
+
+    return entries.filter(e => {
+      const entryDate = new Date(e.date);
+      const entryYear = entryDate.getFullYear();
+      const entryMonth = entryDate.getMonth();
+      const entryDay = entryDate.getDate();
+
+      switch (filterType) {
+        case 'daily':
+          return e.date === selectedDate;
+        case 'weekly': {
+          const start = new Date(selectedDate);
+          start.setDate(start.getDate() - start.getDay()); // Sunday
+          const end = new Date(start);
+          end.setDate(end.getDate() + 6); // Saturday
+          return entryDate >= start && entryDate <= end;
+        }
+        case 'monthly':
+          return entryYear === selectedYear && entryMonth === selectedMonth;
+        case 'yearly':
+          return entryYear === selectedYear;
+        case 'custom': {
+          const start = new Date(customStartDate);
+          const end = new Date(customEndDate);
+          end.setHours(23, 59, 59);
+          return entryDate >= start && entryDate <= end;
+        }
+        default:
+          return true;
+      }
+    });
+  }, [entries, filterType, selectedDate, selectedMonth, selectedYear, customStartDate, customEndDate]);
+
+  // Calculate totals from filtered entries
+  const { filteredEarned, filteredRedeemed } = useMemo(() => {
+    const earned = filteredEntries
+      .filter(e => e.type === 'EARNED')
+      .reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+    const redeemed = filteredEntries
+      .filter(e => e.type === 'REDEEMED')
+      .reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+    return { filteredEarned: earned, filteredRedeemed: redeemed };
+  }, [filteredEntries]);
+
   const totalBalance = wallets.reduce((s, w) => s + parseFloat(w.balance || 0), 0);
   const totalEarned = wallets.reduce((s, w) => s + parseFloat(w.totalEarned || 0), 0);
   const totalRedeemed = wallets.reduce((s, w) => s + parseFloat(w.totalRedeemed || 0), 0);
 
+  // Navigation handlers
+  const prevMonth = () => {
+    if (selectedMonth === 0) { setSelectedMonth(11); setSelectedYear(y => y - 1); }
+    else setSelectedMonth(m => m - 1);
+  };
+  const nextMonth = () => {
+    if (selectedMonth === 11) { setSelectedMonth(0); setSelectedYear(y => y + 1); }
+    else setSelectedMonth(m => m + 1);
+  };
+  const prevYear = () => setSelectedYear(y => y - 1);
+  const nextYear = () => setSelectedYear(y => y + 1);
+  const prevWeek = () => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() - 7);
+    setSelectedDate(d.toISOString().split('T')[0]);
+  };
+  const nextWeek = () => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + 7);
+    setSelectedDate(d.toISOString().split('T')[0]);
+  };
+
   // ===== WALLET DETAIL VIEW =====
   if (selectedWallet) {
     const wallet = wallets.find(w => w.id === selectedWallet.id) || selectedWallet;
-    const earned = entries.filter(e => e.type === 'EARNED');
-    const redeemed = entries.filter(e => e.type === 'REDEEMED');
+    const filteredEarnedCount = filteredEntries.filter(e => e.type === 'EARNED').length;
+    const filteredRedeemedCount = filteredEntries.filter(e => e.type === 'REDEEMED').length;
 
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -337,7 +426,7 @@ export default function Cashback({ onProfileClick }) {
               </button>
               <div>
                 <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">{wallet.icon} {wallet.platform}</h2>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">{entries.length} entries</p>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">{entries.length} total entries</p>
               </div>
             </div>
             <button onClick={() => setShowAddEntry(true)}
@@ -346,7 +435,94 @@ export default function Cashback({ onProfileClick }) {
             </button>
           </div>
 
-          {/* Wallet Stats */}
+          {/* Filter Bar */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 mb-6">
+            <div className="flex items-center gap-2 flex-wrap">
+              {['daily', 'weekly', 'monthly', 'yearly', 'all', 'custom'].map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setFilterType(type)}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+                    filterType === type
+                      ? 'bg-slate-900 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}>
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </button>
+              ))}
+
+              {/* Date Navigation based on filter type */}
+              {filterType === 'daily' && (
+                <div className="flex items-center gap-2 ml-4">
+                  <button onClick={() => {
+                    const d = new Date(selectedDate);
+                    d.setDate(d.getDate() - 1);
+                    setSelectedDate(d.toISOString().split('T')[0]);
+                  }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronLeft size={16} /></button>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 dark:bg-gray-700 dark:text-white"
+                  />
+                  <button onClick={() => {
+                    const d = new Date(selectedDate);
+                    d.setDate(d.getDate() + 1);
+                    setSelectedDate(d.toISOString().split('T')[0]);
+                  }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronRightIcon size={16} /></button>
+                </div>
+              )}
+
+              {filterType === 'weekly' && (
+                <div className="flex items-center gap-2 ml-4">
+                  <button onClick={prevWeek} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronLeft size={16} /></button>
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                    Week of {new Date(selectedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                  </span>
+                  <button onClick={nextWeek} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronRightIcon size={16} /></button>
+                </div>
+              )}
+
+              {filterType === 'monthly' && (
+                <div className="flex items-center gap-2 ml-4">
+                  <button onClick={prevMonth} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronLeft size={16} /></button>
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-300 min-w-[100px] text-center">
+                    {MONTHS[selectedMonth]} {selectedYear}
+                  </span>
+                  <button onClick={nextMonth} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronRightIcon size={16} /></button>
+                </div>
+              )}
+
+              {filterType === 'yearly' && (
+                <div className="flex items-center gap-2 ml-4">
+                  <button onClick={prevYear} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronLeft size={16} /></button>
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-300 min-w-[60px] text-center">{selectedYear}</span>
+                  <button onClick={nextYear} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronRightIcon size={16} /></button>
+                </div>
+              )}
+
+              {filterType === 'custom' && (
+                <div className="flex items-center gap-2 ml-4">
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 dark:bg-gray-700 dark:text-white"
+                  />
+                  <span className="text-gray-400">to</span>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    min={customStartDate}
+                    className="border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Wallet Stats - Filtered */}
           <div className="grid grid-cols-3 gap-4 mb-6">
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 shadow-sm">
               <div className="flex items-center gap-2 mb-2">
@@ -358,18 +534,18 @@ export default function Cashback({ onProfileClick }) {
             <div className="bg-green-50 dark:bg-green-900/20 rounded-2xl border border-green-100 dark:border-green-800 p-5 shadow-sm">
               <div className="flex items-center gap-2 mb-2">
                 <ArrowDownCircle size={16} className="text-green-600" />
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Total Earned</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Earned {filterType !== 'all' && '(Filtered)'}</p>
               </div>
-              <p className="text-2xl font-bold text-green-700 dark:text-green-400">+{fmt(wallet.totalEarned)}</p>
-              <p className="text-xs text-green-600 dark:text-green-500 mt-1">{earned.length} transactions</p>
+              <p className="text-2xl font-bold text-green-700 dark:text-green-400">+{fmt(filteredEarned)}</p>
+              <p className="text-xs text-green-600 dark:text-green-500 mt-1">{filteredEarnedCount} transactions</p>
             </div>
             <div className="bg-red-50 dark:bg-red-900/20 rounded-2xl border border-red-100 dark:border-red-800 p-5 shadow-sm">
               <div className="flex items-center gap-2 mb-2">
                 <ArrowUpCircle size={16} className="text-red-600" />
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Total Redeemed</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Redeemed {filterType !== 'all' && '(Filtered)'}</p>
               </div>
-              <p className="text-2xl font-bold text-red-700 dark:text-red-400">-{fmt(wallet.totalRedeemed)}</p>
-              <p className="text-xs text-red-600 dark:text-red-500 mt-1">{redeemed.length} transactions</p>
+              <p className="text-2xl font-bold text-red-700 dark:text-red-400">-{fmt(filteredRedeemed)}</p>
+              <p className="text-xs text-red-600 dark:text-red-500 mt-1">{filteredRedeemedCount} transactions</p>
             </div>
           </div>
 
@@ -384,6 +560,12 @@ export default function Cashback({ onProfileClick }) {
               <p className="text-slate-800 dark:text-slate-200 font-medium">No entries yet</p>
               <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Add your first cashback entry</p>
             </div>
+          ) : filteredEntries.length === 0 ? (
+            <div className="text-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-600">
+              <Gift size={40} className="text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+              <p className="text-slate-800 dark:text-slate-200 font-medium">No entries for this period</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Try changing the filter</p>
+            </div>
           ) : (
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
               <table className="w-full text-sm">
@@ -397,7 +579,7 @@ export default function Cashback({ onProfileClick }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                  {entries.map(entry => (
+                  {filteredEntries.map(entry => (
                     <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">

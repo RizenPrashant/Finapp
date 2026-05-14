@@ -88,6 +88,23 @@ export const getCashbackEntriesByWallet = (walletId) => api.get(`/cashback/entri
 export const createCashbackEntry = (data) => api.post('/cashback/entries', data);
 export const deleteCashbackEntry = (id) => api.delete(`/cashback/entries/${id}`);
 
+// Udhar APIs
+export const getUdharRecords = () => api.get('/udhar/records');
+export const getUdharRecordsByType = (type) => api.get(`/udhar/records/type/${type}`);
+export const createUdharRecord = (data) => api.post('/udhar/records', data);
+export const deleteUdharRecord = (id) => api.delete(`/udhar/records/${id}`);
+export const settleUdhar = (data) => api.post('/udhar/settle', data);
+export const getUdharTransactions = (id) => api.get(`/udhar/records/${id}/transactions`);
+export const getUdharSummary = () => api.get('/udhar/summary');
+
+// Tax APIs - TEMP: Disabled for separate commit
+// export const getTaxProfile = (financialYear) => api.get(`/tax/profile/${financialYear}`);
+// export const saveTaxProfile = (data) => api.post('/tax/profile', data);
+// export const calculateTax = (data) => api.post('/tax/calculate', data);
+// export const compareTaxRegimes = (data) => api.post('/tax/compare', data);
+// export const autoCalculateTax = (financialYear) => api.get(`/tax/auto-calculate/${financialYear}`);
+// export const getFinancialYears = () => api.get('/tax/financial-years');
+
 // Profile APIs
 export const getProfile = () => api.get('/profile');
 export const updateProfile = (data) => api.put('/profile', data);

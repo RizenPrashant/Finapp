@@ -81,4 +81,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     // User-specific analytics
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user = :user AND t.type = :type")
     BigDecimal sumByUserAndType(@Param("user") User user, @Param("type") TransactionType type);
+
+    // For tax calculation - find by userId, type and date range
+    @Query("SELECT t FROM Transaction t WHERE t.user.id = :userId AND t.type = :type AND t.date BETWEEN :start AND :end")
+    List<Transaction> findByUserIdAndTypeAndDateBetween(
+            @Param("userId") Long userId,
+            @Param("type") TransactionType type,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end);
 }

@@ -1,4 +1,4 @@
-import { LayoutGrid, TrendingUp, Wallet, BarChart3, CandlestickChart, Settings, Moon, Sun, Repeat2, Gift } from 'lucide-react';
+import { LayoutGrid, TrendingUp, Wallet, BarChart3, CandlestickChart, Settings, Moon, Sun, Repeat2, Gift, HandCoins, Calculator } from 'lucide-react';
 
 const navItems = [
   { icon: LayoutGrid, label: 'Dashboard' },
@@ -7,6 +7,8 @@ const navItems = [
   { icon: CandlestickChart, label: 'Trading' },
   { icon: Repeat2, label: 'Compounding' },
   { icon: Gift, label: 'Cashback' },
+  { icon: HandCoins, label: 'Udhar' },
+  // { icon: Calculator, label: 'Tax' },  // TEMP: Disabled for separate commit
   { icon: BarChart3, label: 'Analytics' },
   { icon: Settings, label: 'Settings' },
 ];

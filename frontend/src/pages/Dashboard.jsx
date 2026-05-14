@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft } from 'lucide-react';
+import { Plus, ArrowLeft, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import StatsCard from '../components/StatsCard';
 import BudgetCard from '../components/BudgetCard';
 import TransactionRow from '../components/TransactionRow';
 import AddTransactionModal from '../components/AddTransactionModal';
 import EditTransactionModal from '../components/EditTransactionModal';
 import Header from '../components/Header';
-import { DELETE_LOCK_KEY } from '../pages/Settings';
+import { DELETE_LOCK_KEY, FILTER_PREFS_KEY } from '../pages/Settings';
 import {
   getDashboardSummary,
   getBudgets,
@@ -29,6 +29,23 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
   const [loading, setLoading] = useState(true);
   const [cashbackTotal, setCashbackTotal] = useState(0);
   const deleteLocked = localStorage.getItem(DELETE_LOCK_KEY) === 'true';
+
+  // Date filters for dashboard
+  const now = new Date();
+  const getDefaultFilter = () => {
+    const saved = localStorage.getItem(FILTER_PREFS_KEY);
+    if (saved) {
+      const prefs = JSON.parse(saved);
+      return prefs.dashboard || 'monthly';
+    }
+    return 'monthly';
+  };
+  const [filterType, setFilterType] = useState(getDefaultFilter());
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [selectedDate, setSelectedDate] = useState(now.toISOString().split('T')[0]);
+  const [customStartDate, setCustomStartDate] = useState(now.toISOString().split('T')[0]);
+  const [customEndDate, setCustomEndDate] = useState(now.toISOString().split('T')[0]);
 
   const fetchSummary = useCallback(async () => {
     const res = await getDashboardSummary();
@@ -206,6 +223,93 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
     <div className="flex-1 flex flex-col overflow-hidden">
       <Header title="Financial Dashboard" subtitle="October 2025" budgets={budgets} budgetSpent={budgetSpent} onProfileClick={onProfileClick} />
       <div className="flex-1 overflow-y-auto p-8 space-y-8">
+        {/* Date Filter Bar */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1 text-gray-400 mr-2">
+              <Calendar size={16} />
+              <span className="text-xs font-medium uppercase">Period</span>
+            </div>
+            {['daily', 'weekly', 'monthly', 'yearly', 'all', 'custom'].map((type) => (
+              <button
+                key={type}
+                onClick={() => setFilterType(type)}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+                  filterType === type
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}>
+                {type.charAt(0).toUpperCase() + type.slice(1)}
+              </button>
+            ))}
+
+            {/* Date Navigation */}
+            {filterType === 'daily' && (
+              <div className="flex items-center gap-2 ml-auto">
+                <button onClick={() => {
+                  const d = new Date(selectedDate);
+                  d.setDate(d.getDate() - 1);
+                  setSelectedDate(d.toISOString().split('T')[0]);
+                }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronLeft size={16} /></button>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 dark:bg-gray-700 dark:text-white"
+                />
+                <button onClick={() => {
+                  const d = new Date(selectedDate);
+                  d.setDate(d.getDate() + 1);
+                  setSelectedDate(d.toISOString().split('T')[0]);
+                }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronRight size={16} /></button>
+              </div>
+            )}
+
+            {filterType === 'monthly' && (
+              <div className="flex items-center gap-2 ml-auto">
+                <button onClick={() => {
+                  if (selectedMonth === 0) { setSelectedMonth(11); setSelectedYear(y => y - 1); }
+                  else setSelectedMonth(m => m - 1);
+                }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronLeft size={16} /></button>
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-300 min-w-[100px] text-center">
+                  {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][selectedMonth]} {selectedYear}
+                </span>
+                <button onClick={() => {
+                  if (selectedMonth === 11) { setSelectedMonth(0); setSelectedYear(y => y + 1); }
+                  else setSelectedMonth(m => m + 1);
+                }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronRight size={16} /></button>
+              </div>
+            )}
+
+            {filterType === 'yearly' && (
+              <div className="flex items-center gap-2 ml-auto">
+                <button onClick={() => setSelectedYear(y => y - 1)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronLeft size={16} /></button>
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-300 min-w-[60px] text-center">{selectedYear}</span>
+                <button onClick={() => setSelectedYear(y => y + 1)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"><ChevronRight size={16} /></button>
+              </div>
+            )}
+
+            {filterType === 'custom' && (
+              <div className="flex items-center gap-2 ml-auto">
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 dark:bg-gray-700 dark:text-white"
+                />
+                <span className="text-gray-400">to</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  min={customStartDate}
+                  className="border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5">
           <StatsCard title="Total Balance" value={fmt(summary?.totalBalance)} change="+12.5%" positive icon="💰" onClick={() => handleStatClick('BALANCE')} />
