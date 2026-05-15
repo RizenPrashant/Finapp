@@ -2,7 +2,7 @@ package com.finapp.model;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -27,11 +27,11 @@ public class CompoundingHistory {
     private Long id;
 
     @NotNull
-    @Positive
+    @PositiveOrZero
     private BigDecimal startingCapital;
 
     @NotNull
-    @Positive
+    @PositiveOrZero
     private BigDecimal endingCapital;
 
     @NotNull
@@ -45,6 +45,18 @@ public class CompoundingHistory {
 
     @NotNull
     private Integer year;
+
+    @Column(name = "source") // 'TRADING', 'INVESTMENTS', 'MANUAL'
+    private String source;
+
+    @Column(name = "description")
+    private String description;
+
+    @Column(name = "reinvest_amount", precision = 12, scale = 2)
+    private BigDecimal reinvestAmount; // How much was actually reinvested
+
+    @Column(name = "trade_id")
+    private Long tradeId; // Link to the trade that generated this compounding
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

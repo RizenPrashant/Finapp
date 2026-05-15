@@ -1,5 +1,6 @@
 package com.finapp.dto;
 
+import com.finapp.model.InvestmentStatus;
 import com.finapp.model.InvestmentType;
 import com.finapp.model.InterestFrequency;
 import jakarta.validation.constraints.NotBlank;
@@ -37,6 +38,9 @@ public class InvestmentDTO {
     private LocalDate buyDate;
     
     private String notes;
+    
+    // Status
+    private InvestmentStatus status;
     
     // Interest configuration
     private Boolean interestEnabled;

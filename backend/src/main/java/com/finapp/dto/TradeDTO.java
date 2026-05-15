@@ -65,4 +65,6 @@ public class TradeDTO {
 
     @NotBlank
     private String broker = "ZERODHA";
+
+    private BigDecimal manualReinvestAmount;
 }

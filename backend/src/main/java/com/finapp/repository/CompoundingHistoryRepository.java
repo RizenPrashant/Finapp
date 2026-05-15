@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,4 +28,16 @@ public interface CompoundingHistoryRepository extends JpaRepository<CompoundingH
 
     @Query("SELECT c.endingCapital FROM CompoundingHistory c WHERE c.user = :user ORDER BY c.createdAt DESC")
     List<BigDecimal> findLatestCapitalByUser(@Param("user") User user);
+
+    List<CompoundingHistory> findByTradeId(Long tradeId);
+
+    void deleteByTradeId(Long tradeId);
+
+    // Check for duplicate entries on same day with same description and profit
+    @Query("SELECT c FROM CompoundingHistory c WHERE c.user = :user AND c.source = :source AND c.description = :description AND c.profit = :profit AND DATE(c.createdAt) = CURRENT_DATE")
+    List<CompoundingHistory> findDuplicateToday(@Param("user") User user, @Param("source") String source, @Param("description") String description, @Param("profit") BigDecimal profit);
+
+    // Find existing entry by description for updates (without profit check)
+    @Query("SELECT c FROM CompoundingHistory c WHERE c.user = :user AND c.source = :source AND c.description = :description AND DATE(c.createdAt) = CURRENT_DATE ORDER BY c.createdAt DESC")
+    List<CompoundingHistory> findExistingToday(@Param("user") User user, @Param("source") String source, @Param("description") String description);
 }

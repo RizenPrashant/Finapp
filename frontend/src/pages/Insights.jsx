@@ -5,12 +5,14 @@ import AddAssetModal from '../components/AddAssetModal';
 import AddInvestmentModal from '../components/AddInvestmentModal';
 import AddTransactionModal from '../components/AddTransactionModal';
 import EditTransactionModal from '../components/EditTransactionModal';
+import CloseInvestmentModal from '../components/CloseInvestmentModal';
 import InvestmentCard from '../components/InvestmentCard';
 import AssetCard from '../components/AssetCard';
 import { 
   getAssetsByType, createAsset, deleteAsset, updateAsset, getDashboardSummary,
   getInvestments, getInvestmentsByType, createInvestment, updateInvestment, deleteInvestment, getInvestmentAnalytics,
-  getTransactionsBySource, createTransaction, updateTransaction, deleteTransaction
+  getTransactionsBySource, createTransaction, updateTransaction, deleteTransaction,
+  processInvestmentCompounding
 } from '../api';
 import { DELETE_LOCK_KEY } from './Settings';
 
@@ -52,6 +54,10 @@ export default function Insights({ onProfileClick }) {
   
   const [showInvestmentModal, setShowInvestmentModal] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState(null);
+  
+  // Close investment modal
+  const [showCloseInvModal, setShowCloseInvModal] = useState(false);
+  const [closingInvestment, setClosingInvestment] = useState(null);
 
   // Bank transactions drill-down
   const [selectedBankAsset, setSelectedBankAsset] = useState(null); // asset object
@@ -234,6 +240,46 @@ export default function Insights({ onProfileClick }) {
     } catch (error) {
       console.error('Error deleting investment:', error);
       alert('Failed to delete investment: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
+  // Open close investment modal
+  const handleCloseInvestment = (investment) => {
+    setClosingInvestment(investment);
+    setShowCloseInvModal(true);
+  };
+
+  // Confirm close investment with reinvest amount
+  const confirmCloseInvestment = async (closeData) => {
+    if (!closingInvestment) return;
+    
+    const { sellValue, profit, reinvestAmount } = closeData;
+    const name = closingInvestment.name || 'Investment';
+    const type = closingInvestment.type || 'OTHER';
+
+    try {
+      // 1. Update investment status to CLOSED and set sell value as current value
+      await updateInvestment(closingInvestment.id, {
+        ...closingInvestment,
+        currentValue: sellValue,
+        status: 'CLOSED',
+      });
+      
+      // 2. If profit is positive and reinvest amount > 0, add to compounding
+      if (profit > 0 && reinvestAmount > 0) {
+        await processInvestmentCompounding(profit, reinvestAmount, `Close: ${name} (${type})`);
+      }
+      
+      // 3. Refresh investments list
+      const res = investmentTab === 'ALL' ? await getInvestments() : await getInvestmentsByType(investmentTab);
+      setInvestments(res.data);
+      fetchSummary();
+      setShowCloseInvModal(false);
+      setClosingInvestment(null);
+      alert(`Investment "${name}" closed successfully!`);
+    } catch (error) {
+      console.error('Error closing investment:', error);
+      alert('Failed to close investment: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -532,6 +578,7 @@ export default function Insights({ onProfileClick }) {
                     investment={inv}
                     onEdit={openEditInvestment}
                     onDelete={handleDeleteInvestment}
+                    onClose={handleCloseInvestment}
                   />
                 ))}
               </div>
@@ -583,6 +630,16 @@ export default function Insights({ onProfileClick }) {
             onClose={() => { setShowInvestmentModal(false); setEditingInvestment(null); }}
             onSave={editingInvestment ? handleEditInvestment : handleAddInvestment}
             editingInvestment={editingInvestment}
+          />
+        )}
+
+        {/* Close Investment Modal */}
+        {showCloseInvModal && closingInvestment && (
+          <CloseInvestmentModal
+            isOpen={true}
+            onClose={() => { setShowCloseInvModal(false); setClosingInvestment(null); }}
+            onConfirm={confirmCloseInvestment}
+            investment={closingInvestment}
           />
         )}
       </div>

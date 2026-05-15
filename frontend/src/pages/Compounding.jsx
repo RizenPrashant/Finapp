@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, TrendingUp, TrendingDown, Trash2, Target, BarChart2, RefreshCw, ChevronDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, Trash2, Target, BarChart2, RefreshCw, ChevronDown, Plus } from 'lucide-react';
 import Header from '../components/Header';
 import {
   getCompoundingHistory,
-  createCompoundingHistory,
   deleteCompoundingHistory,
   getInvestmentAnalytics,
   getTradingCapital,
+  processInvestmentCompounding,
 } from '../api';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -14,60 +14,52 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 const fmt = (val) => `₹${parseFloat(val || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 const fmtPct = (val) => `${parseFloat(val || 0).toFixed(2)}%`;
 
-function AddCompoundingModal({ onClose, onSave, currentCapital }) {
-  const now = new Date();
+function AddInvestmentCompoundingModal({ onClose, onSave, currentCapital }) {
   const [form, setForm] = useState({
-    startingCapital: currentCapital?.toString() || '',
-    totalProfit: '',       // total profit earned this period
-    profitToAdd: '',       // how much of that profit to reinvest (0 to totalProfit)
-    reinvested: true,
-    month: MONTHS[now.getMonth()],
-    year: now.getFullYear(),
+    profit: '',
+    reinvestAmount: '',
+    investmentName: '',
+    month: MONTHS[new Date().getMonth()],
+    year: new Date().getFullYear(),
   });
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const startingCapital = parseFloat(form.startingCapital || 0);
-  const totalProfit = parseFloat(form.totalProfit || 0);
-  const profitToAdd = parseFloat(form.profitToAdd || 0);
-  const clampedProfit = Math.min(Math.max(profitToAdd, 0), totalProfit);
-  const endingCapital = startingCapital + clampedProfit;
-  const returnPct = startingCapital > 0 ? (clampedProfit / startingCapital) * 100 : 0;
-
-  const handleProfitToAddChange = (val) => {
-    const num = parseFloat(val);
-    if (!isNaN(num) && num > totalProfit) return; // block above max
-    setForm({ ...form, profitToAdd: val });
-  };
+  const profit = parseFloat(form.profit || 0);
+  const reinvestAmount = Math.min(parseFloat(form.reinvestAmount || 0), profit);
+  const newCapital = currentCapital + reinvestAmount;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (clampedProfit > totalProfit) {
-      alert('Profit to add cannot exceed total profit earned.');
+    if (reinvestAmount > profit) {
+      alert('Reinvest amount cannot exceed profit');
       return;
     }
-    setLoading(true);
+    setSaving(true);
     try {
       await onSave({
-        startingCapital: startingCapital,
-        endingCapital: endingCapital,
-        reinvested: form.reinvested,
-        month: form.month,
-        year: parseInt(form.year),
+        profit,
+        reinvestAmount,
+        investmentName: form.investmentName,
       });
       onClose();
-    } catch (err) {
-      alert('Error: ' + (err.response?.data?.message || err.message));
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl p-8 shadow-2xl relative">
-        <button onClick={onClose} className="absolute top-5 right-5 text-gray-400 hover:text-black dark:hover:text-white">✕</button>
-        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-6 text-center">Add Compounding Entry</h2>
+      <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-black dark:hover:text-white">✕</button>
+        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-4">Add Investment Return</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Investment Name</label>
+            <input type="text" value={form.investmentName} onChange={e => setForm({ ...form, investmentName: e.target.value })}
+              placeholder="e.g. Mutual Fund, FD Interest"
+              className="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none" required />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Month</label>
@@ -84,66 +76,46 @@ function AddCompoundingModal({ onClose, onSave, currentCapital }) {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Starting Capital (₹)</label>
-            <input required type="number" step="0.01" value={form.startingCapital}
-              onChange={e => setForm({ ...form, startingCapital: e.target.value })}
-              className="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-slate-300" />
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Total Return/Profit (₹)</label>
+            <input type="number" value={form.profit} onChange={e => setForm({ ...form, profit: e.target.value })}
+              className="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none" placeholder="e.g. 5000" required />
           </div>
 
           <div>
-            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Total Profit Earned This Period (₹)</label>
-            <input required type="number" step="0.01" min="0" value={form.totalProfit}
-              onChange={e => setForm({ ...form, totalProfit: e.target.value, profitToAdd: e.target.value })}
-              placeholder="e.g. 5000"
-              className="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-slate-300" />
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Profit to Add to Capital (₹)</label>
-              <span className="text-xs text-gray-400">Max: {fmt(totalProfit)}</span>
-            </div>
-            <input required type="number" step="0.01" min="0" max={totalProfit || undefined}
-              value={form.profitToAdd}
-              onChange={e => handleProfitToAddChange(e.target.value)}
-              placeholder={`0 – ${fmt(totalProfit)}`}
-              className="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-slate-300" />
-            {totalProfit > 0 && (
-              <input type="range" min="0" max={totalProfit} step="100"
-                value={clampedProfit}
-                onChange={e => setForm({ ...form, profitToAdd: e.target.value })}
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">
+              Amount to Reinvest (₹) <span className="text-gray-400 font-normal">(Max: {fmt(profit)})</span>
+            </label>
+            <input type="number" value={form.reinvestAmount} onChange={e => setForm({ ...form, reinvestAmount: e.target.value })}
+              max={profit || undefined}
+              className="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none" placeholder="Amount to add to capital" />
+            {profit > 0 && (
+              <input type="range" min="0" max={profit} step={profit/100} value={reinvestAmount}
+                onChange={e => setForm({ ...form, reinvestAmount: e.target.value })}
                 className="w-full mt-2 accent-slate-800" />
             )}
           </div>
 
-          {form.profitToAdd !== '' && form.startingCapital && (
+          {form.reinvestAmount !== '' && (
             <div className="bg-slate-50 dark:bg-gray-700/50 rounded-xl p-4 space-y-1.5 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">Profit reinvested</span>
-                <span className={`font-semibold ${clampedProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600'}`}>+{fmt(clampedProfit)}</span>
+                <span className="text-gray-500 dark:text-gray-400">Current Capital</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">{fmt(currentCapital)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">Profit kept separately</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-300">{fmt(totalProfit - clampedProfit)}</span>
+                <span className="text-gray-500 dark:text-gray-400">To be reinvested</span>
+                <span className="font-semibold text-green-600 dark:text-green-400">+{fmt(reinvestAmount)}</span>
               </div>
               <div className="flex justify-between border-t border-gray-200 dark:border-gray-600 pt-1.5 mt-1">
                 <span className="font-bold text-slate-700 dark:text-slate-300">New Capital</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{fmt(endingCapital)} ({returnPct >= 0 ? '+' : ''}{returnPct.toFixed(2)}%)</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{fmt(newCapital)}</span>
               </div>
             </div>
           )}
 
-          <div className="flex items-center gap-3">
-            <input type="checkbox" id="reinvested" checked={form.reinvested}
-              onChange={e => setForm({ ...form, reinvested: e.target.checked })}
-              className="rounded" />
-            <label htmlFor="reinvested" className="text-sm text-slate-600 dark:text-slate-400">Mark profit as reinvested</label>
-          </div>
-
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 py-3 font-semibold border border-gray-200 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-sm dark:text-white">Cancel</button>
-            <button type="submit" disabled={loading} className="flex-1 py-3 font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-700 text-sm disabled:opacity-60">
-              {loading ? 'Saving...' : 'Add Entry'}
+            <button type="submit" disabled={saving} className="flex-1 py-3 font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-700 text-sm disabled:opacity-60">
+              {saving ? 'Saving...' : 'Add Entry'}
             </button>
           </div>
         </form>
@@ -154,13 +126,14 @@ function AddCompoundingModal({ onClose, onSave, currentCapital }) {
 
 export default function Compounding({ onProfileClick }) {
   const [activeTab, setActiveTab] = useState('trading');
-  const [compoundingHistory, setCompoundingHistory] = useState([]);
+  const [tradingCompounding, setTradingCompounding] = useState([]);
+  const [investmentCompounding, setInvestmentCompounding] = useState([]);
   const [investmentAnalytics, setInvestmentAnalytics] = useState(null);
   const [currentCapital, setCurrentCapital] = useState(0);
-  const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [projectionYears, setProjectionYears] = useState(5);
   const [projectionRate, setProjectionRate] = useState('');
+  const [showInvModal, setShowInvModal] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -170,7 +143,10 @@ export default function Compounding({ onProfileClick }) {
         getTradingCapital(),
         getInvestmentAnalytics(),
       ]);
-      setCompoundingHistory(historyRes.data || []);
+      // Filter by source: TRADING or INVESTMENTS
+      const allHistory = historyRes.data || [];
+      setTradingCompounding(allHistory.filter(h => h.source === 'TRADING'));
+      setInvestmentCompounding(allHistory.filter(h => h.source === 'INVESTMENTS'));
       setCurrentCapital(parseFloat(capitalRes.data || 0));
       setInvestmentAnalytics(invRes.data || null);
     } catch (err) {
@@ -182,29 +158,44 @@ export default function Compounding({ onProfileClick }) {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleAddCompounding = async (data) => {
-    await createCompoundingHistory(data);
+  const handleAddInvestmentCompounding = async (data) => {
+    const { profit, reinvestAmount, investmentName } = data;
+    // Use the new API - profit and reinvestAmount are separate
+    const desc = `Returns from: ${investmentName}`;
+    await processInvestmentCompounding(profit, reinvestAmount, desc);
     fetchData();
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id, type) => {
     if (!window.confirm('Delete this entry?')) return;
     await deleteCompoundingHistory(id);
-    setCompoundingHistory(prev => prev.filter(h => h.id !== id));
+    if (type === 'trading') {
+      setTradingCompounding(prev => prev.filter(h => h.id !== id));
+    } else {
+      setInvestmentCompounding(prev => prev.filter(h => h.id !== id));
+    }
   };
 
   // ---- Trading Compounding Calculations ----
-  const sortedHistory = [...compoundingHistory].sort((a, b) => {
+  const sortedTradingHistory = [...tradingCompounding].sort((a, b) => {
     if (a.year !== b.year) return a.year - b.year;
     return MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month);
   });
 
-  const totalProfit = compoundingHistory.reduce((sum, h) => sum + parseFloat(h.profit || 0), 0);
-  const firstCapital = sortedHistory.length > 0 ? parseFloat(sortedHistory[0].startingCapital) : 0;
-  const latestCapital = sortedHistory.length > 0 ? parseFloat(sortedHistory[sortedHistory.length - 1].endingCapital) : currentCapital;
+  const totalProfit = tradingCompounding.reduce((sum, h) => sum + parseFloat(h.profit || 0), 0);
+  const firstCapital = sortedTradingHistory.length > 0 ? parseFloat(sortedTradingHistory[0].startingCapital) : 0;
+  const latestCapital = sortedTradingHistory.length > 0 ? parseFloat(sortedTradingHistory[sortedTradingHistory.length - 1].endingCapital) : currentCapital;
   const overallGrowth = firstCapital > 0 ? ((latestCapital - firstCapital) / firstCapital) * 100 : 0;
-  const monthCount = compoundingHistory.length;
+  const monthCount = tradingCompounding.length;
   const avgMonthlyReturn = monthCount > 0 ? (totalProfit / monthCount / (firstCapital || 1)) * 100 : 0;
+
+  // ---- Investment Compounding Calculations ----
+  const sortedInvestmentHistory = [...investmentCompounding].sort((a, b) => {
+    if (a.year !== b.year) return a.year - b.year;
+    return MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month);
+  });
+  const investmentTotalProfit = investmentCompounding.reduce((sum, h) => sum + parseFloat(h.profit || 0), 0);
+  const investmentTotalReinvested = investmentCompounding.reduce((sum, h) => sum + parseFloat(h.reinvestAmount || 0), 0);
 
   // ---- Investment Compounding Calculations ----
   const inv = investmentAnalytics;
@@ -274,19 +265,18 @@ export default function Compounding({ onProfileClick }) {
 
           {/* Header row */}
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-700 dark:text-slate-300">Monthly Compounding History</h2>
-            <button onClick={() => setShowModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 text-sm transition">
-              <Plus size={16} /> Add Entry
-            </button>
+            <div>
+              <h2 className="text-base font-bold text-slate-700 dark:text-slate-300">Trade Compounding History</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Compounding from closed trades</p>
+            </div>
           </div>
 
           {/* History Table */}
-          {sortedHistory.length === 0 ? (
+          {sortedTradingHistory.length === 0 ? (
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-12 text-center">
               <BarChart2 size={40} className="text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-              <p className="text-gray-500 dark:text-gray-400 font-medium">No compounding entries yet</p>
-              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Add your first monthly capital entry to start tracking</p>
+              <p className="text-gray-500 dark:text-gray-400 font-medium">No trade compounding yet</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Close a trade with profit to see compounding entries here</p>
             </div>
           ) : (
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm">
@@ -294,39 +284,36 @@ export default function Compounding({ onProfileClick }) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-                      <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Month/Year</th>
-                      <th className="text-right px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Starting</th>
-                      <th className="text-right px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Ending</th>
+                      <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Trade Details</th>
+                      <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Date</th>
                       <th className="text-right px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Profit</th>
-                      <th className="text-right px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Return%</th>
-                      <th className="text-center px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Reinvested</th>
+                      <th className="text-right px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Reinvested</th>
+                      <th className="text-right px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">New Capital</th>
                       <th className="px-5 py-3"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                    {sortedHistory.map((entry) => {
+                    {sortedTradingHistory.map((entry) => {
                       const profit = parseFloat(entry.profit || 0);
-                      const returnPct = parseFloat(entry.startingCapital) > 0
-                        ? (profit / parseFloat(entry.startingCapital)) * 100 : 0;
+                      const reinvestAmount = parseFloat(entry.reinvestAmount || 0);
                       return (
                         <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
-                          <td className="px-5 py-3.5 font-semibold text-slate-700 dark:text-slate-300">{entry.month} {entry.year}</td>
-                          <td className="px-5 py-3.5 text-right text-gray-600 dark:text-gray-400">{fmt(entry.startingCapital)}</td>
-                          <td className="px-5 py-3.5 text-right font-semibold text-slate-700 dark:text-slate-300">{fmt(entry.endingCapital)}</td>
+                          <td className="px-5 py-3.5">
+                            <div className="font-medium text-slate-700 dark:text-slate-300">{entry.description || 'Trade Profit'}</div>
+                            <div className="text-xs text-gray-500">Trade #{entry.tradeId}</div>
+                          </td>
+                          <td className="px-5 py-3.5 text-gray-600 dark:text-gray-400">{entry.month} {entry.year}</td>
                           <td className={`px-5 py-3.5 text-right font-semibold ${profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                             {profit >= 0 ? '+' : ''}{fmt(profit)}
                           </td>
-                          <td className={`px-5 py-3.5 text-right font-semibold ${returnPct >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                            {returnPct >= 0 ? '+' : ''}{returnPct.toFixed(2)}%
+                          <td className="px-5 py-3.5 text-right font-semibold text-blue-600 dark:text-blue-400">
+                            {fmt(reinvestAmount)}
                           </td>
-                          <td className="px-5 py-3.5 text-center">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${entry.reinvested ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
-                              {entry.reinvested ? 'Yes' : 'No'}
-                            </span>
-                          </td>
+                          <td className="px-5 py-3.5 text-right font-semibold text-slate-700 dark:text-slate-300">{fmt(entry.endingCapital)}</td>
                           <td className="px-5 py-3.5 text-right">
-                            <button onClick={() => handleDelete(entry.id)}
-                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
+                            <button onClick={() => handleDelete(entry.id, 'trading')}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                              title="Delete compounding entry">
                               <Trash2 size={14} />
                             </button>
                           </td>
@@ -443,14 +430,78 @@ export default function Compounding({ onProfileClick }) {
               </div>
             </div>
           )}
+
+          {/* Investment Compounding History Table */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-700 dark:text-slate-300">Investment Compounding History</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Compounding from investment returns</p>
+              </div>
+              <button onClick={() => setShowInvModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 text-sm transition">
+                <Plus size={16} /> Add Entry
+              </button>
+            </div>
+            {sortedInvestmentHistory.length === 0 ? (
+              <div className="p-8 text-center">
+                <BarChart2 size={32} className="text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+                <p className="text-gray-500 dark:text-gray-400 text-sm">No investment compounding yet</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                      <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Investment</th>
+                      <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                      <th className="text-right px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Return</th>
+                      <th className="text-right px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Reinvested</th>
+                      <th className="text-right px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">New Capital</th>
+                      <th className="px-5 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                    {sortedInvestmentHistory.map((entry) => {
+                      const profit = parseFloat(entry.profit || 0);
+                      const reinvestAmount = parseFloat(entry.reinvestAmount || 0);
+                      return (
+                        <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
+                          <td className="px-5 py-3.5">
+                            <div className="font-medium text-slate-700 dark:text-slate-300">{entry.description || 'Investment Return'}</div>
+                          </td>
+                          <td className="px-5 py-3.5 text-gray-600 dark:text-gray-400">{entry.month} {entry.year}</td>
+                          <td className={`px-5 py-3.5 text-right font-semibold ${profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                            {profit >= 0 ? '+' : ''}{fmt(profit)}
+                          </td>
+                          <td className="px-5 py-3.5 text-right font-semibold text-blue-600 dark:text-blue-400">
+                            {fmt(reinvestAmount)}
+                          </td>
+                          <td className="px-5 py-3.5 text-right font-semibold text-slate-700 dark:text-slate-300">{fmt(entry.endingCapital)}</td>
+                          <td className="px-5 py-3.5 text-right">
+                            <button onClick={() => handleDelete(entry.id, 'investment')}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                              title="Delete compounding entry">
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {showModal && (
-        <AddCompoundingModal
-          onClose={() => setShowModal(false)}
-          onSave={handleAddCompounding}
-          currentCapital={latestCapital || currentCapital}
+      {/* Add Investment Compounding Modal */}
+      {showInvModal && (
+        <AddInvestmentCompoundingModal
+          onClose={() => setShowInvModal(false)}
+          onSave={handleAddInvestmentCompounding}
+          currentCapital={currentCapital}
         />
       )}
     </div>

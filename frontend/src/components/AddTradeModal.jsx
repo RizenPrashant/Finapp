@@ -15,7 +15,8 @@ export default function AddTradeModal({ onClose, onSubmit, initialData }) {
     entryDate: new Date().toISOString().split('T')[0],
     exitDate: '',
     notes: '',
-    broker: 'ZERODHA'
+    broker: 'ZERODHA',
+    manualReinvestAmount: ''
   });
 
   const [brokers, setBrokers] = useState(['ZERODHA', 'UPSTOX', 'ANGELONE', 'COINBASE']);
@@ -50,7 +51,8 @@ export default function AddTradeModal({ onClose, onSubmit, initialData }) {
         entryDate: initialData.entryDate || new Date().toISOString().split('T')[0],
         exitDate: initialData.exitDate || '',
         notes: initialData.notes || '',
-        broker: initialData.broker || 'ZERODHA'
+        broker: initialData.broker || 'ZERODHA',
+        manualReinvestAmount: initialData.manualReinvestAmount || ''
       });
     }
   }, [initialData]);
@@ -78,17 +80,20 @@ export default function AddTradeModal({ onClose, onSubmit, initialData }) {
     const buyPrice = parseFloat(formData.buyPrice);
     const sellPrice = formData.sellPrice ? parseFloat(formData.sellPrice) : null;
     const brokerage = parseFloat(formData.brokerage);
-    
+
     const investedAmount = buyPrice * quantity;
     let returnAmount = null;
     let profitLoss = null;
     let profitLossPercentage = null;
-    
+
     if (formData.status === 'CLOSED' && sellPrice) {
       returnAmount = sellPrice * quantity;
       profitLoss = returnAmount - investedAmount - brokerage;
       profitLossPercentage = investedAmount > 0 ? (profitLoss / investedAmount) * 100 : 0;
     }
+
+    // Parse manual reinvest amount if provided
+    const manualReinvestAmount = formData.manualReinvestAmount ? parseFloat(formData.manualReinvestAmount) : null;
 
     onSubmit({
       ...formData,
@@ -99,7 +104,8 @@ export default function AddTradeModal({ onClose, onSubmit, initialData }) {
       investedAmount,
       returnAmount,
       profitLoss,
-      profitLossPercentage
+      profitLossPercentage,
+      manualReinvestAmount
     });
   };
 
@@ -302,6 +308,28 @@ export default function AddTradeModal({ onClose, onSubmit, initialData }) {
                   placeholder="20"
                 />
               </div>
+            </div>
+          )}
+
+          {/* Manual Reinvest Amount (only for closed trades with profit) */}
+          {formData.status === 'CLOSED' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Reinvest Amount (₹)
+                <span className="text-xs text-gray-500 ml-1">(Optional - leave empty for auto)</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.manualReinvestAmount}
+                onChange={(e) => setFormData({ ...formData, manualReinvestAmount: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="e.g., 500 (leave empty for auto compounding)"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Enter amount to manually specify reinvestment. Max = profit amount. Leave empty to use auto compounding settings.
+              </p>
             </div>
           )}
 

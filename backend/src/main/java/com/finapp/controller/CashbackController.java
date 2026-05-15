@@ -46,6 +46,11 @@ public class CashbackController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/wallets/{id}")
+    public ResponseEntity<CashbackWallet> updateWallet(@PathVariable Long id, @Valid @RequestBody CashbackWalletDTO dto) {
+        return ResponseEntity.ok(cashbackService.updateWallet(id, dto, getCurrentUser()));
+    }
+
     @GetMapping("/entries")
     public List<CashbackEntry> getEntries() {
         return cashbackService.getEntries(getCurrentUser());

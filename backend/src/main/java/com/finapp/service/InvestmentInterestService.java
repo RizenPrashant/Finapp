@@ -23,6 +23,7 @@ public class InvestmentInterestService {
     private final InvestmentRepository investmentRepository;
     private final UserRepository userRepository;
     private final InvestmentService investmentService;
+    private final CompoundingService compoundingService;
 
     /**
      * Monthly interest calculation - runs on 1st of every month at 1 AM
@@ -135,6 +136,9 @@ public class InvestmentInterestService {
         
         // Update Investment Capital asset
         investmentService.updateInvestmentCapitalAsset(user);
+        
+        // Auto-compound the interest earned
+        compoundingService.processInvestmentProfit(user, interestAmount, investment.getName());
         
         return true;
     }

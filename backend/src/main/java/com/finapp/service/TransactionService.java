@@ -59,6 +59,10 @@ public class TransactionService {
         return transactionRepository.findByUserAndBudgetCategoryIgnoreCase(user, budgetCategory);
     }
 
+    public List<Transaction> getByBudgetCategory(String budgetCategory, User user, LocalDate start, LocalDate end) {
+        return transactionRepository.findByUserAndBudgetCategoryIgnoreCaseAndDateBetween(user, budgetCategory, start, end);
+    }
+
     public List<Transaction> getByPaymentSource(String paymentSource, User user) {
         return transactionRepository.findByUserAndPaymentSourceIgnoreCaseOrderByDateDesc(user, paymentSource);
     }
@@ -132,6 +136,10 @@ public class TransactionService {
         return transactionRepository.sumByUserAndType(user, type);
     }
 
+    public BigDecimal sumByUserAndType(User user, TransactionType type, LocalDate start, LocalDate end) {
+        return transactionRepository.sumByUserAndTypeAndDateBetween(user, type, start, end);
+    }
+
     public BigDecimal sumByBudgetCategory(String budgetCategory) {
         return transactionRepository.sumByBudgetCategory(budgetCategory);
     }
@@ -142,6 +150,10 @@ public class TransactionService {
 
     public BigDecimal sumByUserAndBudgetCategoryAndType(User user, String budgetCategory, TransactionType type) {
         return transactionRepository.sumByUserAndBudgetCategoryAndType(user, budgetCategory, type);
+    }
+
+    public BigDecimal sumByUserAndBudgetCategoryAndType(User user, String budgetCategory, TransactionType type, LocalDate start, LocalDate end) {
+        return transactionRepository.sumByUserAndBudgetCategoryAndTypeAndDateBetween(user, budgetCategory, type, start, end);
     }
 
     // Monthly summary for a year — returns list of {month, income, expense, savings}

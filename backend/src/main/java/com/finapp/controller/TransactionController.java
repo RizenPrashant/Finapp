@@ -54,7 +54,15 @@ public class TransactionController {
     }
 
     @GetMapping("/budget/{budgetCategory}")
-    public List<Transaction> getByBudgetCategory(@PathVariable String budgetCategory) {
+    public List<Transaction> getByBudgetCategory(
+            @PathVariable String budgetCategory,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        if (startDate != null && endDate != null) {
+            LocalDate start = LocalDate.parse(startDate);
+            LocalDate end = LocalDate.parse(endDate);
+            return transactionService.getByBudgetCategory(budgetCategory, getCurrentUser(), start, end);
+        }
         return transactionService.getByBudgetCategory(budgetCategory, getCurrentUser());
     }
 

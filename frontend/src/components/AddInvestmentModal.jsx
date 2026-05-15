@@ -27,6 +27,7 @@ export default function AddInvestmentModal({ isOpen, onClose, onSave, editingInv
     quantity: 1,
     buyDate: new Date().toISOString().split('T')[0],
     notes: '',
+    status: 'OPEN',
     // Interest configuration
     interestEnabled: false,
     interestRate: '',
@@ -47,6 +48,7 @@ export default function AddInvestmentModal({ isOpen, onClose, onSave, editingInv
         quantity: editingInvestment.quantity || 1,
         buyDate: editingInvestment.buyDate || new Date().toISOString().split('T')[0],
         notes: editingInvestment.notes || '',
+        status: editingInvestment.status || 'OPEN',
         interestEnabled: editingInvestment.interestEnabled || false,
         interestRate: editingInvestment.interestRate || '',
         interestFrequency: editingInvestment.interestFrequency || 'MONTHLY',
@@ -61,6 +63,7 @@ export default function AddInvestmentModal({ isOpen, onClose, onSave, editingInv
         quantity: 1,
         buyDate: new Date().toISOString().split('T')[0],
         notes: '',
+        status: 'OPEN',
         interestEnabled: false,
         interestRate: '',
         interestFrequency: 'MONTHLY',
@@ -230,6 +233,37 @@ export default function AddInvestmentModal({ isOpen, onClose, onSave, editingInv
                   ₹{Math.abs(profitLoss).toLocaleString('en-IN')}
                   <span className="text-sm ml-1">({profitLossPercent.toFixed(2)}%)</span>
                 </span>
+              </div>
+            </div>
+          )}
+
+          {/* Status Toggle - Only show when editing */}
+          {editingInvestment && (
+            <div className="bg-slate-50 dark:bg-gray-700/50 rounded-xl p-4">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Investment Status</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, status: 'OPEN' })}
+                  className={`flex-1 py-2 px-4 rounded-lg font-medium transition ${
+                    formData.status === 'OPEN'
+                      ? 'bg-green-500 text-white'
+                      : 'bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-500'
+                  }`}
+                >
+                  OPEN
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, status: 'CLOSED' })}
+                  className={`flex-1 py-2 px-4 rounded-lg font-medium transition ${
+                    formData.status === 'CLOSED'
+                      ? 'bg-red-500 text-white'
+                      : 'bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-500'
+                  }`}
+                >
+                  CLOSED
+                </button>
               </div>
             </div>
           )}

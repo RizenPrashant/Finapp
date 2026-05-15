@@ -39,6 +39,8 @@ public class CashbackWallet {
 
     private String color;
 
+    private String logoUrl;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @JsonIgnoreProperties({"cashbackWallets", "transactions", "assets", "budgets", "password"})

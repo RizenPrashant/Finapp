@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Wallet, Gift, X, ChevronRight, ArrowLeft, TrendingUp, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
+import { Plus, Trash2, Edit2, ArrowDownCircle, ArrowUpCircle, Wallet, Gift, X, ChevronRight, ArrowLeft, TrendingUp, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
 import Header from '../components/Header';
 import {
-  getCashbackWallets, createCashbackWallet, deleteCashbackWallet,
+  getCashbackWallets, createCashbackWallet, updateCashbackWallet, deleteCashbackWallet,
   getCashbackEntriesByWallet, createCashbackEntry, deleteCashbackEntry
 } from '../api';
 import { FILTER_PREFS_KEY } from '../pages/Settings';
@@ -141,6 +141,93 @@ function AddWalletModal({ onClose, onSave }) {
   );
 }
 
+function EditWalletModal({ wallet, onClose, onSave }) {
+  const [platform, setPlatform] = useState(wallet?.platform || '');
+  const [emoji, setEmoji] = useState(wallet?.icon || '💰');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!platform.trim()) return;
+    setLoading(true);
+    try {
+      await onSave({ platform: platform.trim(), icon: emoji });
+      onClose();
+    } catch (e) {
+      alert(e.response?.data?.message || e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-black dark:hover:text-white">
+          <X size={20} />
+        </button>
+        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-5">Edit Wallet</h2>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Emoji Picker */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-2">Choose Icon</label>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => setShowEmojiPicker(v => !v)}
+                className="w-14 h-14 rounded-2xl border-2 border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-3xl flex items-center justify-center hover:border-blue-400 transition">
+                {emoji}
+              </button>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Click to pick emoji</p>
+            </div>
+            {showEmojiPicker && (
+              <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600">
+                <div className="grid grid-cols-8 gap-1.5">
+                  {EMOJI_OPTIONS.map(e => (
+                    <button key={e} type="button"
+                      onClick={() => { setEmoji(e); setShowEmojiPicker(false); }}
+                      className={`text-xl p-1.5 rounded-lg hover:bg-white dark:hover:bg-gray-600 transition ${emoji === e ? 'bg-white dark:bg-gray-600 ring-2 ring-blue-400' : ''}`}>
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Platform Name */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Platform Name</label>
+            <input required value={platform} onChange={e => setPlatform(e.target.value)}
+              placeholder="e.g. Swiggy, Amazon Pay..."
+              className="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 text-sm dark:text-white" />
+          </div>
+
+          {/* Preview */}
+          <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
+            <div className="w-10 h-10 rounded-xl bg-white dark:bg-gray-600 flex items-center justify-center text-xl shadow-sm">{emoji}</div>
+            <div>
+              <p className="font-semibold text-slate-700 dark:text-slate-300 text-sm">{platform || wallet?.platform}</p>
+              <p className="text-xs text-gray-400">Cashback Wallet</p>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 py-3 border border-gray-200 dark:border-gray-600 rounded-xl text-sm font-semibold dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+              Cancel
+            </button>
+            <button type="submit" disabled={loading}
+              className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-700 transition disabled:opacity-60">
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function AddEntryModal({ wallets, selectedWalletId, onClose, onSave }) {
   const [form, setForm] = useState({
     walletId: selectedWalletId || (wallets[0]?.id ?? ''),
@@ -261,6 +348,8 @@ export default function Cashback({ onProfileClick }) {
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [showAddWallet, setShowAddWallet] = useState(false);
   const [showAddEntry, setShowAddEntry] = useState(false);
+  const [showEditWallet, setShowEditWallet] = useState(false);
+  const [editingWallet, setEditingWallet] = useState(null);
 
   // Date filters - read default from settings
   const now = new Date();
@@ -318,6 +407,14 @@ export default function Cashback({ onProfileClick }) {
     await deleteCashbackWallet(id);
     await fetchWallets();
     if (selectedWallet?.id === id) setSelectedWallet(null);
+  };
+
+  const handleUpdateWallet = async (data) => {
+    if (!editingWallet) return;
+    await updateCashbackWallet(editingWallet.id, data);
+    await fetchWallets();
+    setShowEditWallet(false);
+    setEditingWallet(null);
   };
 
   const handleAddEntry = async (data) => {
@@ -412,9 +509,20 @@ export default function Cashback({ onProfileClick }) {
     const filteredEarnedCount = filteredEntries.filter(e => e.type === 'EARNED').length;
     const filteredRedeemedCount = filteredEntries.filter(e => e.type === 'REDEEMED').length;
 
+    const walletTitle = (
+      <div className="flex items-center gap-2">
+        {wallet.logoUrl ? (
+          <img src={wallet.logoUrl} alt={wallet.platform} className="w-6 h-6 object-contain" />
+        ) : (
+          <span>{wallet.icon || '💰'}</span>
+        )}
+        <span>{wallet.platform}</span>
+      </div>
+    );
+
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header title={`${wallet.icon || '💰'} ${wallet.platform}`} subtitle="Cashback Wallet" onProfileClick={onProfileClick} />
+        <Header title={walletTitle} subtitle="Cashback Wallet" onProfileClick={onProfileClick} />
         <div className="flex-1 overflow-y-auto p-6">
 
           {/* Back + Actions */}
@@ -704,8 +812,12 @@ export default function Cashback({ onProfileClick }) {
                   onClick={() => setSelectedWallet(wallet)}>
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-2xl">
-                        {wallet.icon || '💰'}
+                      <div className="w-12 h-12 rounded-2xl bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-2xl overflow-hidden">
+                        {wallet.logoUrl ? (
+                          <img src={wallet.logoUrl} alt={wallet.platform} className="w-8 h-8 object-contain" />
+                        ) : (
+                          <span>{wallet.icon || '💰'}</span>
+                        )}
                       </div>
                       <div>
                         <h3 className="font-bold text-slate-800 dark:text-slate-200">{wallet.platform}</h3>
@@ -713,6 +825,10 @@ export default function Cashback({ onProfileClick }) {
                       </div>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                      <button onClick={e => { e.stopPropagation(); setEditingWallet(wallet); setShowEditWallet(true); }}
+                        className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-500 transition">
+                        <Edit2 size={13} />
+                      </button>
                       <button onClick={e => { e.stopPropagation(); handleDeleteWallet(wallet.id); }}
                         className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition">
                         <Trash2 size={13} />
@@ -759,6 +875,13 @@ export default function Cashback({ onProfileClick }) {
 
       {showAddWallet && (
         <AddWalletModal onClose={() => setShowAddWallet(false)} onSave={handleCreateWallet} />
+      )}
+      {showEditWallet && editingWallet && (
+        <EditWalletModal
+          wallet={editingWallet}
+          onClose={() => { setShowEditWallet(false); setEditingWallet(null); }}
+          onSave={handleUpdateWallet}
+        />
       )}
       {showAddEntry && wallets.length > 0 && (
         <AddEntryModal

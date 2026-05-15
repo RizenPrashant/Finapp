@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Download, Gift, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Gift, Plus, Tag } from 'lucide-react';
 import Header from '../components/Header';
 import TransactionRow from '../components/TransactionRow';
 import EditTransactionModal from '../components/EditTransactionModal';
 import AddTransactionModal from '../components/AddTransactionModal';
-import { DELETE_LOCK_KEY, FILTER_PREFS_KEY } from '../pages/Settings';
+import { DELETE_LOCK_KEY, FILTER_PREFS_KEY, CUSTOM_FILTERS_KEY } from '../pages/Settings';
 import { getTransactions, updateTransaction, deleteTransaction, createTransaction, getCashbackWallets, getCashbackEntriesByWallet } from '../api';
 import { exportToXlsx } from '../utils/exportXlsx';
 
@@ -36,10 +36,25 @@ export default function Transactions({ onProfileClick }) {
   const [cashbackWallets, setCashbackWallets] = useState([]);
   const [selectedWalletId, setSelectedWalletId] = useState(null);
   const [cashbackMode, setCashbackMode] = useState(false);
+  const [customFilters, setCustomFilters] = useState(() => {
+    const saved = localStorage.getItem(CUSTOM_FILTERS_KEY);
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [activeCustomFilter, setActiveCustomFilter] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
     getCashbackWallets().then(r => setCashbackWallets(r.data)).catch(() => {});
+  }, []);
+
+  // Sync custom filters from localStorage
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const saved = localStorage.getItem(CUSTOM_FILTERS_KEY);
+      setCustomFilters(saved ? JSON.parse(saved) : []);
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const handleWalletSelect = useCallback(async (walletId) => {
@@ -68,7 +83,23 @@ export default function Transactions({ onProfileClick }) {
     setLoading(false);
   }, []);
 
-  const fetchTransactions = async (month, year, type, all, fType, date, startDate, endDate) => {
+  const applyCustomFilter = (data, customFilter) => {
+    if (!customFilter) return data;
+    return data.filter(t => {
+      const fieldValue = t[customFilter.type];
+      if (!fieldValue) return false;
+      const strValue = String(fieldValue).toLowerCase();
+      const filterValue = customFilter.value.toLowerCase();
+      switch (customFilter.condition) {
+        case 'equals': return strValue === filterValue;
+        case 'contains': return strValue.includes(filterValue);
+        case 'startsWith': return strValue.startsWith(filterValue);
+        default: return strValue === filterValue;
+      }
+    });
+  };
+
+  const fetchTransactions = async (month, year, type, all, fType, date, startDate, endDate, customFilter) => {
     setLoading(true);
     const params = {};
     if (fType === 'daily') {
@@ -86,15 +117,19 @@ export default function Transactions({ onProfileClick }) {
     // all = no date params
     if (type !== 'ALL') params.type = type;
     const res = await getTransactions(params);
-    const data = fType === 'daily' ? res.data.filter((t) => t.date === date) : res.data;
+    let data = fType === 'daily' ? res.data.filter((t) => t.date === date) : res.data;
+    // Apply custom filter if active
+    if (customFilter) {
+      data = applyCustomFilter(data, customFilter);
+    }
     setTransactions(data);
     setLoading(false);
   };
 
   useEffect(() => {
     if (cashbackMode) return;
-    fetchTransactions(selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate);
-  }, [selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate, cashbackMode]);
+    fetchTransactions(selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate, activeCustomFilter);
+  }, [selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate, cashbackMode, activeCustomFilter]);
 
   const handleDelete = async (id) => {
     await deleteTransaction(id);
@@ -103,7 +138,7 @@ export default function Transactions({ onProfileClick }) {
 
   const handleEdit = async (id, data) => {
     await updateTransaction(id, data);
-    fetchTransactions(selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate);
+    fetchTransactions(selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate, activeCustomFilter);
   };
 
   const handleSave = async (data) => {
@@ -112,7 +147,7 @@ export default function Transactions({ onProfileClick }) {
       // Refresh cashback view
       handleWalletSelect(selectedWalletId);
     } else {
-      fetchTransactions(selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate);
+      fetchTransactions(selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate, activeCustomFilter);
     }
   };
 
@@ -174,8 +209,34 @@ export default function Transactions({ onProfileClick }) {
             </div>
           )}
 
+          {/* Custom Filters */}
+          {customFilters.length > 0 && !cashbackMode && (
+            <div className="flex items-center gap-2 flex-wrap pb-2 border-b border-gray-100 dark:border-gray-700">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"><Tag size={13} /> Filters</span>
+              <button
+                onClick={() => setActiveCustomFilter(null)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  !activeCustomFilter ? 'bg-slate-900 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}>
+                All
+              </button>
+              {customFilters.map(f => (
+                <button key={f.id}
+                  onClick={() => setActiveCustomFilter(activeCustomFilter?.id === f.id ? null : f)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    activeCustomFilter?.id === f.id
+                      ? 'text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                  style={activeCustomFilter?.id === f.id ? { backgroundColor: f.color } : {}}>
+                  <span>{f.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
         {/* Filter Type Tabs */}
-          <div className={`flex items-center gap-2 flex-wrap ${cashbackMode ? 'opacity-40 pointer-events-none' : ''}`}>
+          <div className={`flex items-center gap-2 flex-wrap ${cashbackMode || activeCustomFilter ? 'opacity-40 pointer-events-none' : ''}`}>
             {['daily','monthly','yearly','all','custom'].map((f) => (
               <button
                 key={f}
@@ -299,13 +360,22 @@ export default function Transactions({ onProfileClick }) {
                 {f === 'ALL' ? 'All' : f === 'CREDIT' ? 'Income' : 'Expenses'}
               </button>
             ))}
-            <span className="ml-auto text-sm text-gray-400 dark:text-gray-500">{transactions.length} transactions</span>
+            <span className="ml-auto text-sm text-gray-400 dark:text-gray-500">
+              {activeCustomFilter && (
+                <span className="mr-2 px-2 py-0.5 rounded text-xs text-white" style={{ backgroundColor: activeCustomFilter.color }}>
+                  {activeCustomFilter.name}
+                </span>
+              )}
+              {transactions.length} transactions
+            </span>
           </div>
           <div className="divide-y divide-gray-50 dark:divide-gray-700">
             {loading ? (
               <p className="text-center text-gray-400 dark:text-gray-500 py-12">Loading...</p>
             ) : transactions.length === 0 ? (
-              <p className="text-center text-gray-400 dark:text-gray-500 py-12">No transactions for this period.</p>
+              <p className="text-center text-gray-400 dark:text-gray-500 py-12">
+                {activeCustomFilter ? `No transactions match filter "${activeCustomFilter.name}".` : 'No transactions for this period.'}
+              </p>
             ) : (
               transactions.map((t) => (
                 <TransactionRow

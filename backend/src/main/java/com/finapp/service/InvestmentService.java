@@ -55,6 +55,7 @@ public class InvestmentService {
                 .interestRate(dto.getInterestRate())
                 .interestFrequency(dto.getInterestFrequency() != null ? dto.getInterestFrequency() : com.finapp.model.InterestFrequency.MONTHLY)
                 .lastInterestDate(dto.getLastInterestDate())
+                .status(dto.getStatus() != null ? dto.getStatus() : com.finapp.model.InvestmentStatus.OPEN)
                 .user(user)
                 .build();
 
@@ -78,6 +79,9 @@ public class InvestmentService {
         existing.setQuantity(dto.getQuantity() != null ? dto.getQuantity() : 1);
         existing.setBuyDate(dto.getBuyDate());
         existing.setNotes(dto.getNotes());
+        
+        // Update status
+        if (dto.getStatus() != null) existing.setStatus(dto.getStatus());
         
         // Update interest configuration
         if (dto.getInterestEnabled() != null) existing.setInterestEnabled(dto.getInterestEnabled());
@@ -197,6 +201,8 @@ public class InvestmentService {
                 .quantity(investment.getQuantity())
                 .buyDate(investment.getBuyDate())
                 .notes(investment.getNotes())
+                // Status
+                .status(investment.getStatus())
                 // Interest fields
                 .interestEnabled(investment.getInterestEnabled())
                 .interestRate(investment.getInterestRate())

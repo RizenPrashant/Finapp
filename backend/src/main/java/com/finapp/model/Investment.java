@@ -53,6 +53,10 @@ public class Investment {
     @Column(name = "interest_frequency")
     private InterestFrequency interestFrequency = InterestFrequency.MONTHLY;
     
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private InvestmentStatus status = InvestmentStatus.OPEN;
+    
     @Column(name = "last_interest_date")
     private LocalDate lastInterestDate;
     

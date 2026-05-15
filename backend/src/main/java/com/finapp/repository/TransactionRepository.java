@@ -42,8 +42,16 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user = :user AND LOWER(t.budgetCategory) = LOWER(:budgetCategory) AND t.type = :type")
     BigDecimal sumByUserAndBudgetCategoryAndType(@Param("user") User user, @Param("budgetCategory") String budgetCategory, @Param("type") TransactionType type);
 
+    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user = :user AND LOWER(t.budgetCategory) = LOWER(:budgetCategory) AND t.type = :type AND t.date BETWEEN :start AND :end")
+    BigDecimal sumByUserAndBudgetCategoryAndTypeAndDateBetween(@Param("user") User user, @Param("budgetCategory") String budgetCategory, @Param("type") TransactionType type, @Param("start") LocalDate start, @Param("end") LocalDate end);
+
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user = :user AND LOWER(t.budgetCategory) = LOWER(:budgetCategory)")
     BigDecimal sumByUserAndBudgetCategory(@Param("user") User user, @Param("budgetCategory") String budgetCategory);
+
+    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user = :user AND LOWER(t.budgetCategory) = LOWER(:budgetCategory) AND t.date BETWEEN :start AND :end")
+    BigDecimal sumByUserAndBudgetCategoryAndDateBetween(@Param("user") User user, @Param("budgetCategory") String budgetCategory, @Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    List<Transaction> findByUserAndBudgetCategoryIgnoreCaseAndDateBetween(User user, String budgetCategory, LocalDate startDate, LocalDate endDate);
 
     List<Transaction> findByBudgetCategoryIgnoreCase(String budgetCategory);
 

@@ -47,26 +47,61 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
   const [customStartDate, setCustomStartDate] = useState(now.toISOString().split('T')[0]);
   const [customEndDate, setCustomEndDate] = useState(now.toISOString().split('T')[0]);
 
+  // Helper to get date range params based on filter type
+  const getDateRangeParams = useCallback(() => {
+    if (filterType === 'daily') {
+      return { startDate: selectedDate, endDate: selectedDate };
+    } else if (filterType === 'weekly') {
+      const d = new Date(selectedDate);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday as start
+      const weekStart = new Date(d.setDate(diff));
+      const weekEnd = new Date(d.setDate(weekStart.getDate() + 6));
+      return {
+        startDate: weekStart.toISOString().split('T')[0],
+        endDate: weekEnd.toISOString().split('T')[0]
+      };
+    } else if (filterType === 'monthly') {
+      const start = new Date(selectedYear, selectedMonth, 1);
+      const end = new Date(selectedYear, selectedMonth + 1, 0);
+      return {
+        startDate: start.toISOString().split('T')[0],
+        endDate: end.toISOString().split('T')[0]
+      };
+    } else if (filterType === 'yearly') {
+      return {
+        startDate: `${selectedYear}-01-01`,
+        endDate: `${selectedYear}-12-31`
+      };
+    } else if (filterType === 'custom') {
+      return { startDate: customStartDate, endDate: customEndDate };
+    }
+    // 'all' - no date params
+    return {};
+  }, [filterType, selectedDate, selectedMonth, selectedYear, customStartDate, customEndDate]);
+
   const fetchSummary = useCallback(async () => {
-    const res = await getDashboardSummary();
+    const params = getDateRangeParams();
+    const res = await getDashboardSummary(params);
     setSummary(res.data);
-  }, []);
+  }, [getDateRangeParams]);
 
   const fetchBudgets = useCallback(async () => {
     const res = await getBudgets();
     console.log('Budgets API response:', res.data);
     setBudgets(res.data);
+    const dateParams = getDateRangeParams();
     const spentMap = {};
     await Promise.all(
       res.data.map(async (b) => {
-        const t = await getTransactionsByBudget(b.category);
+        const t = await getTransactionsByBudget(b.category, dateParams);
         spentMap[b.category] = t.data
           .filter((tx) => tx.type === 'DEBIT')
           .reduce((sum, tx) => sum + parseFloat(tx.amount), 0);
       })
     );
     setBudgetSpent(spentMap);
-  }, []);
+  }, [getDateRangeParams]);
 
   useEffect(() => {
     Promise.all([fetchSummary(), fetchBudgets()]).finally(() => setLoading(false));
@@ -76,9 +111,18 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
     }).catch(() => {});
   }, [fetchSummary, fetchBudgets]);
 
+  // Refetch when date filters change
+  useEffect(() => {
+    if (!loading) {
+      fetchSummary();
+      fetchBudgets();
+    }
+  }, [filterType, selectedDate, selectedMonth, selectedYear, customStartDate, customEndDate]);
+
   const handleBudgetClick = async (budget) => {
     setSelectedBudget(budget);
-    const res = await getTransactionsByBudget(budget.category);
+    const dateParams = getDateRangeParams();
+    const res = await getTransactionsByBudget(budget.category, dateParams);
     setTransactions(res.data);
   };
 
@@ -105,7 +149,8 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
 
   const handleSaveTransaction = async (data) => {
     await createTransaction(data);
-    const res = await getTransactionsByBudget(selectedBudget.category);
+    const dateParams = getDateRangeParams();
+    const res = await getTransactionsByBudget(selectedBudget.category, dateParams);
     setTransactions(res.data);
     fetchSummary();
     fetchBudgets();
@@ -113,7 +158,8 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
 
   const handleEdit = async (id, data) => {
     await updateTransaction(id, data);
-    const res = await getTransactionsByBudget(selectedBudget.category);
+    const dateParams = getDateRangeParams();
+    const res = await getTransactionsByBudget(selectedBudget.category, dateParams);
     setTransactions(res.data);
     fetchSummary();
     fetchBudgets();

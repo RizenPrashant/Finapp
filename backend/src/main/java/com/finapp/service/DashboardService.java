@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 
 @Service
 @RequiredArgsConstructor
@@ -16,12 +17,29 @@ public class DashboardService {
 
     private final TransactionService transactionService;
     private final AssetService assetService;
+    private final CompoundingService compoundingService;
 
     public DashboardSummaryDTO getSummary(User user) {
-        BigDecimal totalIncome = transactionService.sumByUserAndType(user, TransactionType.CREDIT);
-        BigDecimal totalExpenses = transactionService.sumByUserAndType(user, TransactionType.DEBIT);
-        // Savings = DEBIT transactions in savings budget (money moved to savings)
-        BigDecimal totalSavings = transactionService.sumByUserAndBudgetCategoryAndType(user, "Monthly Total Savings", TransactionType.DEBIT);
+        return getSummary(user, null, null);
+    }
+
+    public DashboardSummaryDTO getSummary(User user, LocalDate startDate, LocalDate endDate) {
+        BigDecimal totalIncome;
+        BigDecimal totalExpenses;
+        BigDecimal totalSavings;
+
+        if (startDate != null && endDate != null) {
+            // Date-filtered summary
+            totalIncome = transactionService.sumByUserAndType(user, TransactionType.CREDIT, startDate, endDate);
+            totalExpenses = transactionService.sumByUserAndType(user, TransactionType.DEBIT, startDate, endDate);
+            totalSavings = transactionService.sumByUserAndBudgetCategoryAndType(user, "Monthly Total Savings", TransactionType.DEBIT, startDate, endDate);
+        } else {
+            // All-time summary
+            totalIncome = transactionService.sumByUserAndType(user, TransactionType.CREDIT);
+            totalExpenses = transactionService.sumByUserAndType(user, TransactionType.DEBIT);
+            totalSavings = transactionService.sumByUserAndBudgetCategoryAndType(user, "Monthly Total Savings", TransactionType.DEBIT);
+        }
+
         // Balance = Income - all DEBIT (expenses + savings)
         BigDecimal totalBalance = totalIncome.subtract(totalExpenses);
 
@@ -36,7 +54,11 @@ public class DashboardService {
         BigDecimal totalLiabilities = assetService.sumByType(AssetType.LIABILITY, user);
         BigDecimal totalDebt = assetService.sumByType(AssetType.DEBT, user);
         BigDecimal totalInvestments = assetService.sumByType(AssetType.INVESTMENT, user);
-        BigDecimal netWorth = totalAssets.add(totalInvestments).subtract(totalLiabilities).subtract(totalDebt);
+        BigDecimal compoundingCapital = compoundingService.getCompoundingCapital(user);
+
+        // Networth = Assets + Investments + Compounding Capital - Liabilities - Debt
+        BigDecimal netWorth = totalAssets.add(totalInvestments).add(compoundingCapital)
+                .subtract(totalLiabilities).subtract(totalDebt);
 
         return DashboardSummaryDTO.builder()
                 .totalIncome(totalIncome)
@@ -48,6 +70,7 @@ public class DashboardService {
                 .totalLiabilities(totalLiabilities)
                 .totalDebt(totalDebt)
                 .totalInvestments(totalInvestments)
+                .compoundingCapital(compoundingCapital)
                 .netWorth(netWorth)
                 .build();
     }

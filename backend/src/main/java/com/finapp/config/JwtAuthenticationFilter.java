@@ -1,5 +1,7 @@
 package com.finapp.config;
 
+import com.finapp.model.User;
+import com.finapp.repository.UserRepository;
 import com.finapp.service.CustomUserDetailsService;
 import com.finapp.service.JwtService;
 import jakarta.servlet.FilterChain;
@@ -21,10 +23,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
+    private final UserRepository userRepository;
 
-    public JwtAuthenticationFilter(JwtService jwtService, CustomUserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtService jwtService, CustomUserDetailsService userDetailsService, UserRepository userRepository) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -56,6 +60,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 );
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
+                
+                // Set currentUser attribute for controllers
+                User currentUser = userRepository.findByEmail(userEmail).orElse(null);
+                if (currentUser != null) {
+                    request.setAttribute("currentUser", currentUser);
+                }
             }
         }
         filterChain.doFilter(request, response);

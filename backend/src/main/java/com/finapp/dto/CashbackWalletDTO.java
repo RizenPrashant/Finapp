@@ -9,4 +9,5 @@ public class CashbackWalletDTO {
     private String platform;
     private String icon;
     private String color;
+    private String logoUrl;
 }

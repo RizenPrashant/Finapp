@@ -21,5 +21,6 @@ public class DashboardSummaryDTO {
     private BigDecimal totalLiabilities;
     private BigDecimal totalDebt;
     private BigDecimal totalInvestments;
+    private BigDecimal compoundingCapital;
     private BigDecimal netWorth;
 }

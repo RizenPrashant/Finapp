@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, Edit2, Trash2, Home, Coins, Gem, Briefcase, Building, DollarSign, PiggyBank, Bitcoin, LandPlot, Landmark } from 'lucide-react';
+import { TrendingUp, TrendingDown, Edit2, Trash2, Home, Coins, Gem, Briefcase, Building, DollarSign, PiggyBank, Bitcoin, LandPlot, Landmark, CheckCircle2 } from 'lucide-react';
 
 const typeIcons = {
   PROPERTY: { icon: Home, color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
@@ -34,7 +34,7 @@ const typeLabels = {
   OTHER: 'Other',
 };
 
-export default function InvestmentCard({ investment, onEdit, onDelete }) {
+export default function InvestmentCard({ investment, onEdit, onDelete, onClose }) {
   const typeConfig = typeIcons[investment.type] || typeIcons.OTHER;
   const Icon = typeConfig.icon;
   const isProfit = investment.profitLoss >= 0;
@@ -54,12 +54,28 @@ export default function InvestmentCard({ investment, onEdit, onDelete }) {
           </div>
           <div>
             <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm line-clamp-1">{investment.name}</h4>
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${typeConfig.bg} ${typeConfig.color}`}>
-              {typeLabels[investment.type]}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${typeConfig.bg} ${typeConfig.color}`}>
+                {typeLabels[investment.type]}
+              </span>
+              {investment.status === 'CLOSED' && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400">
+                  CLOSED
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {onClose && (
+            <button
+              onClick={() => onClose(investment)}
+              className="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition"
+              title="Close/Sell Investment"
+            >
+              <CheckCircle2 size={14} />
+            </button>
+          )}
           <button
             onClick={() => onEdit(investment)}
             className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition"

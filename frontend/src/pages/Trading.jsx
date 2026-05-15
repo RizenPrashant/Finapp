@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, TrendingUp, TrendingDown, Activity, DollarSign, Target, Percent, Briefcase, Building2, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Activity, DollarSign, Target, Percent, Briefcase, Building2, ChevronLeft, ChevronRight, Calendar, TrendingUp as TrendingUpIcon } from 'lucide-react';
 import { getTrades, getTradesByStatus, getTradesByBroker, getBrokers, getTradingAnalytics, deleteTrade, createTrade, updateTrade, getCompoundingHistory, createCompoundingHistory, deleteCompoundingHistory } from '../api';
 import AddTradeModal from '../components/AddTradeModal';
 import TradeCard from '../components/TradeCard';
@@ -61,7 +61,9 @@ export default function Trading() {
       ]);
       setTrades(tradesRes.data);
       setAnalytics(analyticsRes.data);
-      setCompoundingHistory(compoundingRes.data);
+      // Only show trade-linked compounding entries in Trading page
+      const tradeLinkedCompounding = (compoundingRes.data || []).filter(h => h.tradeId != null);
+      setCompoundingHistory(tradeLinkedCompounding);
       // Merge API brokers with custom brokers from localStorage, filter out empty/null
       const apiBrokers = (brokersRes.data || []).filter(b => b && b.trim() !== '');
       const customBrokers = JSON.parse(localStorage.getItem('finapp_custom_brokers') || '[]').filter(b => b && b.trim() !== '');
@@ -173,35 +175,40 @@ export default function Trading() {
   }
 
   return (
-    <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-6">
+    <div className="flex-1 h-screen flex flex-col bg-gray-50/50 dark:bg-gray-900 overflow-hidden">
+      {/* Sticky Header */}
+      <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-gray-200/80 dark:border-gray-700/80 px-6 py-4 flex-shrink-0 z-20">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-200">Trading</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">Track your stock market trades and portfolio performance</p>
+          <div className="flex items-center gap-4">
+            <div className="p-2 bg-slate-900 dark:bg-slate-700 rounded-xl">
+              <TrendingUpIcon size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-800 dark:text-slate-200">Trading</h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Track trades & portfolio</p>
+            </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             <button
               onClick={() => setShowCompoundingModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors"
+              className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all text-sm font-medium shadow-sm hover:shadow-md"
             >
-              <TrendingUp size={18} />
-              Add Compounding
+              <TrendingUp size={16} />
+              <span className="hidden sm:inline">Add Compounding</span>
             </button>
             <button
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors"
+              className="flex items-center gap-2 px-3 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-all text-sm font-medium shadow-sm hover:shadow-md"
             >
-              <Plus size={18} />
-              Add Trade
+              <Plus size={16} />
+              <span className="hidden sm:inline">Add Trade</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Date Filter Bar */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
+      {/* Sticky Filter Bar */}
+      <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border-b border-gray-200/60 dark:border-gray-700/60 px-6 py-3 flex-shrink-0 z-10">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-1 text-gray-400 mr-2">
             <Calendar size={16} />
@@ -305,105 +312,125 @@ export default function Trading() {
         </div>
       </div>
 
-      {/* Analytics Cards - Using Filtered Data */}
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+      {/* Sticky Analytics Section */}
       {filteredAnalytics && (
-        <div className="p-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        <div className="sticky top-0 z-30 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm px-6 py-4 border-b border-gray-200/50 dark:border-gray-700/50">
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
             {/* Total Trades */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-sm min-w-0">
-              <div className="flex items-center gap-2 mb-1.5">
-                <Activity size={18} className="text-blue-500 flex-shrink-0" />
-                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Trades</span>
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="p-1.5 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                  <Activity size={14} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <span className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-medium">Trades</span>
               </div>
-              <p className="text-xl font-bold text-slate-800 dark:text-slate-200 truncate" title={filteredAnalytics.totalTrades}>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-200">
                 {filteredAnalytics.totalTrades}
-                {dateFilterType !== 'all' && <span className="text-xs text-gray-400 ml-1">(filtered)</span>}
+                {dateFilterType !== 'all' && <span className="text-[10px] text-gray-400 ml-1 font-normal">(f)</span>}
               </p>
             </div>
 
             {/* Win Rate */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-sm min-w-0">
-              <div className="flex items-center gap-2 mb-1.5">
-                <Target size={18} className="text-green-500 flex-shrink-0" />
-                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Win Rate</span>
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="p-1.5 bg-green-50 dark:bg-green-900/30 rounded-lg">
+                  <Target size={14} className="text-green-600 dark:text-green-400" />
+                </div>
+                <span className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-medium">Win Rate</span>
               </div>
-              <p className="text-xl font-bold text-slate-800 dark:text-slate-200 truncate" title={formatPercentage(filteredAnalytics.winRate)}>{formatPercentage(filteredAnalytics.winRate)}</p>
-              <p className="text-xs text-gray-400 truncate">{filteredAnalytics.winningTrades}W / {filteredAnalytics.losingTrades}L</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-200">{formatPercentage(filteredAnalytics.winRate)}</p>
+              <p className="text-[10px] text-gray-400">{filteredAnalytics.winningTrades}W/{filteredAnalytics.losingTrades}L</p>
             </div>
 
             {/* Net PnL */}
-            <div className={`rounded-2xl p-3 shadow-sm min-w-0 ${(analytics.netPnL || 0) >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
-              <div className="flex items-center gap-2 mb-1.5">
-                <DollarSign size={18} className={`flex-shrink-0 ${(analytics.netPnL || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`} />
-                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Net PnL</span>
+            <div className={`rounded-xl p-3 shadow-sm border ${(filteredAnalytics.netPnL || 0) >= 0 ? 'bg-green-50/80 dark:bg-green-900/20 border-green-100 dark:border-green-800/30' : 'bg-red-50/80 dark:bg-red-900/20 border-red-100 dark:border-red-800/30'} hover:shadow-md transition-shadow`}>
+              <div className="flex items-center gap-2 mb-1">
+                <div className={`p-1.5 rounded-lg ${(filteredAnalytics.netPnL || 0) >= 0 ? 'bg-green-100 dark:bg-green-800/40' : 'bg-red-100 dark:bg-red-800/40'}`}>
+                  <DollarSign size={14} className={(filteredAnalytics.netPnL || 0) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} />
+                </div>
+                <span className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-medium">Net PnL</span>
               </div>
-              <p className={`text-lg font-bold truncate ${(filteredAnalytics.netPnL || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`} title={formatCurrency(filteredAnalytics.netPnL)}>
+              <p className={`text-base font-bold truncate ${(filteredAnalytics.netPnL || 0) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                 {formatCurrency(filteredAnalytics.netPnL)}
               </p>
             </div>
 
             {/* Realized PnL */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-sm min-w-0">
-              <div className="flex items-center gap-2 mb-1.5">
-                <TrendingUp size={18} className="text-purple-500 flex-shrink-0" />
-                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Realized</span>
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="p-1.5 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
+                  <TrendingUp size={14} className="text-purple-600 dark:text-purple-400" />
+                </div>
+                <span className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-medium">Realized</span>
               </div>
-              <p className="text-lg font-bold text-slate-800 dark:text-slate-200 truncate" title={formatCurrency(filteredAnalytics.realizedPnL)}>{formatCurrency(filteredAnalytics.realizedPnL)}</p>
+              <p className="text-base font-bold text-slate-800 dark:text-slate-200 truncate">{formatCurrency(filteredAnalytics.realizedPnL)}</p>
             </div>
 
             {/* Open Positions */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-sm min-w-0">
-              <div className="flex items-center gap-2 mb-1.5">
-                <Briefcase size={18} className="text-orange-500 flex-shrink-0" />
-                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Open</span>
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="p-1.5 bg-orange-50 dark:bg-orange-900/30 rounded-lg">
+                  <Briefcase size={14} className="text-orange-600 dark:text-orange-400" />
+                </div>
+                <span className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-medium">Open</span>
               </div>
-              <p className="text-xl font-bold text-slate-800 dark:text-slate-200 truncate">{filteredAnalytics.openPositions}</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-200">{filteredAnalytics.openPositions}</p>
             </div>
 
             {/* Capital Used */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-sm min-w-0">
-              <div className="flex items-center gap-2 mb-1.5">
-                <Percent size={18} className="text-blue-500 flex-shrink-0" />
-                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Capital</span>
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="p-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                  <Percent size={14} className="text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <span className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-medium">Capital</span>
               </div>
-              <p className="text-lg font-bold text-slate-800 dark:text-slate-200 truncate" title={formatCurrency(filteredAnalytics.capitalUsed)}>{formatCurrency(filteredAnalytics.capitalUsed)}</p>
+              <p className="text-base font-bold text-slate-800 dark:text-slate-200 truncate">{formatCurrency(filteredAnalytics.capitalUsed)}</p>
             </div>
           </div>
-
-          {/* Compounding History */}
-          {compoundingHistory.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm mb-6">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4">Compounding History</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                {compoundingHistory.map((history) => (
-                  <div key={history.id} className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{history.month} {history.year}</span>
-                      <button
-                        onClick={() => deleteCompoundingHistory(history.id).then(fetchData)}
-                        className="text-red-500 hover:text-red-700 text-xs"
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <p className="text-lg font-bold text-slate-800 dark:text-slate-200">{formatCurrency(history.endingCapital)}</p>
-                    <p className={`text-sm ${history.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {history.profit >= 0 ? '+' : ''}{formatCurrency(history.profit)}
-                    </p>
-                    {history.reinvested && (
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded mt-2 inline-block">Reinvested</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Tabs & Broker Filter */}
-      <div className="px-6 pb-4">
+      {/* Compounding History Section */}
+      {compoundingHistory.length > 0 && (
+        <div className="px-6 py-3 bg-white/50 dark:bg-gray-800/50 border-b border-gray-200/50 dark:border-gray-700/50">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Compounding History</h3>
+            <span className="text-xs text-gray-400">{compoundingHistory.length} entries</span>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+            {compoundingHistory.map((history) => (
+              <div key={history.id} className="flex-shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-gray-100 dark:border-gray-700 min-w-[140px]">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{history.month} {history.year}</span>
+                  <button
+                    onClick={() => deleteCompoundingHistory(history.id).then(fetchData)}
+                    className="text-gray-400 hover:text-red-500 text-xs w-5 h-5 flex items-center justify-center rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                  >
+                    ×
+                  </button>
+                </div>
+                <p className="text-base font-bold text-slate-800 dark:text-slate-200">{formatCurrency(history.endingCapital)}</p>
+                <p className={`text-xs ${history.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  P: {history.profit >= 0 ? '+' : ''}{formatCurrency(history.profit)}
+                </p>
+                {history.reinvestAmount > 0 && (
+                  <p className="text-[10px] text-blue-600 font-medium mt-1">
+                    R: {formatCurrency(history.reinvestAmount)}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tabs & Broker Filter - Sticky */}
+      <div className="sticky top-0 z-20 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm px-6 py-3 border-b border-gray-200/50 dark:border-gray-700/50">
         <div className="flex flex-wrap items-center gap-3">
+
           <div className="flex gap-2">
             {['all', 'open', 'closed'].map((tab) => (
               <button
@@ -477,6 +504,7 @@ export default function Trading() {
           </div>
         )}
       </div>
+      </div> {/* End Scrollable Content */}
 
       {/* Add/Edit Trade Modal */}
       {showAddModal && (

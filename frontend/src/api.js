@@ -29,10 +29,10 @@ api.interceptors.response.use(
   }
 );
 
-export const getDashboardSummary = () => api.get('/dashboard/summary');
+export const getDashboardSummary = (params = {}) => api.get('/dashboard/summary', { params });
 
 export const getTransactions = (params = {}) => api.get('/transactions', { params });
-export const getTransactionsByBudget = (budgetCategory) => api.get(`/transactions/budget/${encodeURIComponent(budgetCategory)}`);
+export const getTransactionsByBudget = (budgetCategory, params = {}) => api.get(`/transactions/budget/${encodeURIComponent(budgetCategory)}`, { params });
 export const getTransactionsBySource = (source) => api.get(`/transactions/source/${encodeURIComponent(source)}`);
 export const getTransactionsByType = (type) => api.get(`/transactions/type/${type}`);
 export const createTransaction = (data) => api.post('/transactions', data);
@@ -70,6 +70,19 @@ export const getCompoundingHistory = () => api.get('/trading/compounding');
 export const createCompoundingHistory = (data) => api.post('/trading/compounding', data);
 export const deleteCompoundingHistory = (id) => api.delete(`/trading/compounding/${id}`);
 
+// New Unified Compounding APIs
+export const getCompoundingSettings = () => api.get('/compounding/settings');
+export const updateCompoundingSettings = (data) => api.put('/compounding/settings', data);
+export const getCompoundingCapital = () => api.get('/compounding/capital');
+export const getCompoundingProfits = () => api.get('/compounding/profits');
+export const getUnifiedCompoundingHistory = () => api.get('/compounding/history');
+export const processManualCompounding = (amount, source, description) =>
+    api.post(`/compounding/process?amount=${amount}&source=${source}&description=${description || ''}`);
+
+// Process investment profit with separate profit and reinvest amount
+export const processInvestmentCompounding = (profit, reinvestAmount, description) =>
+    api.post(`/compounding/process-investment?profit=${profit}&reinvestAmount=${reinvestAmount}&description=${description || ''}`);
+
 // Investment APIs
 export const getInvestments = () => api.get('/investments');
 export const getInvestmentsByType = (type) => api.get(`/investments/type/${type}`);
@@ -82,6 +95,7 @@ export const getInvestmentAnalytics = () => api.get('/investments/analytics');
 // Cashback APIs
 export const getCashbackWallets = () => api.get('/cashback/wallets');
 export const createCashbackWallet = (data) => api.post('/cashback/wallets', data);
+export const updateCashbackWallet = (id, data) => api.put(`/cashback/wallets/${id}`, data);
 export const deleteCashbackWallet = (id) => api.delete(`/cashback/wallets/${id}`);
 export const getCashbackEntries = () => api.get('/cashback/entries');
 export const getCashbackEntriesByWallet = (walletId) => api.get(`/cashback/entries/wallet/${walletId}`);
