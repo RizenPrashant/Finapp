@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Download, Gift, Plus, Tag } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Gift, Plus, Tag, Upload } from 'lucide-react';
 import Header from '../components/Header';
 import TransactionRow from '../components/TransactionRow';
 import EditTransactionModal from '../components/EditTransactionModal';
 import AddTransactionModal from '../components/AddTransactionModal';
-import { DELETE_LOCK_KEY, FILTER_PREFS_KEY, CUSTOM_FILTERS_KEY } from '../pages/Settings';
+import { isDeleteLocked, FILTER_PREFS_KEY, CUSTOM_FILTERS_KEY } from '../pages/Settings';
 import { getTransactions, updateTransaction, deleteTransaction, createTransaction, getCashbackWallets, getCashbackEntriesByWallet } from '../api';
+import ImportModal from '../components/ImportModal';
 import { exportToXlsx } from '../utils/exportXlsx';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -15,7 +16,7 @@ export default function Transactions({ onProfileClick }) {
   const [filter, setFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [editingTransaction, setEditingTransaction] = useState(null);
-  const deleteLocked = localStorage.getItem(DELETE_LOCK_KEY) === 'true';
+  const deleteLocked = isDeleteLocked('transactions');
 
   const now = new Date();
   const getDefaultFilter = () => {
@@ -42,6 +43,7 @@ export default function Transactions({ onProfileClick }) {
   });
   const [activeCustomFilter, setActiveCustomFilter] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportBankModal, setShowImportBankModal] = useState(false);
 
   useEffect(() => {
     getCashbackWallets().then(r => setCashbackWallets(r.data)).catch(() => {});
@@ -338,12 +340,20 @@ export default function Transactions({ onProfileClick }) {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-5 py-3 bg-slate-900 dark:bg-blue-600 text-white rounded-xl font-semibold hover:bg-slate-700 transition text-sm whitespace-nowrap"
-          >
-            <Plus size={18} /> Add Transaction
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowImportBankModal(true)}
+              className="flex items-center gap-2 px-4 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition text-sm whitespace-nowrap"
+            >
+              <Upload size={18} /> Import Statement
+            </button>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 px-5 py-3 bg-slate-900 dark:bg-blue-600 text-white rounded-xl font-semibold hover:bg-slate-700 transition text-sm whitespace-nowrap"
+            >
+              <Plus size={18} /> Add Transaction
+            </button>
+          </div>
         </div>
 
         {/* Transactions List */}
@@ -404,6 +414,18 @@ export default function Transactions({ onProfileClick }) {
           budgetCategory="Miscellaneous"
           onClose={() => setShowAddModal(false)}
           onSave={handleSave}
+        />
+      )}
+
+      {/* Bank Statement Import Modal */}
+      {showImportBankModal && (
+        <ImportModal
+          isOpen={showImportBankModal}
+          onClose={() => {
+            setShowImportBankModal(false);
+            fetchTransactions();
+          }}
+          type="bank-statement"
         />
       )}
     </div>

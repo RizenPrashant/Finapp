@@ -1,6 +1,6 @@
 import { TrendingUp, TrendingDown, Edit2, Trash2, Calendar, DollarSign, Briefcase } from 'lucide-react';
 
-export default function TradeCard({ trade, onEdit, onDelete }) {
+export default function TradeCard({ trade, onEdit, onDelete, deleteLocked }) {
   const isProfit = (trade.profitLoss || 0) >= 0;
   const isOpen = trade.status === 'OPEN';
 
@@ -59,8 +59,9 @@ export default function TradeCard({ trade, onEdit, onDelete }) {
             <Edit2 size={16} />
           </button>
           <button
-            onClick={onDelete}
-            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+            onClick={() => !deleteLocked && onDelete()}
+            className={`p-2 rounded-lg transition-colors ${deleteLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30'}`}
+            title={deleteLocked ? 'Delete locked. Unlock in Settings.' : 'Delete'}
           >
             <Trash2 size={16} />
           </button>

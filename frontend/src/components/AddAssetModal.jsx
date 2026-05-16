@@ -52,6 +52,7 @@ const investmentSubCategories = [
 
 export default function AddAssetModal({ assetType, onClose, onSave, editingAsset }) {
   const defaultCategory = assetCategories[assetType]?.[0]?.value || 'OTHER';
+  const TRANSACTION_CATEGORIES = ['BANK', 'CREDIT_CARD'];
   const [form, setForm] = useState({
     name: '',
     value: '',
@@ -60,7 +61,7 @@ export default function AddAssetModal({ assetType, onClose, onSave, editingAsset
     subCategory: assetType === 'ASSET' && defaultCategory === 'INVESTMENTS' ? 'STOCKS' : null,
     date: new Date().toISOString().split('T')[0],
     description: '',
-    hasTransactions: false,
+    hasTransactions: TRANSACTION_CATEGORIES.includes(defaultCategory),
     creditLimit: '',
   });
   const [loading, setLoading] = useState(false);
@@ -89,7 +90,8 @@ export default function AddAssetModal({ assetType, onClose, onSave, editingAsset
     setForm(prev => ({
       ...prev,
       category,
-      subCategory: category === 'INVESTMENTS' ? 'STOCKS' : null
+      subCategory: category === 'INVESTMENTS' ? 'STOCKS' : null,
+      hasTransactions: TRANSACTION_CATEGORIES.includes(category) ? true : prev.hasTransactions,
     }));
   };
 
@@ -239,22 +241,29 @@ export default function AddAssetModal({ assetType, onClose, onSave, editingAsset
           </div>
 
           {/* Has Transactions Toggle */}
-          <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800">
-            <input
-              type="checkbox"
-              id="hasTransactions"
-              checked={form.hasTransactions}
-              onChange={(e) => setForm({ ...form, hasTransactions: e.target.checked })}
-              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-            />
+          <div
+            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
+              form.hasTransactions
+                ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700'
+                : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600'
+            }`}
+            onClick={() => setForm({ ...form, hasTransactions: !form.hasTransactions })}
+          >
+            <div className={`w-10 h-6 rounded-full relative transition-colors ${
+              form.hasTransactions ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+            }`}>
+              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                form.hasTransactions ? 'translate-x-5' : 'translate-x-1'
+              }`} />
+            </div>
             <div className="flex items-center gap-2">
-              <Receipt size={16} className="text-blue-600" />
-              <label htmlFor="hasTransactions" className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
-                Has Transactions
-              </label>
+              <Receipt size={16} className={form.hasTransactions ? 'text-blue-600' : 'text-gray-400'} />
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Track Transactions
+              </span>
             </div>
             <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
-              Enable to track linked transactions
+              {form.hasTransactions ? 'Transactions button enabled' : 'Enable to view linked transactions'}
             </span>
           </div>
 

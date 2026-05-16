@@ -5,7 +5,7 @@ import {
   getUdharRecords, createUdharRecord, deleteUdharRecord,
   settleUdhar, getUdharSummary
 } from '../api';
-import { FILTER_PREFS_KEY } from '../pages/Settings';
+import { FILTER_PREFS_KEY, isDeleteLocked } from '../pages/Settings';
 
 const fmt = (val) => `₹${parseFloat(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -205,7 +205,7 @@ function SettlementModal({ record, onClose, onSave }) {
 }
 
 // Udhar Card Component
-function UdharCard({ record, onSettle, onDelete }) {
+function UdharCard({ record, onSettle, onDelete, deleteLocked }) {
   const progress = Math.min(100, (parseFloat(record.settledAmount || 0) / parseFloat(record.totalAmount)) * 100);
   const isSettled = record.status === 'SETTLED';
   const isPartial = record.status === 'PARTIAL';
@@ -273,8 +273,9 @@ function UdharCard({ record, onSettle, onDelete }) {
               className="px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition">
               Settle
             </button>
-            <button onClick={() => onDelete(record.id)}
-              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
+            <button onClick={() => !deleteLocked && onDelete(record.id)}
+              className={`p-1.5 rounded-lg transition ${deleteLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'}`}
+              title={deleteLocked ? 'Delete locked. Unlock in Settings.' : 'Delete'}>
               <Trash2 size={14} />
             </button>
           </div>
@@ -286,8 +287,9 @@ function UdharCard({ record, onSettle, onDelete }) {
           <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
             <CheckCircle size={14} /> Fully settled
           </p>
-          <button onClick={() => onDelete(record.id)}
-            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
+          <button onClick={() => !deleteLocked && onDelete(record.id)}
+            className={`p-1.5 rounded-lg transition ${deleteLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'}`}
+            title={deleteLocked ? 'Delete locked. Unlock in Settings.' : 'Delete'}>
             <Trash2 size={14} />
           </button>
         </div>
@@ -344,7 +346,10 @@ export default function Udhar({ onProfileClick }) {
     await fetchData();
   };
 
+  const udharLocked = isDeleteLocked('udhar');
+
   const handleDelete = async (id) => {
+    if (udharLocked) return;
     if (!window.confirm('Delete this udhar record and all linked transactions?')) return;
     await deleteUdharRecord(id);
     await fetchData();
@@ -637,6 +642,7 @@ export default function Udhar({ onProfileClick }) {
                 record={record}
                 onSettle={setSettlingRecord}
                 onDelete={handleDelete}
+                deleteLocked={udharLocked}
               />
             ))}
           </div>

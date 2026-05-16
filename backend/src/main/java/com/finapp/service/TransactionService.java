@@ -93,6 +93,7 @@ public class TransactionService {
                 .date(dto.getDate())
                 .description(dto.getDescription())
                 .paymentSource(dto.getPaymentSource())
+                .referenceNumber(dto.getReferenceNumber())
                 .isUdhar(isUdhar)
                 .user(user)
                 .build();
@@ -128,6 +129,7 @@ public class TransactionService {
         existing.setDate(dto.getDate());
         existing.setDescription(dto.getDescription());
         existing.setPaymentSource(dto.getPaymentSource());
+        existing.setReferenceNumber(dto.getReferenceNumber());
         return transactionRepository.save(existing);
     }
 

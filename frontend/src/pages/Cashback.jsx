@@ -5,7 +5,7 @@ import {
   getCashbackWallets, createCashbackWallet, updateCashbackWallet, deleteCashbackWallet,
   getCashbackEntriesByWallet, createCashbackEntry, deleteCashbackEntry
 } from '../api';
-import { FILTER_PREFS_KEY } from '../pages/Settings';
+import { FILTER_PREFS_KEY, isDeleteLocked } from '../pages/Settings';
 
 const PLATFORM_PRESETS = [
   { name: 'Swiggy Money', color: '#FC8019', emoji: '🍔' },
@@ -402,7 +402,10 @@ export default function Cashback({ onProfileClick }) {
     setShowAddWallet(false);
   };
 
+  const cashbackLocked = isDeleteLocked('cashback');
+
   const handleDeleteWallet = async (id) => {
+    if (cashbackLocked) return;
     if (!window.confirm('Delete this wallet and all its entries?')) return;
     await deleteCashbackWallet(id);
     await fetchWallets();
@@ -424,6 +427,7 @@ export default function Cashback({ onProfileClick }) {
   };
 
   const handleDeleteEntry = async (id) => {
+    if (cashbackLocked) return;
     if (!window.confirm('Delete this entry?')) return;
     await deleteCashbackEntry(id);
     await fetchWallets();
@@ -708,7 +712,8 @@ export default function Cashback({ onProfileClick }) {
                       </td>
                       <td className="px-5 py-3.5">
                         <button onClick={() => handleDeleteEntry(entry.id)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition">
+                          className={`p-1.5 rounded-lg transition ${cashbackLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
+                          title={cashbackLocked ? 'Delete locked. Unlock in Settings.' : 'Delete'}>
                           <Trash2 size={13} />
                         </button>
                       </td>
@@ -830,7 +835,8 @@ export default function Cashback({ onProfileClick }) {
                         <Edit2 size={13} />
                       </button>
                       <button onClick={e => { e.stopPropagation(); handleDeleteWallet(wallet.id); }}
-                        className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition">
+                        className={`p-1.5 rounded-lg transition ${cashbackLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
+                        title={cashbackLocked ? 'Delete locked. Unlock in Settings.' : 'Delete'}>
                         <Trash2 size={13} />
                       </button>
                     </div>

@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, TrendingUp, TrendingDown, Activity, DollarSign, Target, Percent, Briefcase, Building2, ChevronLeft, ChevronRight, Calendar, TrendingUp as TrendingUpIcon } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Activity, DollarSign, Target, Percent, Briefcase, Building2, ChevronLeft, ChevronRight, Calendar, TrendingUp as TrendingUpIcon, Upload } from 'lucide-react';
 import { getTrades, getTradesByStatus, getTradesByBroker, getBrokers, getTradingAnalytics, deleteTrade, createTrade, updateTrade, getCompoundingHistory, createCompoundingHistory, deleteCompoundingHistory } from '../api';
 import AddTradeModal from '../components/AddTradeModal';
+import ImportModal from '../components/ImportModal';
 import TradeCard from '../components/TradeCard';
-import { FILTER_PREFS_KEY } from '../pages/Settings';
+import { FILTER_PREFS_KEY, isDeleteLocked } from '../pages/Settings';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -16,6 +17,7 @@ export default function Trading() {
   const [brokers, setBrokers] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCompoundingModal, setShowCompoundingModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editingTrade, setEditingTrade] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -79,7 +81,10 @@ export default function Trading() {
     fetchData();
   }, [fetchData]);
 
+  const tradeDeleteLocked = isDeleteLocked('trades');
+
   const handleDelete = async (id) => {
+    if (tradeDeleteLocked) return;
     if (window.confirm('Delete this trade?')) {
       await deleteTrade(id);
       fetchData();
@@ -202,6 +207,13 @@ export default function Trading() {
             >
               <Plus size={16} />
               <span className="hidden sm:inline">Add Trade</span>
+            </button>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all text-sm font-medium shadow-sm hover:shadow-md"
+            >
+              <Upload size={16} />
+              <span className="hidden sm:inline">Import</span>
             </button>
           </div>
         </div>
@@ -406,8 +418,9 @@ export default function Trading() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{history.month} {history.year}</span>
                   <button
-                    onClick={() => deleteCompoundingHistory(history.id).then(fetchData)}
-                    className="text-gray-400 hover:text-red-500 text-xs w-5 h-5 flex items-center justify-center rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                    onClick={() => !isDeleteLocked('compounding') && deleteCompoundingHistory(history.id).then(fetchData)}
+                    className={`text-xs w-5 h-5 flex items-center justify-center rounded transition ${isDeleteLocked('compounding') ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
+                    title={isDeleteLocked('compounding') ? 'Delete locked. Unlock in Settings.' : 'Delete'}
                   >
                     ×
                   </button>
@@ -499,6 +512,7 @@ export default function Trading() {
                   setShowAddModal(true);
                 }}
                 onDelete={() => handleDelete(trade.id)}
+                deleteLocked={tradeDeleteLocked}
               />
             ))}
           </div>
@@ -515,6 +529,15 @@ export default function Trading() {
           }}
           onSubmit={editingTrade ? handleEditTrade : handleAddTrade}
           initialData={editingTrade}
+        />
+      )}
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <ImportModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          type="trades"
         />
       )}
 

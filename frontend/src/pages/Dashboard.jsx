@@ -6,7 +6,7 @@ import TransactionRow from '../components/TransactionRow';
 import AddTransactionModal from '../components/AddTransactionModal';
 import EditTransactionModal from '../components/EditTransactionModal';
 import Header from '../components/Header';
-import { DELETE_LOCK_KEY, FILTER_PREFS_KEY } from '../pages/Settings';
+import { isDeleteLocked, FILTER_PREFS_KEY } from '../pages/Settings';
 import {
   getDashboardSummary,
   getBudgets,
@@ -28,7 +28,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [loading, setLoading] = useState(true);
   const [cashbackTotal, setCashbackTotal] = useState(0);
-  const deleteLocked = localStorage.getItem(DELETE_LOCK_KEY) === 'true';
+  const deleteLocked = isDeleteLocked('transactions');
 
   // Date filters for dashboard
   const now = new Date();

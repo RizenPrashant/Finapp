@@ -34,7 +34,7 @@ const typeLabels = {
   OTHER: 'Other',
 };
 
-export default function InvestmentCard({ investment, onEdit, onDelete, onClose }) {
+export default function InvestmentCard({ investment, onEdit, onDelete, onClose, deleteLocked }) {
   const typeConfig = typeIcons[investment.type] || typeIcons.OTHER;
   const Icon = typeConfig.icon;
   const isProfit = investment.profitLoss >= 0;
@@ -83,8 +83,9 @@ export default function InvestmentCard({ investment, onEdit, onDelete, onClose }
             <Edit2 size={14} />
           </button>
           <button
-            onClick={() => onDelete(investment.id)}
-            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+            onClick={() => !deleteLocked && onDelete(investment.id)}
+            className={`p-1.5 rounded-lg transition ${deleteLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
+            title={deleteLocked ? 'Delete locked. Unlock in Settings.' : 'Delete'}
           >
             <Trash2 size={14} />
           </button>

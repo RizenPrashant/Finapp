@@ -86,6 +86,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     List<Transaction> findByUserAndPaymentSourceIgnoreCaseOrderByDateDesc(User user, String paymentSource);
 
+    boolean existsByUserAndImportHash(User user, String importHash);
+
     // User-specific analytics
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user = :user AND t.type = :type")
     BigDecimal sumByUserAndType(@Param("user") User user, @Param("type") TransactionType type);

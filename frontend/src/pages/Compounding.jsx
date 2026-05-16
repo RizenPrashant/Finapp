@@ -8,6 +8,7 @@ import {
   getTradingCapital,
   processInvestmentCompounding,
 } from '../api';
+import { isDeleteLocked } from '../pages/Settings';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -166,7 +167,10 @@ export default function Compounding({ onProfileClick }) {
     fetchData();
   };
 
+  const compoundingLocked = isDeleteLocked('compounding');
+
   const handleDelete = async (id, type) => {
+    if (compoundingLocked) return;
     if (!window.confirm('Delete this entry?')) return;
     await deleteCompoundingHistory(id);
     if (type === 'trading') {
@@ -312,8 +316,8 @@ export default function Compounding({ onProfileClick }) {
                           <td className="px-5 py-3.5 text-right font-semibold text-slate-700 dark:text-slate-300">{fmt(entry.endingCapital)}</td>
                           <td className="px-5 py-3.5 text-right">
                             <button onClick={() => handleDelete(entry.id, 'trading')}
-                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
-                              title="Delete compounding entry">
+                              className={`p-1.5 rounded-lg transition ${compoundingLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
+                              title={compoundingLocked ? 'Delete locked. Unlock in Settings.' : 'Delete compounding entry'}>
                               <Trash2 size={14} />
                             </button>
                           </td>
@@ -480,8 +484,8 @@ export default function Compounding({ onProfileClick }) {
                           <td className="px-5 py-3.5 text-right font-semibold text-slate-700 dark:text-slate-300">{fmt(entry.endingCapital)}</td>
                           <td className="px-5 py-3.5 text-right">
                             <button onClick={() => handleDelete(entry.id, 'investment')}
-                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
-                              title="Delete compounding entry">
+                              className={`p-1.5 rounded-lg transition ${compoundingLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
+                              title={compoundingLocked ? 'Delete locked. Unlock in Settings.' : 'Delete compounding entry'}>
                               <Trash2 size={14} />
                             </button>
                           </td>

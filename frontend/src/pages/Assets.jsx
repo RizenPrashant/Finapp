@@ -17,6 +17,7 @@ import {
   updateAsset,
   deleteAsset 
 } from '../api';
+import { isDeleteLocked } from '../pages/Settings';
 
 const investmentTypes = [
   { value: 'ALL', label: 'All', icon: PieChart },
@@ -103,7 +104,11 @@ export default function Assets({ onProfileClick }) {
     }
   };
 
+  const assetDeleteLocked = isDeleteLocked('assets');
+  const investmentDeleteLocked = isDeleteLocked('investments');
+
   const handleDeleteAsset = async (id) => {
+    if (assetDeleteLocked) return;
     try {
       await deleteAsset(id);
       fetchData();
@@ -140,6 +145,7 @@ export default function Assets({ onProfileClick }) {
   };
 
   const handleDeleteInvestment = async (id) => {
+    if (investmentDeleteLocked) return;
     try {
       await deleteInvestment(id);
       fetchData();
@@ -305,6 +311,7 @@ export default function Assets({ onProfileClick }) {
                   asset={asset}
                   onEdit={openEditAsset}
                   onDelete={handleDeleteAsset}
+                  deleteLocked={assetDeleteLocked}
                 />
               ))}
             </div>
@@ -464,6 +471,7 @@ export default function Assets({ onProfileClick }) {
                 investment={investment}
                 onEdit={openEditInvestment}
                 onDelete={handleDeleteInvestment}
+                deleteLocked={investmentDeleteLocked}
               />
             ))}
           </div>

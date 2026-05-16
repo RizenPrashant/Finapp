@@ -127,4 +127,20 @@ export const toggleTransactionTaxInclude = (id, includeInTax) =>
 export const getProfile = () => api.get('/profile');
 export const updateProfile = (data) => api.put('/profile', data);
 
+// Import APIs
+export const previewTradesImport = (formData) => api.post('/import/preview/trades', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
+export const importTrades = (formData) => api.post('/import/trades', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
+export const previewBankStatementImport = (formData) => api.post('/import/preview/bank-statement', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
+export const importBankStatement = (formData) => api.post('/import/bank-statement', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
+export const importBankStatementJson = (payload) => api.post('/import/bank-statement/json', payload);
+export const importTradesJson = (payload) => api.post('/import/trades/json', payload);
+
 export default api;

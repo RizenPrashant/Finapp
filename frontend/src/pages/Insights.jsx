@@ -14,12 +14,12 @@ import {
   getTransactionsBySource, createTransaction, updateTransaction, deleteTransaction,
   processInvestmentCompounding
 } from '../api';
-import { DELETE_LOCK_KEY } from './Settings';
+import { isDeleteLocked } from './Settings';
 
 // Summary cards configuration
 const summaryCards = [
   { type: 'ASSET', label: 'Assets', icon: Landmark, color: 'text-blue-600', bg: 'bg-blue-50', darkBg: 'dark:bg-blue-900/20', border: 'border-blue-200', desc: 'Property, Gold, Vehicles, Cash' },
-  { type: 'LIABILITY', label: 'Liabilities', icon: CreditCard, color: 'text-red-600', bg: 'bg-red-50', darkBg: 'dark:bg-red-900/20', border: 'border-red-200', desc: 'Credit Cards, Personal Loans' },
+  { type: 'LIABILITY', label: 'Liabilities', icon: CreditCardIcon, color: 'text-red-600', bg: 'bg-red-50', darkBg: 'dark:bg-red-900/20', border: 'border-red-200', desc: 'Credit Cards, Personal Loans' },
   { type: 'DEBT', label: 'Debt', icon: Receipt, color: 'text-orange-600', bg: 'bg-orange-50', darkBg: 'dark:bg-orange-900/20', border: 'border-orange-200', desc: 'Home Loan, Car Loan, Education' },
   { type: 'INVESTMENT', label: 'Investments', icon: TrendingUp, color: 'text-purple-600', bg: 'bg-purple-50', darkBg: 'dark:bg-purple-900/20', border: 'border-purple-200', desc: 'Stocks, Mutual Funds, Crypto' },
 ];
@@ -66,7 +66,9 @@ export default function Insights({ onProfileClick }) {
   const [showAddTxModal, setShowAddTxModal] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
   
-  const deleteLocked = localStorage.getItem(DELETE_LOCK_KEY) === 'true';
+  const txDeleteLocked = isDeleteLocked('transactions');
+  const assetDeleteLocked = isDeleteLocked('assets');
+  const investmentDeleteLocked = isDeleteLocked('investments');
 
   const fetchSummary = useCallback(async () => {
     const res = await getDashboardSummary();
@@ -142,6 +144,7 @@ export default function Insights({ onProfileClick }) {
   };
 
   const handleDeleteAsset = async (id) => {
+    if (assetDeleteLocked) return;
     try {
       await deleteAsset(id);
       setAssets((prev) => prev.filter((i) => i.id !== id));
@@ -200,6 +203,7 @@ export default function Insights({ onProfileClick }) {
   };
 
   const handleDeleteBankTx = async (id) => {
+    if (txDeleteLocked) return;
     if (!window.confirm('Delete this transaction?')) return;
     try {
       await deleteTransaction(id);
@@ -240,6 +244,7 @@ export default function Insights({ onProfileClick }) {
   };
 
   const handleDeleteInvestment = async (id) => {
+    if (investmentDeleteLocked) return;
     try {
       await deleteInvestment(id);
       setInvestments((prev) => prev.filter((i) => i.id !== id));
@@ -464,6 +469,38 @@ export default function Insights({ onProfileClick }) {
 
           {/* Filters */}
           <div className="bg-gradient-to-r from-slate-50 to-gray-50 dark:from-gray-800 dark:to-gray-750 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 mb-4 shadow-sm">
+            {/* Quick Date Presets */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {[
+                { label: 'This Week', fn: () => {
+                  const now = new Date(); const day = now.getDay();
+                  const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+                  setTxDateFilter({ start: mon.toISOString().split('T')[0], end: now.toISOString().split('T')[0] });
+                }},
+                { label: 'This Month', fn: () => {
+                  const now = new Date();
+                  setTxDateFilter({ start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0], end: now.toISOString().split('T')[0] });
+                }},
+                { label: 'Last Month', fn: () => {
+                  const now = new Date(); const y = now.getMonth() === 0 ? now.getFullYear()-1 : now.getFullYear(); const m = now.getMonth() === 0 ? 11 : now.getMonth()-1;
+                  setTxDateFilter({ start: new Date(y, m, 1).toISOString().split('T')[0], end: new Date(y, m+1, 0).toISOString().split('T')[0] });
+                }},
+                { label: 'Last 3M', fn: () => {
+                  const now = new Date(); const from = new Date(now); from.setMonth(from.getMonth() - 3);
+                  setTxDateFilter({ start: from.toISOString().split('T')[0], end: now.toISOString().split('T')[0] });
+                }},
+                { label: 'This Year', fn: () => {
+                  const now = new Date();
+                  setTxDateFilter({ start: new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0], end: now.toISOString().split('T')[0] });
+                }},
+                { label: 'All Time', fn: () => setTxDateFilter({ start: '', end: '' }) },
+              ].map(({ label, fn }) => (
+                <button key={label} onClick={fn}
+                  className="px-3 py-1 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-slate-900 hover:text-white hover:border-slate-900 dark:hover:bg-blue-600 dark:hover:border-blue-600 transition">
+                  {label}
+                </button>
+              ))}
+            </div>
             <div className="flex flex-wrap items-center gap-3">
 
               {/* Date Range - Styled as pill */}
@@ -627,7 +664,8 @@ export default function Insights({ onProfileClick }) {
                             <Edit2 size={13} />
                           </button>
                           <button onClick={() => handleDeleteBankTx(tx.id)}
-                            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition">
+                            className={`p-1.5 rounded-lg transition ${txDeleteLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
+                            title={txDeleteLocked ? 'Delete locked. Unlock in Settings.' : 'Delete'}>
                             <Trash2 size={13} />
                           </button>
                         </div>
@@ -801,6 +839,7 @@ export default function Insights({ onProfileClick }) {
                     onEdit={openEditInvestment}
                     onDelete={handleDeleteInvestment}
                     onClose={handleCloseInvestment}
+                    deleteLocked={investmentDeleteLocked}
                   />
                 ))}
               </div>
@@ -830,6 +869,7 @@ export default function Insights({ onProfileClick }) {
                     onEdit={openEditAsset}
                     onDelete={handleDeleteAsset}
                     onViewTransactions={openSourceTransactions}
+                    deleteLocked={assetDeleteLocked}
                   />
                 ))}
               </div>

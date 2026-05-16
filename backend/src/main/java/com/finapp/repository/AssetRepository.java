@@ -23,6 +23,8 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
 
     Optional<Asset> findByIdAndUser(Long id, User user);
 
+    Optional<Asset> findByUserAndName(User user, String name);
+
     List<Asset> findByUserAndType(User user, AssetType type);
 
     List<Asset> findByUserAndCategory(User user, AssetCategory category);

@@ -53,6 +53,12 @@ public class Transaction {
     @Column(name = "payment_source")
     private String paymentSource;
 
+    @Column(name = "reference_number")
+    private String referenceNumber;
+
+    @Column(name = "import_hash")
+    private String importHash;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @JsonIgnoreProperties({"transactions", "assets", "budgets", "password"})

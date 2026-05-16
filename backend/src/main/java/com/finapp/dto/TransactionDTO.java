@@ -35,6 +35,8 @@ public class TransactionDTO {
 
     private String paymentSource;
 
+    private String referenceNumber;
+
     // Udhar fields
     private Boolean isUdhar;
     private String udharPersonName;
