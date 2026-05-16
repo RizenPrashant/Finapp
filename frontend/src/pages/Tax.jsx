@@ -54,7 +54,7 @@ export default function Tax({ onProfileClick }) {
   const [section24B, setSection24B] = useState('');
   const [hraExemption, setHraExemption] = useState('');
   const [ltaExemption, setLtaExemption] = useState('');
-  const [standardDeduction, setStandardDeduction] = useState('50000');
+  const [standardDeduction, setStandardDeduction] = useState('75000'); // FY 2024-25 New Regime: ₹75,000
 
   // Calculation Results
   const [taxResult, setTaxResult] = useState(null);
@@ -212,7 +212,7 @@ export default function Tax({ onProfileClick }) {
         setSection24B(profile.section24B?.toString() || '');
         setHraExemption(profile.hraExemption?.toString() || '');
         setLtaExemption(profile.ltaExemption?.toString() || '');
-        setStandardDeduction(profile.standardDeduction?.toString() || '50000');
+        setStandardDeduction(profile.standardDeduction?.toString() || (profile.regime === 'NEW' ? '75000' : '50000'));
       }
     } catch (error) {
       console.error('Failed to load tax profile:', error);
@@ -220,6 +220,15 @@ export default function Tax({ onProfileClick }) {
       setLoading(false);
     }
   };
+
+  // Update standard deduction when regime changes
+  useEffect(() => {
+    if (regime === 'NEW') {
+      setStandardDeduction('75000'); // FY 2024-25: ₹75,000 for New Regime
+    } else {
+      setStandardDeduction('50000'); // ₹50,000 for Old Regime
+    }
+  }, [regime]);
 
   // Auto-calculate on change
   useEffect(() => {

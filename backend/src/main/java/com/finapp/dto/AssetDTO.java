@@ -32,4 +32,5 @@ public class AssetDTO {
     private LocalDate date;
     private String description;
     private Boolean hasTransactions;
+    private BigDecimal creditLimit; // For credit cards, overdraft limits
 }

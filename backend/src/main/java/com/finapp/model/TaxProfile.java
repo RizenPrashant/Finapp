@@ -50,7 +50,7 @@ public class TaxProfile {
     private BigDecimal section24B = BigDecimal.ZERO;     // Home loan interest (max 2L)
     private BigDecimal hraExemption = BigDecimal.ZERO;  // HRA
     private BigDecimal ltaExemption = BigDecimal.ZERO;  // Leave Travel
-    private BigDecimal standardDeduction = BigDecimal.valueOf(50000); // 50k fixed for salaried
+    private BigDecimal standardDeduction = BigDecimal.valueOf(75000); // 75k default for FY 2024-25 New Regime
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
@@ -80,10 +80,11 @@ public class TaxProfile {
     // Calculate total deductions (Old regime only)
     public BigDecimal getTotalDeductions() {
         if (regime == TaxRegime.NEW) {
-            // New regime: Only NPS (80CCD(2)) and standard deduction allowed
-            return standardDeduction;
+            // New regime FY 2024-25: Standard Deduction increased to ₹75,000
+            // Only standard deduction is allowed in new regime
+            return BigDecimal.valueOf(75000);
         }
-        // Old regime: All deductions
+        // Old regime: All deductions + Standard Deduction of ₹50,000
         return section80C.min(BigDecimal.valueOf(150000))
                 .add(section80D)
                 .add(section80E)
@@ -92,7 +93,7 @@ public class TaxProfile {
                 .add(section24B.min(BigDecimal.valueOf(200000)))
                 .add(hraExemption)
                 .add(ltaExemption)
-                .add(standardDeduction);
+                .add(BigDecimal.valueOf(50000)); // Old regime: Standard Deduction ₹50,000
     }
 
     // Calculate taxable income

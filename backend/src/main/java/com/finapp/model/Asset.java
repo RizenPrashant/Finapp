@@ -50,6 +50,9 @@ public class Asset {
     @Builder.Default
     private Boolean hasTransactions = false;
 
+    @Column(name = "credit_limit", precision = 15, scale = 2)
+    private BigDecimal creditLimit; // For CREDIT_CARD: max allowed limit
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @JsonIgnoreProperties({"transactions", "assets", "budgets", "password"})

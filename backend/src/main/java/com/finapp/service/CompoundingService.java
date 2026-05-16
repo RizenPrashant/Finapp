@@ -344,6 +344,78 @@ public class CompoundingService {
         createCompoundingEntry(user, profit, reinvestAmount, source, description, currentCapital, null);
     }
 
+    // ========== Capital Management ==========
+
+    @Transactional
+    public void setInitialCapital(User user, BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        CompoundingSettings settings = getOrCreateSettings(user);
+
+        // Create a history entry for initial capital with source MANUAL
+        createCompoundingEntry(user, BigDecimal.ZERO, amount, "MANUAL", "Initial Capital Setup", amount, null);
+
+        settings.setCompoundingCapital(settings.getCompoundingCapital().add(amount));
+        settingsRepository.save(settings);
+
+        log.info("Set initial capital to {} for user {}", amount, user.getId());
+    }
+
+    @Transactional
+    public void addFreshCapital(User user, BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        CompoundingSettings settings = getOrCreateSettings(user);
+
+        // Create a history entry for fresh capital addition
+        BigDecimal newCapital = settings.getCompoundingCapital().add(amount);
+        createCompoundingEntry(user, BigDecimal.ZERO, amount, "MANUAL", "Fresh Capital Added", newCapital, null);
+
+        settings.setCompoundingCapital(newCapital);
+        settingsRepository.save(settings);
+
+        log.info("Added fresh capital {} for user {}. Total capital: {}",
+                amount, user.getId(), newCapital);
+    }
+
+    /**
+     * Calculate compounding breakdown from history
+     * - Initial Capital: What's left after subtracting fresh and profits from total
+     * - Fresh Capital: Sum of all MANUAL source entries (additional deposits)
+     * - Reinvested Profits: Sum of all TRADING/INVESTMENTS reinvest amounts
+     */
+    public BigDecimal getCompoundingBreakdown(User user, String type) {
+        CompoundingSettings settings = getOrCreateSettings(user);
+        BigDecimal totalCapital = settings.getCompoundingCapital();
+
+        List<CompoundingHistory> manualEntries = historyRepository.findManualEntriesByUser(user);
+        BigDecimal freshCapital = BigDecimal.ZERO;
+
+        // Calculate fresh capital from MANUAL entries
+        for (CompoundingHistory entry : manualEntries) {
+            freshCapital = freshCapital.add(entry.getReinvestAmount() != null ? entry.getReinvestAmount() : BigDecimal.ZERO);
+        }
+
+        BigDecimal reinvestedProfits = historyRepository.sumReinvestedProfits(user);
+        if (reinvestedProfits == null) reinvestedProfits = BigDecimal.ZERO;
+
+        // Initial capital = Total - Fresh - Profits
+        // (This represents the original seed money before any additions or reinvestments)
+        BigDecimal initialCapital = totalCapital.subtract(freshCapital).subtract(reinvestedProfits);
+        if (initialCapital.compareTo(BigDecimal.ZERO) < 0) {
+            initialCapital = BigDecimal.ZERO; // Safety check
+        }
+
+        return switch (type.toLowerCase()) {
+            case "initial" -> initialCapital;
+            case "fresh" -> freshCapital;
+            case "profits" -> reinvestedProfits;
+            default -> BigDecimal.ZERO;
+        };
+    }
+
     // ========== Queries ==========
 
     public CompoundingSettings getSettings(User user) {

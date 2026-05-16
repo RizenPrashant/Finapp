@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, ArrowLeft, Trash2, Edit3, TrendingUp, TrendingDown, DollarSign, PieChart, Target, ArrowUp, ArrowDown, Home, Gem, Briefcase, Building2, Landmark, Wallet, Receipt, CreditCard, Edit2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Plus, ArrowLeft, Trash2, Edit3, TrendingUp, TrendingDown, DollarSign, PieChart, Target, ArrowUp, ArrowDown, Home, Gem, Briefcase, Building2, Landmark, Wallet, Receipt, CreditCard as CreditCardIcon, Edit2, ArrowUpCircle, ArrowDownCircle, Calendar, Tag, X } from 'lucide-react';
 import Header from '../components/Header';
 import AddAssetModal from '../components/AddAssetModal';
 import AddInvestmentModal from '../components/AddInvestmentModal';
@@ -160,12 +160,14 @@ export default function Insights({ onProfileClick }) {
   // Bank / Credit Card transactions handlers
   const [txDateFilter, setTxDateFilter] = useState({ start: '', end: '' });
   const [txCategoryFilter, setTxCategoryFilter] = useState([]);
+  const [txTypeFilter, setTxTypeFilter] = useState('ALL');
 
   const openSourceTransactions = async (asset) => {
     setSelectedBankAsset(asset);
     setBankTxLoading(true);
     setTxDateFilter({ start: '', end: '' });
     setTxCategoryFilter([]);
+    setTxTypeFilter('ALL');
     try {
       const res = await getTransactionsBySource(asset.name);
       setBankTransactions(res.data);
@@ -306,13 +308,15 @@ export default function Insights({ onProfileClick }) {
 
   // ========== BANK TRANSACTIONS VIEW ==========
   if (selectedBankAsset) {
-    // Filter transactions based on date and category
+    // Filter transactions based on date, category, and type
     let filteredTransactions = bankTransactions.filter(t => {
       // Date filter
       if (txDateFilter.start && new Date(t.date) < new Date(txDateFilter.start)) return false;
       if (txDateFilter.end && new Date(t.date) > new Date(txDateFilter.end)) return false;
       // Category filter
       if (txCategoryFilter.length > 0 && !txCategoryFilter.includes(t.category)) return false;
+      // Type filter
+      if (txTypeFilter !== 'ALL' && t.type !== txTypeFilter) return false;
       return true;
     });
 
@@ -350,86 +354,223 @@ export default function Insights({ onProfileClick }) {
           </div>
 
           {/* Summary */}
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm">
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Account Balance</p>
-              <p className="text-xl font-bold text-slate-800 dark:text-slate-200">{fmt(selectedBankAsset.value)}</p>
-            </div>
-            <div className="bg-green-50 dark:bg-green-900/20 rounded-2xl border border-green-100 dark:border-green-800 p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-1">
-                <ArrowDownCircle size={16} className="text-green-600" />
-                <p className="text-xs text-gray-500 dark:text-gray-400">Total Credit</p>
+          {(() => {
+            const netFlow = totalCredit - totalDebit;
+            const isNegative = netFlow < 0;
+            const debitMoreThanCredit = totalDebit > totalCredit;
+            const isCreditCard = selectedBankAsset.category === 'CREDIT_CARD';
+            const creditLimit = parseFloat(selectedBankAsset.creditLimit || 0);
+            const creditUsage = creditLimit > 0 ? (totalDebit / creditLimit * 100) : 0;
+            const creditRemaining = creditLimit - totalDebit;
+
+            return (
+              <div className={`grid gap-4 mb-4 ${isCreditCard ? 'grid-cols-2 md:grid-cols-5' : 'grid-cols-2 md:grid-cols-4'}`}>
+                {/* Account Balance */}
+                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    {isCreditCard ? 'Outstanding Balance' : 'Account Balance'}
+                  </p>
+                  <p className="text-xl font-bold text-slate-800 dark:text-slate-200">{fmt(selectedBankAsset.value)}</p>
+                </div>
+
+                {/* Total Credit */}
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-2xl border border-green-100 dark:border-green-800 p-4 shadow-sm">
+                  <div className="flex items-center gap-2 mb-1">
+                    <ArrowDownCircle size={16} className="text-green-600" />
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Total Credit (In)</p>
+                  </div>
+                  <p className="text-xl font-bold text-green-700 dark:text-green-400">+{fmt(totalCredit)}</p>
+                </div>
+
+                {/* Total Debit */}
+                <div className={`rounded-2xl border p-4 shadow-sm ${
+                  (debitMoreThanCredit && !isCreditCard) || (isCreditCard && totalDebit > creditLimit)
+                    ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                    : isCreditCard && creditUsage > 80
+                      ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
+                      : 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800'
+                }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <ArrowUpCircle size={16} className={
+                      (debitMoreThanCredit && !isCreditCard) || (isCreditCard && totalDebit > creditLimit)
+                        ? 'text-red-600'
+                        : isCreditCard && creditUsage > 80
+                          ? 'text-orange-600'
+                          : 'text-red-600'
+                    } />
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Total Debit (Out)</p>
+                  </div>
+                  <p className={`text-xl font-bold ${
+                    (debitMoreThanCredit && !isCreditCard) || (isCreditCard && totalDebit > creditLimit)
+                      ? 'text-red-700 dark:text-red-400'
+                      : isCreditCard && creditUsage > 80
+                        ? 'text-orange-700 dark:text-orange-400'
+                        : 'text-red-700 dark:text-red-400'
+                  }`}>-{fmt(totalDebit)}</p>
+                  {isCreditCard && totalDebit > creditLimit && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">⚠️ Limit Exceeded!</p>
+                  )}
+                  {isCreditCard && totalDebit <= creditLimit && creditUsage > 80 && (
+                    <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">⚠️ {creditUsage.toFixed(0)}% Used</p>
+                  )}
+                </div>
+
+                {/* Credit Limit - Only for Credit Cards */}
+                {isCreditCard && (
+                  <div className="bg-purple-50 dark:bg-purple-900/20 rounded-2xl border border-purple-100 dark:border-purple-800 p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CreditCardIcon size={16} className="text-purple-600" />
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Credit Limit</p>
+                    </div>
+                    <p className="text-xl font-bold text-purple-700 dark:text-purple-400">{fmt(creditLimit)}</p>
+                    <div className="mt-2">
+                      <div className="flex h-1.5 rounded-full overflow-hidden bg-purple-200 dark:bg-purple-800">
+                        <div
+                          className={`${creditUsage > 80 ? 'bg-red-500' : creditUsage > 50 ? 'bg-orange-500' : 'bg-green-500'}`}
+                          style={{ width: `${Math.min(creditUsage, 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {creditUsage.toFixed(0)}% used · {fmt(creditRemaining)} left
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Net Flow */}
+                <div className={`rounded-2xl border p-4 shadow-sm ${
+                  isNegative && !isCreditCard
+                    ? 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800'
+                    : 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800'
+                }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingUp size={16} className={isNegative && !isCreditCard ? 'text-red-600' : 'text-blue-600'} />
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Net Flow</p>
+                  </div>
+                  <p className={`text-xl font-bold ${
+                    isNegative && !isCreditCard ? 'text-red-700 dark:text-red-400' : 'text-blue-700 dark:text-blue-400'
+                  }`}>
+                    {netFlow < 0 ? '' : '+'}{fmt(netFlow)}
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    {isCreditCard
+                      ? (netFlow > 0 ? 'Payment made' : 'Spending')
+                      : (isNegative ? 'More spent' : 'Surplus')}
+                  </p>
+                </div>
               </div>
-              <p className="text-xl font-bold text-green-700 dark:text-green-400">+{fmt(totalCredit)}</p>
-            </div>
-            <div className="bg-red-50 dark:bg-red-900/20 rounded-2xl border border-red-100 dark:border-red-800 p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-1">
-                <ArrowUpCircle size={16} className="text-red-600" />
-                <p className="text-xs text-gray-500 dark:text-gray-400">Total Debit</p>
-              </div>
-              <p className="text-xl font-bold text-red-700 dark:text-red-400">-{fmt(totalDebit)}</p>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Filters */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 mb-4 shadow-sm">
-            <div className="flex flex-wrap items-end gap-4">
-              {/* Date Range */}
-              <div className="flex items-center gap-2">
-                <div>
-                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">From</label>
+          <div className="bg-gradient-to-r from-slate-50 to-gray-50 dark:from-gray-800 dark:to-gray-750 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 mb-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-3">
+
+              {/* Date Range - Styled as pill */}
+              <div className="flex items-center bg-white dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden shadow-sm">
+                <div className="flex items-center px-3 py-2 border-r border-gray-200 dark:border-gray-600">
+                  <Calendar size={14} className="text-gray-400 mr-2" />
                   <input
                     type="date"
                     value={txDateFilter.start}
                     onChange={(e) => setTxDateFilter(prev => ({ ...prev, start: e.target.value }))}
-                    className="px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-white"
+                    className="text-sm bg-transparent outline-none text-gray-700 dark:text-gray-300 w-[110px]"
+                    placeholder="Start"
                   />
                 </div>
-                <span className="text-gray-400 pb-1">→</span>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">To</label>
+                <span className="text-gray-400 px-2">→</span>
+                <div className="flex items-center px-3 py-2">
                   <input
                     type="date"
                     value={txDateFilter.end}
                     onChange={(e) => setTxDateFilter(prev => ({ ...prev, end: e.target.value }))}
-                    className="px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-white"
+                    className="text-sm bg-transparent outline-none text-gray-700 dark:text-gray-300 w-[110px]"
+                    placeholder="End"
                   />
                 </div>
               </div>
 
-              {/* Category Filter */}
+              {/* Category Dropdown */}
               {uniqueCategories.length > 0 && (
-                <div className="flex-1 min-w-[200px]">
-                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">Categories</label>
-                  <select
-                    multiple
-                    value={txCategoryFilter}
-                    onChange={(e) => {
-                      const options = Array.from(e.target.selectedOptions).map(o => o.value);
-                      setTxCategoryFilter(options);
-                    }}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-white"
-                    size={Math.min(3, uniqueCategories.length)}
-                  >
-                    {uniqueCategories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
+                <div className="relative">
+                  <div className="flex items-center bg-white dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-2 shadow-sm">
+                    <Tag size={14} className="text-gray-400 mr-2" />
+                    <select
+                      value={txCategoryFilter[0] || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setTxCategoryFilter(val ? [val] : []);
+                      }}
+                      className="text-sm bg-transparent outline-none text-gray-700 dark:text-gray-300 cursor-pointer min-w-[120px]"
+                    >
+                      <option value="">All Categories</option>
+                      {uniqueCategories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {txCategoryFilter.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 text-white text-[10px] rounded-full flex items-center justify-center">
+                      1
+                    </span>
+                  )}
                 </div>
               )}
 
-              {/* Clear Filters */}
-              {(txDateFilter.start || txDateFilter.end || txCategoryFilter.length > 0) && (
+              {/* Type Filter Pills */}
+              <div className="flex items-center gap-1 bg-white dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 p-1 shadow-sm">
                 <button
-                  onClick={() => { setTxDateFilter({ start: '', end: '' }); setTxCategoryFilter([]); }}
-                  className="px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition"
+                  onClick={() => setTxTypeFilter('ALL')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+                    txTypeFilter === 'ALL'
+                      ? 'bg-slate-900 text-white dark:bg-blue-600'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600'
+                  }`}
                 >
-                  Clear Filters
+                  All
                 </button>
-              )}
+                <button
+                  onClick={() => setTxTypeFilter('CREDIT')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center gap-1 ${
+                    txTypeFilter === 'CREDIT'
+                      ? 'bg-green-500 text-white'
+                      : 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
+                  }`}
+                >
+                  <ArrowDownCircle size={12} />
+                  In
+                </button>
+                <button
+                  onClick={() => setTxTypeFilter('DEBIT')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center gap-1 ${
+                    txTypeFilter === 'DEBIT'
+                      ? 'bg-red-500 text-white'
+                      : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
+                  }`}
+                >
+                  <ArrowUpCircle size={12} />
+                  Out
+                </button>
+              </div>
 
-              <div className="ml-auto text-sm text-gray-500 dark:text-gray-400">
-                Showing {sorted.length} of {bankTransactions.length} transactions
+              {/* Clear & Count */}
+              <div className="flex items-center gap-3 ml-auto">
+                {(txDateFilter.start || txDateFilter.end || txCategoryFilter.length > 0 || txTypeFilter !== 'ALL') && (
+                  <button
+                    onClick={() => {
+                      setTxDateFilter({ start: '', end: '' });
+                      setTxCategoryFilter([]);
+                      setTxTypeFilter('ALL');
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+                  >
+                    <X size={12} />
+                    Clear
+                  </button>
+                )}
+                <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-lg">
+                  {sorted.length} / {bankTransactions.length}
+                </span>
               </div>
             </div>
           </div>
@@ -748,6 +889,63 @@ export default function Insights({ onProfileClick }) {
             </div>
           </div>
         </div>
+
+        {/* Compounding Capital Breakdown */}
+        {summary?.compoundingCapital > 0 && (() => {
+          const total = parseFloat(summary?.compoundingCapital || 0);
+          const initial = parseFloat(summary?.compoundingInitialCapital || 0);
+          const fresh = parseFloat(summary?.compoundingFreshCapital || 0);
+          const profits = parseFloat(summary?.compoundingReinvestedProfits || 0);
+
+          const initialPct = total > 0 ? (initial / total * 100).toFixed(1) : 0;
+          const freshPct = total > 0 ? (fresh / total * 100).toFixed(1) : 0;
+          const profitsPct = total > 0 ? (profits / total * 100).toFixed(1) : 0;
+
+          return (
+            <div className="max-w-4xl mx-auto mb-8">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-purple-200 dark:border-purple-800 shadow-sm p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                    <span className="text-2xl">⚡</span>
+                    Compounding Capital
+                  </h3>
+                  <p className="text-2xl font-bold text-purple-600">{fmt(summary?.compoundingCapital)}</p>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="flex h-3 rounded-full overflow-hidden mb-4">
+                  {initial > 0 && (
+                    <div className="bg-blue-500" style={{ width: `${initialPct}%` }} title={`Initial: ${initialPct}%`} />
+                  )}
+                  {fresh > 0 && (
+                    <div className="bg-green-500" style={{ width: `${freshPct}%` }} title={`Fresh: ${freshPct}%`} />
+                  )}
+                  {profits > 0 && (
+                    <div className="bg-purple-500" style={{ width: `${profitsPct}%` }} title={`Profits: ${profitsPct}%`} />
+                  )}
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 text-center">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Initial Capital</p>
+                    <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{fmt(summary?.compoundingInitialCapital)}</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">{initialPct}%</p>
+                  </div>
+                  <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 text-center">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Fresh Capital</p>
+                    <p className="text-lg font-bold text-green-600 dark:text-green-400">{fmt(summary?.compoundingFreshCapital)}</p>
+                    <p className="text-xs text-green-600 dark:text-green-400 font-medium">{freshPct}%</p>
+                  </div>
+                  <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-3 text-center">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Reinvested Profits</p>
+                    <p className="text-lg font-bold text-purple-600 dark:text-purple-400">{fmt(summary?.compoundingReinvestedProfits)}</p>
+                    <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">{profitsPct}%</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* 4 Summary Cards - 2 per row */}
         <div className="grid grid-cols-2 gap-5 max-w-4xl mx-auto">

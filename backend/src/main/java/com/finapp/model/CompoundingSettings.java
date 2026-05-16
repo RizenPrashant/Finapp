@@ -44,6 +44,14 @@ public class CompoundingSettings {
     @Builder.Default
     private BigDecimal compoundingCapital = BigDecimal.ZERO; // Total capital being compounded
 
+    @Column(name = "initial_capital", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal initialCapital = BigDecimal.ZERO; // Initial seed capital
+
+    @Column(name = "fresh_capital_added", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal freshCapitalAdded = BigDecimal.ZERO; // Additional capital added manually
+
     @Column(name = "total_reinvested_profits", precision = 15, scale = 2)
     @Builder.Default
     private BigDecimal totalReinvestedProfits = BigDecimal.ZERO; // Total profits reinvested so far
