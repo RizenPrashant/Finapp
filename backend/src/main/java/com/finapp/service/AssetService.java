@@ -46,6 +46,7 @@ public class AssetService {
                 .date(dto.getDate())
                 .description(dto.getDescription())
                 .hasTransactions(dto.getHasTransactions() != null ? dto.getHasTransactions() : false)
+                .creditLimit(dto.getCreditLimit())
                 .user(user)
                 .build();
         return assetRepository.save(asset);
@@ -67,6 +68,9 @@ public class AssetService {
         existing.setDescription(dto.getDescription());
         if (dto.getHasTransactions() != null) {
             existing.setHasTransactions(dto.getHasTransactions());
+        }
+        if (dto.getCreditLimit() != null) {
+            existing.setCreditLimit(dto.getCreditLimit());
         }
         return assetRepository.save(existing);
     }

@@ -2,10 +2,13 @@ package com.finapp.service;
 
 import com.finapp.dto.TransactionDTO;
 import com.finapp.dto.UdharRecordDTO;
+import com.finapp.model.Asset;
+import com.finapp.model.AssetCategory;
 import com.finapp.model.Transaction;
 import com.finapp.model.TransactionType;
 import com.finapp.model.UdharRecord;
 import com.finapp.model.User;
+import com.finapp.repository.AssetRepository;
 import com.finapp.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,6 +29,7 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final UdharService udharService;
+    private final AssetRepository assetRepository;
 
     public List<Transaction> getAll(User user) {
         List<Transaction> transactions = transactionRepository.findByUser(user);
@@ -74,6 +78,11 @@ public class TransactionService {
     @Transactional
     public Transaction create(TransactionDTO dto, User user) {
         boolean isUdhar = dto.getIsUdhar() != null && dto.getIsUdhar();
+
+        // Validate limits for BANK and CREDIT_CARD
+        if (dto.getPaymentSource() != null && dto.getType() == TransactionType.DEBIT) {
+            validateTransactionLimit(dto, user);
+        }
 
         Transaction transaction = Transaction.builder()
                 .title(dto.getTitle())
@@ -205,5 +214,68 @@ public class TransactionService {
             result.add(map);
         }
         return result;
+    }
+
+    /**
+     * Validate transaction limits for BANK and CREDIT_CARD assets
+     * - BANK: Total debit cannot exceed total credit + current balance (no negative balance)
+     * - CREDIT_CARD: Total debit cannot exceed credit limit
+     */
+    private void validateTransactionLimit(TransactionDTO dto, User user) {
+        List<Asset> assets = assetRepository.findByUser(user);
+
+        // Find asset by payment source name
+        Asset asset = assets.stream()
+                .filter(a -> a.getName().equalsIgnoreCase(dto.getPaymentSource()))
+                .findFirst()
+                .orElse(null);
+
+        if (asset == null) {
+            return; // No asset found, skip validation
+        }
+
+        // Get all transactions for this payment source
+        List<Transaction> transactions = transactionRepository
+                .findByUserAndPaymentSourceIgnoreCaseOrderByDateDesc(user, dto.getPaymentSource());
+
+        BigDecimal currentCredit = transactions.stream()
+                .filter(t -> t.getType() == TransactionType.CREDIT)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal currentDebit = transactions.stream()
+                .filter(t -> t.getType() == TransactionType.DEBIT)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal newDebitTotal = currentDebit.add(dto.getAmount());
+
+        // Validate based on asset category
+        if (asset.getCategory() == AssetCategory.BANK) {
+            // For bank accounts: Debit cannot exceed Credit + Starting Balance
+            // Starting balance is represented by the asset value
+            BigDecimal availableFunds = currentCredit.add(asset.getValue() != null ? asset.getValue() : BigDecimal.ZERO);
+
+            if (newDebitTotal.compareTo(availableFunds) > 0) {
+                throw new RuntimeException(
+                    String.format("Insufficient funds in %s. Available: %s, Trying to spend: %s (Current debits: %s)",
+                        asset.getName(),
+                        availableFunds.subtract(currentDebit),
+                        dto.getAmount(),
+                        currentDebit));
+            }
+        } else if (asset.getCategory() == AssetCategory.CREDIT_CARD) {
+            // For credit cards: Debit cannot exceed credit limit
+            BigDecimal creditLimit = asset.getCreditLimit() != null ? asset.getCreditLimit() : BigDecimal.ZERO;
+
+            if (newDebitTotal.compareTo(creditLimit) > 0) {
+                throw new RuntimeException(
+                    String.format("Credit limit exceeded for %s. Limit: %s, Current usage: %s, Trying to add: %s",
+                        asset.getName(),
+                        creditLimit,
+                        currentDebit,
+                        dto.getAmount()));
+            }
+        }
     }
 }

@@ -40,4 +40,16 @@ public interface CompoundingHistoryRepository extends JpaRepository<CompoundingH
     // Find existing entry by description for updates (without profit check)
     @Query("SELECT c FROM CompoundingHistory c WHERE c.user = :user AND c.source = :source AND c.description = :description AND DATE(c.createdAt) = CURRENT_DATE ORDER BY c.createdAt DESC")
     List<CompoundingHistory> findExistingToday(@Param("user") User user, @Param("source") String source, @Param("description") String description);
+
+    // Get earliest entry to find initial capital
+    @Query("SELECT c FROM CompoundingHistory c WHERE c.user = :user ORDER BY c.createdAt ASC")
+    List<CompoundingHistory> findEarliestByUser(@Param("user") User user);
+
+    // Sum reinvested amounts by source type (TRADING, INVESTMENTS)
+    @Query("SELECT COALESCE(SUM(c.reinvestAmount), 0) FROM CompoundingHistory c WHERE c.user = :user AND c.source IN ('TRADING', 'INVESTMENTS')")
+    BigDecimal sumReinvestedProfits(@Param("user") User user);
+
+    // Get all manual entries ordered by date (first is initial, rest are fresh)
+    @Query("SELECT c FROM CompoundingHistory c WHERE c.user = :user AND c.source = 'MANUAL' ORDER BY c.createdAt ASC")
+    List<CompoundingHistory> findManualEntriesByUser(@Param("user") User user);
 }

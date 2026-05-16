@@ -22,5 +22,11 @@ public class DashboardSummaryDTO {
     private BigDecimal totalDebt;
     private BigDecimal totalInvestments;
     private BigDecimal compoundingCapital;
+
+    // Compounding Breakdown
+    private BigDecimal compoundingInitialCapital;
+    private BigDecimal compoundingFreshCapital;
+    private BigDecimal compoundingReinvestedProfits;
+
     private BigDecimal netWorth;
 }

@@ -64,6 +64,11 @@ public class TaxCalculationService {
         // Set deductions
         result.setTotalDeductions(profile.getTotalDeductions());
         Map<String, BigDecimal> deductions = new HashMap<>();
+        // Standard Deduction: ₹75,000 for New Regime (FY 2024-25), ₹50,000 for Old Regime
+        BigDecimal standardDeduction = profile.getRegime() == TaxProfile.TaxRegime.NEW
+            ? BigDecimal.valueOf(75000)
+            : BigDecimal.valueOf(50000);
+
         if (profile.getRegime() == TaxProfile.TaxRegime.OLD) {
             deductions.put("80C", profile.getSection80C().min(new BigDecimal("150000")));
             deductions.put("80D", profile.getSection80D());
@@ -74,7 +79,7 @@ public class TaxCalculationService {
             deductions.put("HRA", profile.getHraExemption());
             deductions.put("LTA", profile.getLtaExemption());
         }
-        deductions.put("Standard Deduction", profile.getStandardDeduction());
+        deductions.put("Standard Deduction", standardDeduction);
         result.setDeductionBreakdown(deductions);
 
         // Calculate taxable income
@@ -353,7 +358,11 @@ public class TaxCalculationService {
         profile.setCapitalGainsST(capitalGainsST);
         profile.setCapitalGainsLT(capitalGainsLT);
         profile.setOtherIncome(otherIncome);
-        profile.setStandardDeduction(BigDecimal.valueOf(50000));
+        // Set standard deduction based on regime (New: ₹75,000, Old: ₹50,000)
+        BigDecimal autoStdDeduction = profile.getRegime() == TaxProfile.TaxRegime.NEW
+            ? BigDecimal.valueOf(75000)
+            : BigDecimal.valueOf(50000);
+        profile.setStandardDeduction(autoStdDeduction);
 
         // Auto-detect employment type based on income sources
         if (salaryIncome.compareTo(BigDecimal.ZERO) > 0 && businessIncome.compareTo(BigDecimal.ZERO) == 0) {

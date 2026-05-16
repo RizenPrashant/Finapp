@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Wallet, Building2, Gem, Home, Car, TrendingUp, PiggyBank, Briefcase, Landmark, Coins, Target, Receipt } from 'lucide-react';
+import { X, Wallet, Building2, Gem, Home, Car, TrendingUp, PiggyBank, Briefcase, Landmark, Coins, Target, Receipt, CreditCard } from 'lucide-react';
 
 /**
  * Hierarchical Asset Categories
@@ -61,6 +61,7 @@ export default function AddAssetModal({ assetType, onClose, onSave, editingAsset
     date: new Date().toISOString().split('T')[0],
     description: '',
     hasTransactions: false,
+    creditLimit: '',
   });
   const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(defaultCategory);
@@ -77,6 +78,7 @@ export default function AddAssetModal({ assetType, onClose, onSave, editingAsset
         date: editingAsset.date || new Date().toISOString().split('T')[0],
         description: editingAsset.description || '',
         hasTransactions: editingAsset.hasTransactions || false,
+        creditLimit: editingAsset.creditLimit?.toString() || '',
       });
       setSelectedCategory(editingAsset.category || defaultCategory);
     }
@@ -99,6 +101,8 @@ export default function AddAssetModal({ assetType, onClose, onSave, editingAsset
       value: parseFloat(form.value),
       // Only include subCategory if it's an Investment
       subCategory: form.category === 'INVESTMENTS' ? form.subCategory : null,
+      // Only include creditLimit if it's a CREDIT_CARD
+      creditLimit: form.category === 'CREDIT_CARD' && form.creditLimit ? parseFloat(form.creditLimit) : null,
       // Include id when editing so backend knows to update
       ...(editingAsset && { id: editingAsset.id })
     };
@@ -197,6 +201,30 @@ export default function AddAssetModal({ assetType, onClose, onSave, editingAsset
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Credit Limit - Only for CREDIT_CARD */}
+          {selectedCategory === 'CREDIT_CARD' && (
+            <div className="animate-fadeIn">
+              <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">
+                Credit Limit (₹) <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <CreditCard size={16} className="absolute left-3 top-3 text-gray-400" />
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  placeholder="50000"
+                  value={form.creditLimit}
+                  onChange={(e) => setForm({ ...form, creditLimit: e.target.value })}
+                  className="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 pl-10 bg-gray-50 dark:bg-gray-700 outline-none focus:ring-2 focus:ring-red-300 dark:focus:ring-red-600 text-sm dark:text-white"
+                />
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Maximum spending limit for this credit card
+              </p>
             </div>
           )}
 

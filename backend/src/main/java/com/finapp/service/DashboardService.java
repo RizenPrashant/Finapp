@@ -56,6 +56,11 @@ public class DashboardService {
         BigDecimal totalInvestments = assetService.sumByType(AssetType.INVESTMENT, user);
         BigDecimal compoundingCapital = compoundingService.getCompoundingCapital(user);
 
+        // Compounding Breakdown
+        BigDecimal compoundingInitialCapital = compoundingService.getCompoundingBreakdown(user, "initial");
+        BigDecimal compoundingFreshCapital = compoundingService.getCompoundingBreakdown(user, "fresh");
+        BigDecimal compoundingReinvestedProfits = compoundingService.getCompoundingBreakdown(user, "profits");
+
         // Networth = Assets + Investments + Compounding Capital - Liabilities - Debt
         BigDecimal netWorth = totalAssets.add(totalInvestments).add(compoundingCapital)
                 .subtract(totalLiabilities).subtract(totalDebt);
@@ -71,6 +76,9 @@ public class DashboardService {
                 .totalDebt(totalDebt)
                 .totalInvestments(totalInvestments)
                 .compoundingCapital(compoundingCapital)
+                .compoundingInitialCapital(compoundingInitialCapital)
+                .compoundingFreshCapital(compoundingFreshCapital)
+                .compoundingReinvestedProfits(compoundingReinvestedProfits)
                 .netWorth(netWorth)
                 .build();
     }
