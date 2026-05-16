@@ -10,6 +10,7 @@ public enum InvestmentType {
     FD,
     RD,
     PPF,
+    PF,
     NPS,
     CRYPTOCURRENCY,
     COMMODITY,

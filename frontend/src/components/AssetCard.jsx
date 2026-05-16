@@ -43,7 +43,7 @@ export default function AssetCard({ asset, onEdit, onDelete, onViewTransactions 
         </div>
         
         <div className="flex items-center gap-1">
-          {(asset.category === 'BANK' || asset.category === 'CREDIT_CARD') && onViewTransactions && (
+          {asset.hasTransactions && onViewTransactions && (
             <button
               onClick={() => onViewTransactions(asset)}
               title="View Transactions"

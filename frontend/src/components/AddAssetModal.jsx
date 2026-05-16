@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Wallet, Building2, Gem, Home, Car, TrendingUp, PiggyBank, Briefcase, Landmark, Coins, Target } from 'lucide-react';
+import { X, Wallet, Building2, Gem, Home, Car, TrendingUp, PiggyBank, Briefcase, Landmark, Coins, Target, Receipt } from 'lucide-react';
 
 /**
  * Hierarchical Asset Categories
@@ -60,6 +60,7 @@ export default function AddAssetModal({ assetType, onClose, onSave, editingAsset
     subCategory: assetType === 'ASSET' && defaultCategory === 'INVESTMENTS' ? 'STOCKS' : null,
     date: new Date().toISOString().split('T')[0],
     description: '',
+    hasTransactions: false,
   });
   const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(defaultCategory);
@@ -75,6 +76,7 @@ export default function AddAssetModal({ assetType, onClose, onSave, editingAsset
         subCategory: editingAsset.subCategory || null,
         date: editingAsset.date || new Date().toISOString().split('T')[0],
         description: editingAsset.description || '',
+        hasTransactions: editingAsset.hasTransactions || false,
       });
       setSelectedCategory(editingAsset.category || defaultCategory);
     }
@@ -206,6 +208,26 @@ export default function AddAssetModal({ assetType, onClose, onSave, editingAsset
               onChange={(e) => setForm({ ...form, date: e.target.value })}
               className="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 text-sm dark:text-white"
             />
+          </div>
+
+          {/* Has Transactions Toggle */}
+          <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800">
+            <input
+              type="checkbox"
+              id="hasTransactions"
+              checked={form.hasTransactions}
+              onChange={(e) => setForm({ ...form, hasTransactions: e.target.checked })}
+              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+            />
+            <div className="flex items-center gap-2">
+              <Receipt size={16} className="text-blue-600" />
+              <label htmlFor="hasTransactions" className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+                Has Transactions
+              </label>
+            </div>
+            <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
+              Enable to track linked transactions
+            </span>
           </div>
 
           <div className="flex gap-3 pt-2">

@@ -31,4 +31,5 @@ public class AssetDTO {
 
     private LocalDate date;
     private String description;
+    private Boolean hasTransactions;
 }

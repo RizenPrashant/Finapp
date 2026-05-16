@@ -46,6 +46,10 @@ public class Asset {
     private LocalDate date;
     private String description;
 
+    @Column(name = "has_transactions", nullable = false)
+    @Builder.Default
+    private Boolean hasTransactions = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @JsonIgnoreProperties({"transactions", "assets", "budgets", "password"})

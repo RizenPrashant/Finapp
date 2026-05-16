@@ -158,9 +158,14 @@ export default function Insights({ onProfileClick }) {
   };
 
   // Bank / Credit Card transactions handlers
+  const [txDateFilter, setTxDateFilter] = useState({ start: '', end: '' });
+  const [txCategoryFilter, setTxCategoryFilter] = useState([]);
+
   const openSourceTransactions = async (asset) => {
     setSelectedBankAsset(asset);
     setBankTxLoading(true);
+    setTxDateFilter({ start: '', end: '' });
+    setTxCategoryFilter([]);
     try {
       const res = await getTransactionsBySource(asset.name);
       setBankTransactions(res.data);
@@ -301,13 +306,26 @@ export default function Insights({ onProfileClick }) {
 
   // ========== BANK TRANSACTIONS VIEW ==========
   if (selectedBankAsset) {
-    const totalCredit = bankTransactions.filter(t => t.type === 'CREDIT').reduce((s, t) => s + parseFloat(t.amount), 0);
-    const totalDebit = bankTransactions.filter(t => t.type === 'DEBIT').reduce((s, t) => s + parseFloat(t.amount), 0);
-    const sorted = [...bankTransactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+    // Filter transactions based on date and category
+    let filteredTransactions = bankTransactions.filter(t => {
+      // Date filter
+      if (txDateFilter.start && new Date(t.date) < new Date(txDateFilter.start)) return false;
+      if (txDateFilter.end && new Date(t.date) > new Date(txDateFilter.end)) return false;
+      // Category filter
+      if (txCategoryFilter.length > 0 && !txCategoryFilter.includes(t.category)) return false;
+      return true;
+    });
+
+    const totalCredit = filteredTransactions.filter(t => t.type === 'CREDIT').reduce((s, t) => s + parseFloat(t.amount), 0);
+    const totalDebit = filteredTransactions.filter(t => t.type === 'DEBIT').reduce((s, t) => s + parseFloat(t.amount), 0);
+    const sorted = [...filteredTransactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // Get unique categories for filter dropdown
+    const uniqueCategories = [...new Set(bankTransactions.map(t => t.category))].sort();
 
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header title={selectedBankAsset.name} subtitle={selectedBankAsset.category === 'CREDIT_CARD' ? 'Credit Card Transactions' : 'Bank Transactions'} onProfileClick={onProfileClick} />
+        <Header title={selectedBankAsset.name} subtitle={`${selectedBankAsset.category} Transactions`} onProfileClick={onProfileClick} />
         <div className="flex-1 overflow-y-auto p-6">
           {/* Back + Header */}
           <div className="flex items-center justify-between mb-6">
@@ -332,7 +350,7 @@ export default function Insights({ onProfileClick }) {
           </div>
 
           {/* Summary */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm">
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Account Balance</p>
               <p className="text-xl font-bold text-slate-800 dark:text-slate-200">{fmt(selectedBankAsset.value)}</p>
@@ -350,6 +368,69 @@ export default function Insights({ onProfileClick }) {
                 <p className="text-xs text-gray-500 dark:text-gray-400">Total Debit</p>
               </div>
               <p className="text-xl font-bold text-red-700 dark:text-red-400">-{fmt(totalDebit)}</p>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 mb-4 shadow-sm">
+            <div className="flex flex-wrap items-end gap-4">
+              {/* Date Range */}
+              <div className="flex items-center gap-2">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">From</label>
+                  <input
+                    type="date"
+                    value={txDateFilter.start}
+                    onChange={(e) => setTxDateFilter(prev => ({ ...prev, start: e.target.value }))}
+                    className="px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <span className="text-gray-400 pb-1">→</span>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">To</label>
+                  <input
+                    type="date"
+                    value={txDateFilter.end}
+                    onChange={(e) => setTxDateFilter(prev => ({ ...prev, end: e.target.value }))}
+                    className="px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              {/* Category Filter */}
+              {uniqueCategories.length > 0 && (
+                <div className="flex-1 min-w-[200px]">
+                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">Categories</label>
+                  <select
+                    multiple
+                    value={txCategoryFilter}
+                    onChange={(e) => {
+                      const options = Array.from(e.target.selectedOptions).map(o => o.value);
+                      setTxCategoryFilter(options);
+                    }}
+                    className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-white"
+                    size={Math.min(3, uniqueCategories.length)}
+                  >
+                    {uniqueCategories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Clear Filters */}
+              {(txDateFilter.start || txDateFilter.end || txCategoryFilter.length > 0) && (
+                <button
+                  onClick={() => { setTxDateFilter({ start: '', end: '' }); setTxCategoryFilter([]); }}
+                  className="px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition"
+                >
+                  Clear Filters
+                </button>
+              )}
+
+              <div className="ml-auto text-sm text-gray-500 dark:text-gray-400">
+                Showing {sorted.length} of {bankTransactions.length} transactions
+              </div>
             </div>
           </div>
 

@@ -11,6 +11,7 @@ const investmentTypes = [
   { value: 'FD', label: 'Fixed Deposit', icon: PiggyBank, color: 'text-pink-500' },
   { value: 'RD', label: 'Recurring Deposit', icon: DollarSign, color: 'text-indigo-500' },
   { value: 'PPF', label: 'PPF', icon: Building, color: 'text-teal-500' },
+  { value: 'PF', label: 'PF (EPF)', icon: Building, color: 'text-teal-600' },
   { value: 'NPS', label: 'NPS', icon: LandPlot, color: 'text-cyan-500' },
   { value: 'CRYPTOCURRENCY', label: 'Cryptocurrency', icon: Bitcoin, color: 'text-orange-600' },
   { value: 'COMMODITY', label: 'Commodity', icon: Coins, color: 'text-amber-500' },
@@ -35,8 +36,8 @@ export default function AddInvestmentModal({ isOpen, onClose, onSave, editingInv
     lastInterestDate: ''
   });
 
-  // Auto-enable interest for FD, RD, BONDS, PPF
-  const autoInterestTypes = ['FD', 'RD', 'BONDS', 'PPF'];
+  // Auto-enable interest for FD, RD, BONDS, PPF, PF
+  const autoInterestTypes = ['FD', 'RD', 'BONDS', 'PPF', 'PF'];
 
   useEffect(() => {
     if (editingInvestment) {
@@ -79,7 +80,8 @@ export default function AddInvestmentModal({ isOpen, onClose, onSave, editingInv
       'FD': '7.50',
       'RD': '7.20',
       'BONDS': '7.15',
-      'PPF': '7.10'
+      'PPF': '7.10',
+      'PF': '8.25'
     };
     
     setFormData(prev => ({

@@ -45,6 +45,7 @@ public class AssetService {
                 .subCategory(dto.getSubCategory())
                 .date(dto.getDate())
                 .description(dto.getDescription())
+                .hasTransactions(dto.getHasTransactions() != null ? dto.getHasTransactions() : false)
                 .user(user)
                 .build();
         return assetRepository.save(asset);
@@ -64,6 +65,9 @@ public class AssetService {
         existing.setSubCategory(dto.getSubCategory());
         existing.setDate(dto.getDate());
         existing.setDescription(dto.getDescription());
+        if (dto.getHasTransactions() != null) {
+            existing.setHasTransactions(dto.getHasTransactions());
+        }
         return assetRepository.save(existing);
     }
 
