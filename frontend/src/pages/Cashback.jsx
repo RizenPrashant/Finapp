@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+ * Pacific Finapp - Personal Finance Management Application
+ * All rights reserved.
+ */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Plus, Trash2, Edit2, ArrowDownCircle, ArrowUpCircle, Wallet, Gift, X, ChevronRight, ArrowLeft, TrendingUp, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
 import Header from '../components/Header';
@@ -6,6 +11,7 @@ import {
   getCashbackEntriesByWallet, createCashbackEntry, deleteCashbackEntry
 } from '../api';
 import { FILTER_PREFS_KEY, isDeleteLocked } from '../pages/Settings';
+import { eventEmitter, EVENTS } from '../utils/events';
 
 const PLATFORM_PRESETS = [
   { name: 'Swiggy Money', color: '#FC8019', emoji: '🍔' },
@@ -380,6 +386,26 @@ export default function Cashback({ onProfileClick }) {
   }, []);
 
   useEffect(() => { fetchWallets(); }, [fetchWallets]);
+
+  // Listen for transaction events to refresh wallets (auto-update balances)
+  useEffect(() => {
+    const handleTransactionChange = () => {
+      // Refresh wallets when transactions change (balance auto-update from backend)
+      fetchWallets();
+    };
+
+    const unsubscribeCreate = eventEmitter.on(EVENTS.TRANSACTION_CREATED, handleTransactionChange);
+    const unsubscribeUpdate = eventEmitter.on(EVENTS.TRANSACTION_UPDATED, handleTransactionChange);
+    const unsubscribeDelete = eventEmitter.on(EVENTS.TRANSACTION_DELETED, handleTransactionChange);
+    const unsubscribeImport = eventEmitter.on(EVENTS.TRANSACTIONS_IMPORTED, handleTransactionChange);
+
+    return () => {
+      unsubscribeCreate();
+      unsubscribeUpdate();
+      unsubscribeDelete();
+      unsubscribeImport();
+    };
+  }, [fetchWallets]);
 
   const fetchEntries = useCallback(async (walletId) => {
     setEntriesLoading(true);

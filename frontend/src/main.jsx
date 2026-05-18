@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+ * Pacific Finapp - Personal Finance Management Application
+ * All rights reserved.
+ */
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';

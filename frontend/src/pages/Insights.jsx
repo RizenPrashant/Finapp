@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+ * Pacific Finapp - Personal Finance Management Application
+ * All rights reserved.
+ */
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, ArrowLeft, Trash2, Edit3, TrendingUp, TrendingDown, DollarSign, PieChart, Target, ArrowUp, ArrowDown, Home, Gem, Briefcase, Building2, Landmark, Wallet, Receipt, CreditCard as CreditCardIcon, Edit2, ArrowUpCircle, ArrowDownCircle, Calendar, Tag, X } from 'lucide-react';
 import Header from '../components/Header';
@@ -15,6 +20,7 @@ import {
   processInvestmentCompounding
 } from '../api';
 import { isDeleteLocked } from './Settings';
+import { eventEmitter, EVENTS } from '../utils/events';
 
 // Summary cards configuration
 const summaryCards = [
@@ -183,6 +189,7 @@ export default function Insights({ onProfileClick }) {
   const handleAddBankTx = async (data) => {
     try {
       await createTransaction({ ...data, paymentSource: selectedBankAsset.name });
+      eventEmitter.emit(EVENTS.TRANSACTION_CREATED, data);
       const res = await getTransactionsBySource(selectedBankAsset.name);
       setBankTransactions(res.data);
       setShowAddTxModal(false);
@@ -194,6 +201,7 @@ export default function Insights({ onProfileClick }) {
   const handleEditBankTx = async (id, data) => {
     try {
       await updateTransaction(id, data);
+      eventEmitter.emit(EVENTS.TRANSACTION_UPDATED, { id, ...data });
       const res = await getTransactionsBySource(selectedBankAsset.name);
       setBankTransactions(res.data);
       setEditingTx(null);
@@ -207,6 +215,7 @@ export default function Insights({ onProfileClick }) {
     if (!window.confirm('Delete this transaction?')) return;
     try {
       await deleteTransaction(id);
+      eventEmitter.emit(EVENTS.TRANSACTION_DELETED, { id });
       setBankTransactions(prev => prev.filter(t => t.id !== id));
     } catch (e) {
       alert('Failed to delete: ' + (e.response?.data?.message || e.message));

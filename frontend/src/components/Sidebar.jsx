@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+ * Pacific Finapp - Personal Finance Management Application
+ * All rights reserved.
+ */
 import { LayoutGrid, TrendingUp, Wallet, BarChart3, CandlestickChart, Settings, Moon, Sun, Repeat2, Gift, HandCoins, Calculator } from 'lucide-react';
 
 const navItems = [

@@ -28,4 +28,6 @@ public class CashbackEntryDTO {
 
     @NotNull
     private LocalDate date;
+
+    private Long transactionId;
 }

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, FileSpreadsheet, FileText, Eye, CheckCircle, AlertCircle, Loader2, Settings } from 'lucide-react';
 import { previewTradesImport, importTrades, previewBankStatementImport, importBankStatement, importBankStatementJson, importTradesJson } from '../api';
+import { eventEmitter, EVENTS } from '../utils/events';
 
 const IMPORT_FORMATS_KEY = 'finapp_custom_import_formats';
 const CUSTOM_BANK_TYPES_KEY   = 'finapp_custom_bank_types';
@@ -98,11 +99,24 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
+    console.log('File selected:', selectedFile?.name, 'Type:', selectedFile?.type);
     if (selectedFile) {
       setFile(selectedFile);
       setPreviewData(null);
       setResult(null);
       setError(null);
+      // Auto-detect format from file extension
+      const ext = selectedFile.name.split('.').pop().toLowerCase();
+      if (ext === 'xlsx' || ext === 'xls') {
+        setFormat('excel');
+        console.log('Auto-set format to: excel');
+      } else if (ext === 'pdf') {
+        setFormat('pdf');
+        console.log('Auto-set format to: pdf');
+      } else {
+        setFormat('csv');
+        console.log('Auto-set format to: csv');
+      }
     }
   };
 
@@ -115,9 +129,11 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
   });
 
   const handlePreview = async () => {
+    console.log('handlePreview called - file:', file?.name, 'format:', format, 'bankType:', bankType);
     if (!file) { setError('Please select a file first'); return; }
     setLoading(true); setError(null);
     try {
+      console.log('Sending preview request...');
       if (customFormat && format !== 'pdf') {
         // Client-side parse using custom column mapping
         const text = await readFileText();
@@ -141,18 +157,22 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
         const response = isTrades
           ? await previewTradesImport(formData)
           : await previewBankStatementImport(formData);
+        console.log('Preview response:', response.data);
         if (response.data.success) setPreviewData(response.data);
         else setError(response.data.message || 'Preview failed');
       }
     } catch (err) {
+      console.error('Preview error:', err);
       setError(err.response?.data?.message || err.message || 'Error previewing file');
     } finally { setLoading(false); }
   };
 
   const handleImport = async () => {
+    console.log('handleImport called - file:', file?.name, 'format:', format, 'bankType:', bankType);
     if (!file) { setError('Please select a file first'); return; }
     setImporting(true); setError(null);
     try {
+      console.log('Sending import request...');
       if (customFormat && format !== 'pdf') {
         // Client-side parse then send as JSON to backend
         const rows = previewData?._customRows || parseCustomCSV(await readFileText(), customFormat);
@@ -193,10 +213,16 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
         const response = isTrades
           ? await importTrades(formData)
           : await importBankStatement(formData);
+        console.log('Import response:', response.data);
         setResult(response.data);
+        // Emit event to refresh assets after successful import
+        if (response.data.success && response.data.importedCount > 0) {
+          eventEmitter.emit(EVENTS.TRANSACTIONS_IMPORTED, response.data);
+        }
       }
       setPreviewData(null);
     } catch (err) {
+      console.error('Import error:', err);
       setError(err.response?.data?.message || 'Import failed');
     } finally { setImporting(false); }
   };
@@ -451,45 +477,45 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
           {/* Result Display */}
           {result && (
             <div className="space-y-4">
-              <div className={`p-4 rounded-lg ${result.success ? 'bg-green-50' : 'bg-red-50'}`}>
+              <div className={`p-4 rounded-lg ${result.success ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
                 <div className="flex items-center gap-2">
                   {result.success ? (
-                    <CheckCircle className="w-6 h-6 text-green-500" />
+                    <CheckCircle className="w-6 h-6 text-green-500 dark:text-green-400" />
                   ) : (
-                    <AlertCircle className="w-6 h-6 text-red-500" />
+                    <AlertCircle className="w-6 h-6 text-red-500 dark:text-red-400" />
                   )}
-                  <h3 className="font-semibold">
+                  <h3 className={`font-semibold ${result.success ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'}`}>
                     {result.success ? 'Import Successful!' : 'Import Failed'}
                   </h3>
                 </div>
-                <p className="mt-2 text-sm">{result.message}</p>
+                <p className={`mt-2 text-sm ${result.success ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>{result.message}</p>
               </div>
 
               <div className={`grid gap-4 ${result.duplicatesSkipped > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}>
                 <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg text-center">
-                  <p className="text-2xl font-bold">{result.totalRows}</p>
-                  <p className="text-sm text-gray-500">Total</p>
+                  <p className="text-2xl font-bold dark:text-white">{result.totalRows}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Total</p>
                 </div>
                 <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg text-center">
-                  <p className="text-2xl font-bold text-green-600">{result.importedCount}</p>
-                  <p className="text-sm text-gray-500">Imported</p>
+                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">{result.importedCount}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Imported</p>
                 </div>
                 {result.duplicatesSkipped > 0 && (
                   <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg text-center">
-                    <p className="text-2xl font-bold text-yellow-600">{result.duplicatesSkipped}</p>
-                    <p className="text-sm text-gray-500">Duplicates</p>
+                    <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{result.duplicatesSkipped}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Duplicates</p>
                   </div>
                 )}
                 <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-center">
-                  <p className="text-2xl font-bold text-red-600">{result.failedCount}</p>
-                  <p className="text-sm text-gray-500">Failed</p>
+                  <p className="text-2xl font-bold text-red-600 dark:text-red-400">{result.failedCount}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Failed</p>
                 </div>
               </div>
 
               {result.errors?.length > 0 && (
                 <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
-                  <h4 className="font-medium text-red-700 mb-2">Errors:</h4>
-                  <ul className="text-sm text-red-600 space-y-1">
+                  <h4 className="font-medium text-red-700 dark:text-red-300 mb-2">Errors:</h4>
+                  <ul className="text-sm text-red-600 dark:text-red-400 space-y-1">
                     {result.errors.slice(0, 5).map((err, idx) => (
                       <li key={idx}>{err}</li>
                     ))}

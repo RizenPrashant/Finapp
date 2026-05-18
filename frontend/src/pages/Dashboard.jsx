@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+ * Pacific Finapp - Personal Finance Management Application
+ * All rights reserved.
+ */
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, ArrowLeft, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import StatsCard from '../components/StatsCard';
@@ -17,6 +22,7 @@ import {
   deleteTransaction,
   getCashbackWallets,
 } from '../api';
+import { eventEmitter, EVENTS } from '../utils/events';
 
 export default function Dashboard({ onNavigate, onProfileClick }) {
   const [summary, setSummary] = useState(null);
@@ -119,6 +125,32 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
     }
   }, [filterType, selectedDate, selectedMonth, selectedYear, customStartDate, customEndDate]);
 
+  // Listen for transaction events from other pages to refresh dashboard
+  useEffect(() => {
+    const handleTransactionChange = () => {
+      // Refresh dashboard data when transactions change on other pages
+      fetchSummary();
+      fetchBudgets();
+      // Also refresh cashback total
+      getCashbackWallets().then(r => {
+        const total = (r.data || []).reduce((s, w) => s + parseFloat(w.balance || 0), 0);
+        setCashbackTotal(total);
+      }).catch(() => {});
+    };
+
+    const unsubscribeCreate = eventEmitter.on(EVENTS.TRANSACTION_CREATED, handleTransactionChange);
+    const unsubscribeUpdate = eventEmitter.on(EVENTS.TRANSACTION_UPDATED, handleTransactionChange);
+    const unsubscribeDelete = eventEmitter.on(EVENTS.TRANSACTION_DELETED, handleTransactionChange);
+    const unsubscribeImport = eventEmitter.on(EVENTS.TRANSACTIONS_IMPORTED, handleTransactionChange);
+
+    return () => {
+      unsubscribeCreate();
+      unsubscribeUpdate();
+      unsubscribeDelete();
+      unsubscribeImport();
+    };
+  }, [fetchSummary, fetchBudgets]);
+
   const handleBudgetClick = async (budget) => {
     setSelectedBudget(budget);
     const dateParams = getDateRangeParams();
@@ -149,6 +181,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
 
   const handleSaveTransaction = async (data) => {
     await createTransaction(data);
+    eventEmitter.emit(EVENTS.TRANSACTION_CREATED, data);
     const dateParams = getDateRangeParams();
     const res = await getTransactionsByBudget(selectedBudget.category, dateParams);
     setTransactions(res.data);
@@ -158,6 +191,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
 
   const handleEdit = async (id, data) => {
     await updateTransaction(id, data);
+    eventEmitter.emit(EVENTS.TRANSACTION_UPDATED, { id, ...data });
     const dateParams = getDateRangeParams();
     const res = await getTransactionsByBudget(selectedBudget.category, dateParams);
     setTransactions(res.data);
@@ -167,6 +201,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
 
   const handleDelete = async (id) => {
     await deleteTransaction(id);
+    eventEmitter.emit(EVENTS.TRANSACTION_DELETED, { id });
     setTransactions((prev) => prev.filter((t) => t.id !== id));
     fetchSummary();
     fetchBudgets();
@@ -357,7 +392,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-5">
           <StatsCard title="Total Balance" value={fmt(summary?.totalBalance)} change="+12.5%" positive icon="💰" onClick={() => handleStatClick('BALANCE')} />
           <StatsCard title="Total Income" value={fmt(summary?.totalIncome)} change="+5.2%" positive icon="📈" onClick={() => handleStatClick('CREDIT')} />
           <StatsCard title="Total Expenses" value={fmt(summary?.totalExpenses)} change="+8.1%" positive={false} icon="📉" onClick={() => handleStatClick('DEBIT')} />

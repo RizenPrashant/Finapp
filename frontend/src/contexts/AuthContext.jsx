@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+ * Pacific Finapp - Personal Finance Management Application
+ * All rights reserved.
+ */
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 

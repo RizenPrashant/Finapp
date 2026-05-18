@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+ * Pacific Finapp - Personal Finance Management Application
+ * All rights reserved.
+ */
 package com.finapp.service;
 
 import com.finapp.dto.CashbackEntryDTO;

@@ -1,5 +1,8 @@
 # Finapp - Personal Finance Tracker
 
+> **Copyright (c) 2026 Rizen.Prashant | Prashant Kumar**  
+> Pacific Finapp - All rights reserved.
+
 A comprehensive personal finance management application with real-time insights, cashback tracking, lending management, and Indian tax calculations.
 
 ## 🚀 Features
@@ -353,20 +356,20 @@ ALTER TABLE transactions ADD COLUMN payment_source VARCHAR(255);
 
 ---
 
-## 📝 License
+## 📝 License & Copyright
 
-MIT License - Personal/Commercial use allowed
+```
+Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+Pacific Finapp - Personal Finance Management Application
+All rights reserved.
+```
 
----
+Built with ❤️ by Rizen.Prashant
 
-## 👤 Author
-
-Built with ❤️ for personal finance management
-
-**Questions or Suggestions?** 
+**Questions or Suggestions?**
 - Open an issue in the repository
-- Or contact the development team
+- Or contact: Prashant Kumar
 
 ---
 
-*Last Updated: May 14, 2026*
+*Last Updated: May 18, 2026*

@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+ * Pacific Finapp - Personal Finance Management Application
+ * All rights reserved.
+ */
 import { useState, useEffect } from 'react';
 import { X, Building2, CreditCard, Gift, HandCoins, User, Phone } from 'lucide-react';
 import { getAssetsByType, getCashbackWallets } from '../api';

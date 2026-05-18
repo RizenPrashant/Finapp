@@ -11,6 +11,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -389,7 +390,7 @@ public class BrokerPdfParser {
     public List<TradeDTO> parseExcel(MultipartFile file, String brokerType) {
         List<TradeDTO> list = new ArrayList<>();
         try (InputStream is = file.getInputStream();
-             Workbook wb = new XSSFWorkbook(is)) {
+             Workbook wb = WorkbookFactory.create(is)) {
             Sheet sheet = wb.getSheetAt(0);
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);

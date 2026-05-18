@@ -7,6 +7,7 @@ import com.opencsv.CSVReaderBuilder;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
@@ -231,13 +232,17 @@ public class BankPdfParser {
     // ─────────────────────────────── HELPERS ─────────────────────────────────────
 
     private LocalDate parseDateMulti(String s) {
-        s = s.trim();
+        s = s.trim().replace(',', '.'); // Handle dd,MM,yyyy format (commas to dots)
         DateTimeFormatter[] fmts = {
             DateTimeFormatter.ofPattern("dd-MM-yyyy"),
             DateTimeFormatter.ofPattern("dd-MM-yy"),
             DateTimeFormatter.ofPattern("dd-MMM-yyyy"),
             DateTimeFormatter.ofPattern("dd-MMM-yy"),
             DateTimeFormatter.ofPattern("yyyy-MM-dd"),
+            DateTimeFormatter.ofPattern("dd.MM.yyyy"), // ICICI Excel format
+            DateTimeFormatter.ofPattern("dd.MM.yy"),
+            DateTimeFormatter.ofPattern("dd/MM/yyyy"),
+            DateTimeFormatter.ofPattern("dd/MM/yy"),
         };
         for (DateTimeFormatter f : fmts) {
             try { return LocalDate.parse(s, f); } catch (Exception ignored) {}
@@ -302,14 +307,13 @@ public class BankPdfParser {
                 setDebitCredit(dto, debit, credit, r[1]);
             }
             case "ICICI" -> {
-                // Col: 0=S.No, 1=Value Date(dd/MM/yyyy), 2=Description, 3=Debit, 4=Credit, 5=Balance
-                // ICICI embeds ref in description; S.No can serve as ref
-                dto.setDate(parseDateMulti(r[1].trim()));
-                dto.setTitle(r[2].trim()); dto.setDescription(r[2].trim());
-                if (r.length > 0 && !r[0].isBlank()) dto.setReferenceNumber(r[0].trim());
-                String debit  = r.length > 3 ? r[3].trim() : "";
-                String credit = r.length > 4 ? r[4].trim() : "";
-                setDebitCredit(dto, debit, credit, r[2]);
+                // ICICI Excel: 0=Empty, 1=S.No, 2=Value Date, 3=Transaction Date, 4=Cheque No, 5=Description, 6=Withdrawal(Debit), 7=Deposit(Credit), 8=Balance
+                dto.setDate(parseDateMulti(r[2].trim()));
+                dto.setTitle(r[5].trim()); dto.setDescription(r[5].trim());
+                dto.setReferenceNumber(r[4].isBlank() ? r[1].trim() : r[4].trim()); // Cheque No or S.No
+                String debit  = r.length > 6 ? r[6].trim() : "";
+                String credit = r.length > 7 ? r[7].trim() : "";
+                setDebitCredit(dto, debit, credit, r[5]);
             }
             case "HDFC" -> {
                 // Col: 0=Date(dd/MM/yy), 1=Narration, 2=Value Dt, 3=Debit, 4=Credit, 5=Balance [, 6=Chq/Ref No]
@@ -356,21 +360,70 @@ public class BankPdfParser {
     public List<TransactionDTO> parseExcel(MultipartFile file, String bankType) {
         List<TransactionDTO> list = new ArrayList<>();
         try (InputStream is = file.getInputStream();
-             Workbook wb = new XSSFWorkbook(is)) {
+             Workbook wb = WorkbookFactory.create(is)) {
             Sheet sheet = wb.getSheetAt(0);
-            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+            boolean dataStarted = false;
+            for (int i = 0; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
+                String[] r = rowToStrings(row, 10);
+                // Skip header/metadata rows until we find actual data
+                if (!dataStarted) {
+                    if (isDataRow(r, bankType)) {
+                        dataStarted = true;
+                    } else {
+                        continue;
+                    }
+                }
                 try {
-                    String[] r = rowToStrings(row, 7);
                     TransactionDTO dto = mapBankCsvRow(r, bankType);
-                    if (dto != null) list.add(dto);
-                } catch (Exception ignored) {}
+                    if (dto != null && dto.getDate() != null && dto.getAmount() != null
+                        && dto.getAmount().compareTo(BigDecimal.ZERO) != 0) {
+                        list.add(dto);
+                    }
+                } catch (Exception e) {
+                    // Skip rows that fail to parse
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException("Error parsing bank Excel: " + e.getMessage());
         }
         return list;
+    }
+
+    private boolean isDataRow(String[] r, String bankType) {
+        if (r.length < 3) return false;
+        String firstCell = r[0].trim();
+        String secondCell = r.length > 1 ? r[1].trim() : "";
+        // Skip text headers like "S No.", "S.No", "Serial" in any column
+        if (firstCell.toUpperCase().contains("S NO") || firstCell.toUpperCase().contains("SERIAL") ||
+            secondCell.toUpperCase().contains("S NO") || secondCell.toUpperCase().contains("SERIAL")) {
+            return false;
+        }
+        // For ICICI Excel: serial number is at index 1 (not 0), date at index 2
+        if ("ICICI".equalsIgnoreCase(bankType)) {
+            if (secondCell.matches("\\d{1,6}") && secondCell.length() <= 6) {
+                // Check index 2 (Value Date) and 3 (Transaction Date) for dates
+                if (r.length > 2 && looksLikeDate(r[2])) return true;
+                if (r.length > 3 && looksLikeDate(r[3])) return true;
+            }
+            return false;
+        }
+        // For other banks: first cell is date or serial + date
+        if (firstCell.matches("\\d{1,6}") && firstCell.length() <= 6) {
+            for (int i = 1; i < Math.min(r.length, 5); i++) {
+                if (looksLikeDate(r[i])) return true;
+            }
+        }
+        return looksLikeDate(firstCell);
+    }
+
+    private boolean looksLikeDate(String s) {
+        if (s == null || s.isEmpty()) return false;
+        s = s.trim();
+        // Common date patterns: dd/MM/yyyy, dd-MM-yyyy, dd.MMM.yyyy, dd,MM,yyyy (with commas)
+        return s.matches("\\d{1,4}[/,\\-\\.]\\d{1,2}[/,\\-\\.]\\d{1,4}") ||
+               s.matches("\\d{1,2}[-\\s][A-Za-z]{3}[-\\s]\\d{2,4}");
     }
 
     private String[] rowToStrings(Row row, int maxCols) {
@@ -387,10 +440,34 @@ public class BankPdfParser {
             case STRING  -> cell.getStringCellValue().trim();
             case NUMERIC -> DateUtil.isCellDateFormatted(cell)
                 ? cell.getLocalDateTimeCellValue().toLocalDate().toString()
-                : String.valueOf(cell.getNumericCellValue());
+                : formatNumericCell(cell.getNumericCellValue());
             case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
+            case FORMULA -> getFormulaCellValue(cell);
             default      -> "";
         };
+    }
+
+    private String formatNumericCell(double value) {
+        // Avoid scientific notation for large numbers
+        if (value == Math.floor(value)) {
+            return String.format("%.0f", value);
+        }
+        return String.format("%.2f", value);
+    }
+
+    private String getFormulaCellValue(Cell cell) {
+        try {
+            return switch (cell.getCachedFormulaResultType()) {
+                case STRING -> cell.getStringCellValue().trim();
+                case NUMERIC -> DateUtil.isCellDateFormatted(cell)
+                    ? cell.getLocalDateTimeCellValue().toLocalDate().toString()
+                    : formatNumericCell(cell.getNumericCellValue());
+                case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
+                default -> "";
+            };
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     /** Simple keyword-based category guesser */

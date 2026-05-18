@@ -631,12 +631,39 @@ export default function Settings() {
                     <label className="text-xs text-gray-400 block mb-1">Date format</label>
                     <select value={newFormat.dateFormat} onChange={e => setNewFormat({...newFormat, dateFormat: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
+                      {/* Indian/Common Formats */}
                       <option value="dd/MM/yyyy">dd/MM/yyyy (01/01/2024)</option>
                       <option value="dd-MM-yyyy">dd-MM-yyyy (01-01-2024)</option>
-                      <option value="dd MMM yyyy">dd MMM yyyy (01 Jan 2024)</option>
+                      <option value="dd.MM.yyyy">dd.MM.yyyy (01.01.2024) - ICICI</option>
+                      <option value="dd,MM,yyyy">dd,MM,yyyy (01,01,2024) - ICICI Excel</option>
+                      <option value="dd/MM/yy">dd/MM/yy (01/01/24)</option>
+                      <option value="dd-MM-yy">dd-MM-yy (01-01-24)</option>
+                      <option value="dd.MM.yy">dd.MM.yy (01.01.24)</option>
+                      <option value="dd MMM yyyy">dd MMM yyyy (01 Jan 2024) - SBI</option>
                       <option value="dd-MMM-yyyy">dd-MMM-yyyy (01-Jan-2024)</option>
-                      <option value="yyyy-MM-dd">yyyy-MM-dd (2024-01-01)</option>
-                      <option value="MM/dd/yyyy">MM/dd/yyyy (01/01/2024 US)</option>
+                      <option value="dd MMM yy">dd MMM yy (01 Jan 24)</option>
+                      <option value="dd-MMM-yy">dd-MMM-yy (01-Jan-24)</option>
+                      <option value="dd MMMM yyyy">dd MMMM yyyy (01 January 2024)</option>
+                      <option value="dd/MMM/yyyy">dd/MMM/yyyy (01/Jan/2024)</option>
+                      <option value="dd/MMM/yy">dd/MMM/yy (01/Jan/24)</option>
+                      {/* ISO/Standard Formats */}
+                      <option value="yyyy-MM-dd">yyyy-MM-dd (2024-01-01) - ISO</option>
+                      <option value="yyyy/MM/dd">yyyy/MM/dd (2024/01/01)</option>
+                      <option value="yyyy.MM.dd">yyyy.MM.dd (2024.01.01)</option>
+                      {/* US Formats */}
+                      <option value="MM/dd/yyyy">MM/dd/yyyy (01/01/2024) - US</option>
+                      <option value="MM-dd-yyyy">MM-dd-yyyy (01-01-2024) - US</option>
+                      <option value="MM/dd/yy">MM/dd/yy (01/01/24) - US</option>
+                      <option value="MMM dd, yyyy">MMM dd, yyyy (Jan 01, 2024)</option>
+                      <option value="MMMM dd, yyyy">MMMM dd, yyyy (January 01, 2024)</option>
+                      {/* European Formats */}
+                      <option value="dd/MM/yyyy HH:mm">dd/MM/yyyy HH:mm (01/01/2024 14:30)</option>
+                      <option value="dd-MM-yyyy HH:mm">dd-MM-yyyy HH:mm (01-01-2024 14:30)</option>
+                      <option value="dd.MM.yyyy HH:mm">dd.MM.yyyy HH:mm (01.01.2024 14:30)</option>
+                      <option value="yyyy-MM-dd HH:mm:ss">yyyy-MM-dd HH:mm:ss (2024-01-01 14:30:00)</option>
+                      {/* Compact Formats */}
+                      <option value="ddMMyyyy">ddMMyyyy (01012024)</option>
+                      <option value="yyyyMMdd">yyyyMMdd (20240101)</option>
                     </select>
                   </div>
                 </div>

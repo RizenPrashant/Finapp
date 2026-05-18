@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+ * Pacific Finapp - Personal Finance Management Application
+ * All rights reserved.
+ */
 package com.finapp.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -48,6 +53,15 @@ public class CashbackEntry {
     @JoinColumn(name = "user_id", nullable = false)
     @JsonIgnoreProperties({"cashbackWallets", "transactions", "assets", "budgets", "password"})
     private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "transaction_id")
+    @JsonIgnoreProperties({"user", "cashbackEntries"})
+    private Transaction transaction;
+
+    public Long getTransactionId() {
+        return transaction != null ? transaction.getId() : null;
+    }
 
     public enum CashbackType {
         EARNED, REDEEMED

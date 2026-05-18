@@ -13,4 +13,9 @@ public interface CashbackWalletRepository extends JpaRepository<CashbackWallet, 
     List<CashbackWallet> findByUserOrderByPlatformAsc(User user);
     Optional<CashbackWallet> findByIdAndUser(Long id, User user);
     Optional<CashbackWallet> findByPlatformIgnoreCaseAndUser(String platform, User user);
+
+    // For transaction payment source lookup (wallet name acts as payment source)
+    default Optional<CashbackWallet> findByUserAndName(User user, String name) {
+        return findByPlatformIgnoreCaseAndUser(name, user);
+    }
 }

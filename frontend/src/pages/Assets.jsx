@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+ * Pacific Finapp - Personal Finance Management Application
+ * All rights reserved.
+ */
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, TrendingUp, TrendingDown, DollarSign, PieChart, Target, ArrowUp, ArrowDown, Home, Gem, Briefcase, Building2, ArrowLeft, Wallet, Landmark, TrendingUp as TrendingUpIcon, BarChart3 } from 'lucide-react';
 import Header from '../components/Header';
@@ -18,6 +23,7 @@ import {
   deleteAsset 
 } from '../api';
 import { isDeleteLocked } from '../pages/Settings';
+import { eventEmitter, EVENTS } from '../utils/events';
 
 const investmentTypes = [
   { value: 'ALL', label: 'All', icon: PieChart },
@@ -81,6 +87,28 @@ export default function Assets({ onProfileClick }) {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Listen for transaction events to refresh assets (auto-update balances)
+  useEffect(() => {
+    const handleTransactionChange = () => {
+      // Refresh only assets data when transactions change
+      getAssets().then(res => {
+        setAssets(res.data);
+      }).catch(err => console.error('Error refreshing assets:', err));
+    };
+
+    const unsubscribeCreate = eventEmitter.on(EVENTS.TRANSACTION_CREATED, handleTransactionChange);
+    const unsubscribeUpdate = eventEmitter.on(EVENTS.TRANSACTION_UPDATED, handleTransactionChange);
+    const unsubscribeDelete = eventEmitter.on(EVENTS.TRANSACTION_DELETED, handleTransactionChange);
+    const unsubscribeImport = eventEmitter.on(EVENTS.TRANSACTIONS_IMPORTED, handleTransactionChange);
+
+    return () => {
+      unsubscribeCreate();
+      unsubscribeUpdate();
+      unsubscribeDelete();
+      unsubscribeImport();
+    };
+  }, []);
 
   // Asset handlers
   const handleAddAsset = async (data) => {

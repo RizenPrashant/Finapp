@@ -1,14 +1,23 @@
+/*
+ * Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+ * Pacific Finapp - Personal Finance Management Application
+ * All rights reserved.
+ */
 package com.finapp.service;
 
 import com.finapp.dto.TransactionDTO;
 import com.finapp.dto.UdharRecordDTO;
 import com.finapp.model.Asset;
 import com.finapp.model.AssetCategory;
+import com.finapp.model.CashbackEntry;
+import com.finapp.model.CashbackWallet;
 import com.finapp.model.Transaction;
 import com.finapp.model.TransactionType;
 import com.finapp.model.UdharRecord;
 import com.finapp.model.User;
 import com.finapp.repository.AssetRepository;
+import com.finapp.repository.CashbackEntryRepository;
+import com.finapp.repository.CashbackWalletRepository;
 import com.finapp.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,6 +39,8 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final UdharService udharService;
     private final AssetRepository assetRepository;
+    private final CashbackWalletRepository cashbackWalletRepository;
+    private final CashbackEntryRepository cashbackEntryRepository;
 
     public List<Transaction> getAll(User user) {
         List<Transaction> transactions = transactionRepository.findByUser(user);
@@ -100,6 +111,11 @@ public class TransactionService {
 
         transaction = transactionRepository.save(transaction);
 
+        // Update asset/cashback balance based on payment source
+        if (dto.getPaymentSource() != null) {
+            updateAssetBalanceOnCreate(dto, user, transaction);
+        }
+
         // If udhar transaction, create udhar record
         if (isUdhar && dto.getUdharPersonName() != null && dto.getUdharType() != null) {
             UdharRecord.UdharType udharType = UdharRecord.UdharType.valueOf(dto.getUdharType());
@@ -118,9 +134,84 @@ public class TransactionService {
         return transaction;
     }
 
+    /**
+     * Update asset balance when a transaction is created
+     * - BANK: Credit increases balance, Debit decreases balance
+     * - CREDIT_CARD: Debit increases balance (you owe more), Credit decreases balance (you pay off)
+     * - CASHBACK_WALLET: Credit (earned) increases, Debit (redeemed) decreases
+     */
+    private void updateAssetBalanceOnCreate(TransactionDTO dto, User user, Transaction transaction) {
+        // Try to find as regular asset (BANK or CREDIT_CARD)
+        Asset asset = assetRepository.findByUserAndName(user, dto.getPaymentSource()).orElse(null);
+        if (asset != null) {
+            BigDecimal currentValue = asset.getValue() != null ? asset.getValue() : BigDecimal.ZERO;
+            BigDecimal newValue;
+
+            if (asset.getCategory() == AssetCategory.BANK) {
+                // Bank: Credit (+), Debit (-)
+                newValue = dto.getType() == TransactionType.CREDIT
+                    ? currentValue.add(dto.getAmount())
+                    : currentValue.subtract(dto.getAmount());
+            } else if (asset.getCategory() == AssetCategory.CREDIT_CARD) {
+                // Credit Card: Debit (+, you owe more), Credit (-, you pay off)
+                newValue = dto.getType() == TransactionType.DEBIT
+                    ? currentValue.add(dto.getAmount())
+                    : currentValue.subtract(dto.getAmount());
+            } else {
+                return; // Other asset types don't auto-update
+            }
+
+            asset.setValue(newValue);
+            assetRepository.save(asset);
+            return;
+        }
+
+        // Try to find as cashback wallet
+        CashbackWallet wallet = cashbackWalletRepository.findByUserAndName(user, dto.getPaymentSource()).orElse(null);
+        if (wallet != null) {
+            // Cashback: Credit (earned) increases balance, Debit (redeemed) decreases
+            BigDecimal currentBalance = wallet.getBalance() != null ? wallet.getBalance() : BigDecimal.ZERO;
+            BigDecimal newBalance = dto.getType() == TransactionType.CREDIT
+                ? currentBalance.add(dto.getAmount())
+                : currentBalance.subtract(dto.getAmount());
+
+            wallet.setBalance(newBalance);
+            cashbackWalletRepository.save(wallet);
+
+            // Also create a cashback entry to track this
+            CashbackEntry.CashbackType entryType = dto.getType() == TransactionType.CREDIT
+                ? CashbackEntry.CashbackType.EARNED
+                : CashbackEntry.CashbackType.REDEEMED;
+
+            CashbackEntry entry = CashbackEntry.builder()
+                    .wallet(wallet)
+                    .user(user)
+                    .transaction(transaction)
+                    .amount(dto.getAmount())
+                    .type(entryType)
+                    .description(dto.getTitle())
+                    .date(dto.getDate() != null ? dto.getDate() : LocalDate.now())
+                    .build();
+            cashbackEntryRepository.save(entry);
+        }
+    }
+
+    @Transactional
     public Transaction update(Long id, TransactionDTO dto, User user) {
         Transaction existing = transactionRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new RuntimeException("Transaction not found: " + id));
+
+        // Store old values for balance reversal
+        String oldPaymentSource = existing.getPaymentSource();
+        TransactionType oldType = existing.getType();
+        BigDecimal oldAmount = existing.getAmount();
+
+        // Reverse old transaction effect on asset balance
+        if (oldPaymentSource != null) {
+            reverseAssetBalanceEffect(oldPaymentSource, oldType, oldAmount, user);
+        }
+
+        // Update transaction fields
         existing.setTitle(dto.getTitle());
         existing.setAmount(dto.getAmount());
         existing.setType(dto.getType());
@@ -130,12 +221,70 @@ public class TransactionService {
         existing.setDescription(dto.getDescription());
         existing.setPaymentSource(dto.getPaymentSource());
         existing.setReferenceNumber(dto.getReferenceNumber());
-        return transactionRepository.save(existing);
+
+        Transaction saved = transactionRepository.save(existing);
+
+        // Apply new transaction effect on asset balance
+        if (dto.getPaymentSource() != null) {
+            updateAssetBalanceOnCreate(dto, user);
+        }
+
+        return saved;
     }
 
+    /**
+     * Reverse the effect of a transaction on asset balance (for update/delete)
+     */
+    private void reverseAssetBalanceEffect(String paymentSource, TransactionType type, BigDecimal amount, User user) {
+        // Try to find as regular asset
+        Asset asset = assetRepository.findByUserAndName(user, paymentSource).orElse(null);
+        if (asset != null) {
+            BigDecimal currentValue = asset.getValue() != null ? asset.getValue() : BigDecimal.ZERO;
+            BigDecimal newValue;
+
+            if (asset.getCategory() == AssetCategory.BANK) {
+                // Reverse: Credit was +, now -; Debit was -, now +
+                newValue = type == TransactionType.CREDIT
+                    ? currentValue.subtract(amount)
+                    : currentValue.add(amount);
+            } else if (asset.getCategory() == AssetCategory.CREDIT_CARD) {
+                // Reverse: Debit was +, now -; Credit was -, now +
+                newValue = type == TransactionType.DEBIT
+                    ? currentValue.subtract(amount)
+                    : currentValue.add(amount);
+            } else {
+                return;
+            }
+
+            asset.setValue(newValue);
+            assetRepository.save(asset);
+            return;
+        }
+
+        // Try to find as cashback wallet
+        CashbackWallet wallet = cashbackWalletRepository.findByUserAndName(user, paymentSource).orElse(null);
+        if (wallet != null) {
+            BigDecimal currentBalance = wallet.getBalance() != null ? wallet.getBalance() : BigDecimal.ZERO;
+            // Reverse: Earned was +, now -; Redeemed was -, now +
+            BigDecimal newBalance = type == TransactionType.CREDIT
+                ? currentBalance.subtract(amount)
+                : currentBalance.add(amount);
+
+            wallet.setBalance(newBalance);
+            cashbackWalletRepository.save(wallet);
+        }
+    }
+
+    @Transactional
     public void delete(Long id, User user) {
         Transaction transaction = transactionRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new RuntimeException("Transaction not found: " + id));
+
+        // Reverse transaction effect on asset balance before deleting
+        if (transaction.getPaymentSource() != null) {
+            reverseAssetBalanceEffect(transaction.getPaymentSource(), transaction.getType(), transaction.getAmount(), user);
+        }
+
         transactionRepository.delete(transaction);
     }
 

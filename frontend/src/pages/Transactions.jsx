@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+ * Pacific Finapp - Personal Finance Management Application
+ * All rights reserved.
+ */
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Download, Gift, Plus, Tag, Upload } from 'lucide-react';
 import Header from '../components/Header';
@@ -8,6 +13,7 @@ import { isDeleteLocked, FILTER_PREFS_KEY, CUSTOM_FILTERS_KEY } from '../pages/S
 import { getTransactions, updateTransaction, deleteTransaction, createTransaction, getCashbackWallets, getCashbackEntriesByWallet } from '../api';
 import ImportModal from '../components/ImportModal';
 import { exportToXlsx } from '../utils/exportXlsx';
+import { eventEmitter, EVENTS } from '../utils/events';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -135,16 +141,22 @@ export default function Transactions({ onProfileClick }) {
 
   const handleDelete = async (id) => {
     await deleteTransaction(id);
+    // Emit event to refresh assets
+    eventEmitter.emit(EVENTS.TRANSACTION_DELETED, { id });
     setTransactions((prev) => prev.filter((t) => t.id !== id));
   };
 
   const handleEdit = async (id, data) => {
     await updateTransaction(id, data);
+    // Emit event to refresh assets
+    eventEmitter.emit(EVENTS.TRANSACTION_UPDATED, { id, ...data });
     fetchTransactions(selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate, activeCustomFilter);
   };
 
   const handleSave = async (data) => {
     await createTransaction(data);
+    // Emit event to refresh assets
+    eventEmitter.emit(EVENTS.TRANSACTION_CREATED, data);
     if (cashbackMode) {
       // Refresh cashback view
       handleWalletSelect(selectedWalletId);
@@ -323,35 +335,35 @@ export default function Transactions({ onProfileClick }) {
         </div>
 
         {/* Summary Strip + Add Button */}
-        <div className="flex items-center gap-4">
-          <div className="flex-1 grid grid-cols-3 gap-4">
-            <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4">
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Income</p>
-              <p className="text-lg font-bold text-green-600 dark:text-green-400">₹{monthlyIncome.toLocaleString('en-IN')}</p>
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 lg:gap-4">
+          <div className="flex-1 grid grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
+            <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-2 sm:p-3 lg:p-4 min-w-0">
+              <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-1 truncate">Income</p>
+              <p className="text-sm sm:text-base lg:text-lg font-bold text-green-600 dark:text-green-400 truncate" title={`₹${monthlyIncome.toLocaleString('en-IN')}`}>₹{monthlyIncome.toLocaleString('en-IN')}</p>
             </div>
-            <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4">
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Expenses</p>
-              <p className="text-lg font-bold text-red-500 dark:text-red-400">₹{monthlyExpense.toLocaleString('en-IN')}</p>
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-2 sm:p-3 lg:p-4 min-w-0">
+              <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-1 truncate">Expenses</p>
+              <p className="text-sm sm:text-base lg:text-lg font-bold text-red-500 dark:text-red-400 truncate" title={`₹${monthlyExpense.toLocaleString('en-IN')}`}>₹{monthlyExpense.toLocaleString('en-IN')}</p>
             </div>
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Net</p>
-              <p className={`text-lg font-bold ${monthlyIncome - monthlyExpense >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-500 dark:text-red-400'}`}>
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-2 sm:p-3 lg:p-4 min-w-0">
+              <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-1 truncate">Net</p>
+              <p className={`text-sm sm:text-base lg:text-lg font-bold truncate ${monthlyIncome - monthlyExpense >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-500 dark:text-red-400'}`} title={`₹${Math.abs(monthlyIncome - monthlyExpense).toLocaleString('en-IN')}`}>
                 ₹{Math.abs(monthlyIncome - monthlyExpense).toLocaleString('en-IN')}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setShowImportBankModal(true)}
-              className="flex items-center gap-2 px-4 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition text-sm whitespace-nowrap"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition text-xs sm:text-sm whitespace-nowrap"
             >
-              <Upload size={18} /> Import Statement
+              <Upload size={16} className="sm:w-[18px] sm:h-[18px]" /> Import
             </button>
             <button
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-5 py-3 bg-slate-900 dark:bg-blue-600 text-white rounded-xl font-semibold hover:bg-slate-700 transition text-sm whitespace-nowrap"
+              className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-3 bg-slate-900 dark:bg-blue-600 text-white rounded-xl font-semibold hover:bg-slate-700 transition text-xs sm:text-sm whitespace-nowrap"
             >
-              <Plus size={18} /> Add Transaction
+              <Plus size={16} className="sm:w-[18px] sm:h-[18px]" /> <span className="hidden sm:inline">Add Transaction</span><span className="sm:hidden">Add</span>
             </button>
           </div>
         </div>

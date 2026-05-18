@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+ * Pacific Finapp - Personal Finance Management Application
+ * All rights reserved.
+ */
 package com.finapp.model;
 
 import jakarta.persistence.*;
@@ -75,4 +80,8 @@ public class Transaction {
     @OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnoreProperties({"transaction"})
     private List<UdharTransactionLink> udharLinks;
+
+    @OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnoreProperties({"transaction"})
+    private List<CashbackEntry> cashbackEntries;
 }

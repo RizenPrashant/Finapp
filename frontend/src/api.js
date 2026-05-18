@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+ * Pacific Finapp - Personal Finance Management Application
+ * All rights reserved.
+ */
 import axios from 'axios';
 
 const api = axios.create({ baseURL: 'http://localhost:2002/api' });

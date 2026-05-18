@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 Rizen.Prashant | Prashant Kumar
+ * Pacific Finapp - Personal Finance Management Application
+ * All rights reserved.
+ */
 package com.finapp.controller;
 
 import com.finapp.dto.TransactionDTO;

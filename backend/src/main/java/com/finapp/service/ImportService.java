@@ -21,6 +21,7 @@ import com.opencsv.CSVReaderBuilder;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -182,7 +183,7 @@ public class ImportService {
     private List<TradeDTO> parseTradesExcel(MultipartFile file) {
         List<TradeDTO> trades = new ArrayList<>();
         try (InputStream is = file.getInputStream();
-             Workbook workbook = new XSSFWorkbook(is)) {
+             Workbook workbook = WorkbookFactory.create(is)) {
 
             Sheet sheet = workbook.getSheetAt(0);
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
@@ -246,7 +247,17 @@ public class ImportService {
                     return assetRepository.save(asset);
                 });
 
-        List<TransactionDTO> transactions = parseBankStatementFile(file, format, bankName, bankType);
+        List<TransactionDTO> transactions;
+        try {
+            transactions = parseBankStatementFile(file, format, bankName, bankType);
+        } catch (RuntimeException e) {
+            return ImportResponseDTO.builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .errors(java.util.List.of(e.getMessage()))
+                    .totalRows(0).importedCount(0).failedCount(0)
+                    .isPreview(false).build();
+        }
         List<String> errors = new ArrayList<>();
         int imported = 0;
         int dupes = 0;
@@ -297,7 +308,16 @@ public class ImportService {
     }
 
     public ImportResponseDTO previewBankStatement(MultipartFile file, String format, String bankName, String bankType) {
-        List<TransactionDTO> transactions = parseBankStatementFile(file, format, bankName, bankType);
+        List<TransactionDTO> transactions;
+        try {
+            transactions = parseBankStatementFile(file, format, bankName, bankType);
+        } catch (RuntimeException e) {
+            return ImportResponseDTO.builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .errors(java.util.List.of(e.getMessage()))
+                    .totalRows(0).isPreview(true).build();
+        }
         List<Map<String, Object>> previewData = new ArrayList<>();
 
         for (TransactionDTO txn : transactions) {
@@ -373,7 +393,7 @@ public class ImportService {
     private List<TransactionDTO> parseBankStatementExcel(MultipartFile file, String bankName) {
         List<TransactionDTO> transactions = new ArrayList<>();
         try (InputStream is = file.getInputStream();
-             Workbook workbook = new XSSFWorkbook(is)) {
+             Workbook workbook = WorkbookFactory.create(is)) {
 
             Sheet sheet = workbook.getSheetAt(0);
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
