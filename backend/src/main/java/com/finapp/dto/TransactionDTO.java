@@ -37,6 +37,8 @@ public class TransactionDTO {
 
     private String referenceNumber;
 
+    private BigDecimal balanceAfter;
+
     // Udhar fields
     private Boolean isUdhar;
     private String udharPersonName;

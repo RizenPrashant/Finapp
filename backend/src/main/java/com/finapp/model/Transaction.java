@@ -21,7 +21,13 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
-@Table(name = "transactions")
+@Table(name = "transactions", indexes = {
+    @Index(name = "idx_txn_user_date",          columnList = "user_id, date"),
+    @Index(name = "idx_txn_user_type_date",      columnList = "user_id, type, date"),
+    @Index(name = "idx_txn_user_payment_source", columnList = "user_id, payment_source"),
+    @Index(name = "idx_txn_user_import_hash",    columnList = "user_id, import_hash"),
+    @Index(name = "idx_txn_user_budget_cat",     columnList = "user_id, budget_category"),
+})
 @Data
 @Builder
 @NoArgsConstructor
@@ -63,6 +69,9 @@ public class Transaction {
 
     @Column(name = "import_hash")
     private String importHash;
+
+    @Column(name = "balance_after", precision = 15, scale = 2)
+    private BigDecimal balanceAfter;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

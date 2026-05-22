@@ -56,6 +56,11 @@ export default function Tax({ onProfileClick }) {
   const [ltaExemption, setLtaExemption] = useState('');
   const [standardDeduction, setStandardDeduction] = useState('75000'); // FY 2024-25 New Regime: ₹75,000
 
+  // Auto-update standard deduction when regime changes
+  useEffect(() => {
+    setStandardDeduction(regime === 'NEW' ? '75000' : '50000');
+  }, [regime]);
+
   // Calculation Results
   const [taxResult, setTaxResult] = useState(null);
   const [comparisonResult, setComparisonResult] = useState(null);

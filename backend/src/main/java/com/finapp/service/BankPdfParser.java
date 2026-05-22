@@ -238,11 +238,16 @@ public class BankPdfParser {
             DateTimeFormatter.ofPattern("dd-MM-yy"),
             DateTimeFormatter.ofPattern("dd-MMM-yyyy"),
             DateTimeFormatter.ofPattern("dd-MMM-yy"),
+            DateTimeFormatter.ofPattern("dd MMM yyyy"),
+            DateTimeFormatter.ofPattern("dd MMM yy"),
             DateTimeFormatter.ofPattern("yyyy-MM-dd"),
             DateTimeFormatter.ofPattern("dd.MM.yyyy"), // ICICI Excel format
             DateTimeFormatter.ofPattern("dd.MM.yy"),
             DateTimeFormatter.ofPattern("dd/MM/yyyy"),
             DateTimeFormatter.ofPattern("dd/MM/yy"),
+            DateTimeFormatter.ofPattern("d/M/yyyy"),
+            DateTimeFormatter.ofPattern("d-M-yyyy"),
+            DateTimeFormatter.ofPattern("MM/dd/yyyy"),
         };
         for (DateTimeFormatter f : fmts) {
             try { return LocalDate.parse(s, f); } catch (Exception ignored) {}
@@ -253,6 +258,15 @@ public class BankPdfParser {
     private BigDecimal parseMoney(String s) {
         if (s == null || s.isBlank()) return BigDecimal.ZERO;
         return new BigDecimal(s.replaceAll(",", "").trim());
+    }
+
+    private BigDecimal parseMoneySafe(String s) {
+        try {
+            if (s == null || s.isBlank()) return null;
+            return new BigDecimal(s.replaceAll(",", "").trim());
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** Keywords that indicate a credit (money received) narration */
@@ -305,6 +319,7 @@ public class BankPdfParser {
                 String debit  = r.length > 3 ? r[3].trim() : "";
                 String credit = r.length > 4 ? r[4].trim() : "";
                 setDebitCredit(dto, debit, credit, r[1]);
+                if (r.length > 5 && !r[5].isBlank()) dto.setBalanceAfter(parseMoneySafe(r[5].trim()));
             }
             case "ICICI" -> {
                 // ICICI Excel: 0=Empty, 1=S.No, 2=Value Date, 3=Transaction Date, 4=Cheque No, 5=Description, 6=Withdrawal(Debit), 7=Deposit(Credit), 8=Balance
@@ -314,6 +329,7 @@ public class BankPdfParser {
                 String debit  = r.length > 6 ? r[6].trim() : "";
                 String credit = r.length > 7 ? r[7].trim() : "";
                 setDebitCredit(dto, debit, credit, r[5]);
+                if (r.length > 8 && !r[8].isBlank()) dto.setBalanceAfter(parseMoneySafe(r[8].trim()));
             }
             case "HDFC" -> {
                 // Col: 0=Date(dd/MM/yy), 1=Narration, 2=Value Dt, 3=Debit, 4=Credit, 5=Balance [, 6=Chq/Ref No]
@@ -323,9 +339,10 @@ public class BankPdfParser {
                 String debit  = r.length > 3 ? r[3].trim() : "";
                 String credit = r.length > 4 ? r[4].trim() : "";
                 setDebitCredit(dto, debit, credit, r[1]);
+                if (r.length > 5 && !r[5].isBlank()) dto.setBalanceAfter(parseMoneySafe(r[5].trim()));
             }
             default -> {
-                // Generic: Date, Description, Debit, Credit [, Category [, RefNo]]
+                // Generic: Date, Description, Debit, Credit [, Category [, RefNo [, Balance]]]
                 dto.setDate(parseDateMulti(r[0].trim()));
                 dto.setTitle(r[1].trim()); dto.setDescription(r[1].trim());
                 String debit  = r.length > 2 ? r[2].trim() : "";
@@ -333,6 +350,7 @@ public class BankPdfParser {
                 setDebitCredit(dto, debit, credit, r[1]);
                 if (r.length > 4 && !r[4].isBlank()) dto.setBudgetCategory(r[4].trim());
                 if (r.length > 5 && !r[5].isBlank()) dto.setReferenceNumber(r[5].trim());
+                if (r.length > 6 && !r[6].isBlank()) dto.setBalanceAfter(parseMoneySafe(r[6].trim()));
                 if (dto.getBudgetCategory() != null) return dto;
             }
         }

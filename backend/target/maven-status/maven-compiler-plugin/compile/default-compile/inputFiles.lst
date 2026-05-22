@@ -10,6 +10,7 @@ E:\Finapp\backend\src\main\java\com\finapp\controller\CashbackController.java
 E:\Finapp\backend\src\main\java\com\finapp\controller\CompoundingController.java
 E:\Finapp\backend\src\main\java\com\finapp\controller\DashboardController.java
 E:\Finapp\backend\src\main\java\com\finapp\controller\ImportController.java
+E:\Finapp\backend\src\main\java\com\finapp\controller\ImportFormatController.java
 E:\Finapp\backend\src\main\java\com\finapp\controller\InvestmentController.java
 E:\Finapp\backend\src\main\java\com\finapp\controller\TaxController.java
 E:\Finapp\backend\src\main\java\com\finapp\controller\TradeController.java
@@ -47,6 +48,7 @@ E:\Finapp\backend\src\main\java\com\finapp\model\CashbackEntry.java
 E:\Finapp\backend\src\main\java\com\finapp\model\CashbackWallet.java
 E:\Finapp\backend\src\main\java\com\finapp\model\CompoundingHistory.java
 E:\Finapp\backend\src\main\java\com\finapp\model\CompoundingSettings.java
+E:\Finapp\backend\src\main\java\com\finapp\model\ImportFormat.java
 E:\Finapp\backend\src\main\java\com\finapp\model\InterestFrequency.java
 E:\Finapp\backend\src\main\java\com\finapp\model\Investment.java
 E:\Finapp\backend\src\main\java\com\finapp\model\InvestmentStatus.java
@@ -68,6 +70,7 @@ E:\Finapp\backend\src\main\java\com\finapp\repository\CashbackEntryRepository.ja
 E:\Finapp\backend\src\main\java\com\finapp\repository\CashbackWalletRepository.java
 E:\Finapp\backend\src\main\java\com\finapp\repository\CompoundingHistoryRepository.java
 E:\Finapp\backend\src\main\java\com\finapp\repository\CompoundingSettingsRepository.java
+E:\Finapp\backend\src\main\java\com\finapp\repository\ImportFormatRepository.java
 E:\Finapp\backend\src\main\java\com\finapp\repository\InvestmentRepository.java
 E:\Finapp\backend\src\main\java\com\finapp\repository\TaxProfileRepository.java
 E:\Finapp\backend\src\main\java\com\finapp\repository\TradeRepository.java
@@ -83,6 +86,7 @@ E:\Finapp\backend\src\main\java\com\finapp\service\CashbackService.java
 E:\Finapp\backend\src\main\java\com\finapp\service\CompoundingService.java
 E:\Finapp\backend\src\main\java\com\finapp\service\CustomUserDetailsService.java
 E:\Finapp\backend\src\main\java\com\finapp\service\DashboardService.java
+E:\Finapp\backend\src\main\java\com\finapp\service\ImportFormatService.java
 E:\Finapp\backend\src\main\java\com\finapp\service\ImportService.java
 E:\Finapp\backend\src\main\java\com\finapp\service\InvestmentInterestService.java
 E:\Finapp\backend\src\main\java\com\finapp\service\InvestmentService.java

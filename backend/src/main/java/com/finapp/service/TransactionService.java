@@ -226,7 +226,7 @@ public class TransactionService {
 
         // Apply new transaction effect on asset balance
         if (dto.getPaymentSource() != null) {
-            updateAssetBalanceOnCreate(dto, user);
+            updateAssetBalanceOnCreate(dto, user, saved);
         }
 
         return saved;

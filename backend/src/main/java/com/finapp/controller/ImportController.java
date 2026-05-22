@@ -3,6 +3,7 @@ package com.finapp.controller;
 import com.finapp.dto.ImportResponseDTO;
 import com.finapp.dto.TradeDTO;
 import com.finapp.dto.TransactionDTO;
+import com.finapp.service.ImportFormatService;
 import com.finapp.service.ImportService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -19,15 +20,17 @@ import java.util.List;
 public class ImportController {
 
     private final ImportService importService;
+    private final ImportFormatService importFormatService;
 
     @PostMapping("/trades")
     public ResponseEntity<ImportResponseDTO> importTrades(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "format", defaultValue = "csv") String format,
             @RequestParam(value = "brokerType", required = false) String brokerType,
+            @RequestParam(value = "formatId", required = false) Long formatId,
             Authentication authentication) {
 
-        ImportResponseDTO result = importService.importTrades(file, format, authentication.getName(), brokerType);
+        ImportResponseDTO result = importService.importTrades(file, format, authentication.getName(), brokerType, formatId);
         return ResponseEntity.ok(result);
     }
 
@@ -48,9 +51,10 @@ public class ImportController {
     public ResponseEntity<ImportResponseDTO> previewTrades(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "format", defaultValue = "csv") String format,
-            @RequestParam(value = "brokerType", required = false) String brokerType) {
+            @RequestParam(value = "brokerType", required = false) String brokerType,
+            @RequestParam(value = "formatId", required = false) Long formatId) {
 
-        ImportResponseDTO result = importService.previewTrades(file, format, brokerType);
+        ImportResponseDTO result = importService.previewTrades(file, format, brokerType, formatId);
         return ResponseEntity.ok(result);
     }
 

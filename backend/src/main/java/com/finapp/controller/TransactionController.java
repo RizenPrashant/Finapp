@@ -58,6 +58,17 @@ public class TransactionController {
         return transactionService.getAll(user);
     }
 
+    @GetMapping("/search")
+    public List<Transaction> search(
+            @RequestParam String q,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        User user = getCurrentUser();
+        LocalDate start = startDate != null ? LocalDate.parse(startDate) : null;
+        LocalDate end   = endDate   != null ? LocalDate.parse(endDate)   : null;
+        return transactionRepository.searchByUser(user, q.trim(), start, end);
+    }
+
     @GetMapping("/budget/{budgetCategory}")
     public List<Transaction> getByBudgetCategory(
             @PathVariable String budgetCategory,

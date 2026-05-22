@@ -88,6 +88,28 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     boolean existsByUserAndImportHash(User user, String importHash);
 
+    @Query("SELECT t.importHash FROM Transaction t WHERE t.user = :user AND t.importHash IS NOT NULL")
+    java.util.Set<String> findAllImportHashesByUser(@Param("user") User user);
+
+    @Query("SELECT MAX(t.date) FROM Transaction t WHERE t.user = :user AND LOWER(t.paymentSource) = LOWER(:paymentSource)")
+    Optional<LocalDate> findMaxDateByUserAndPaymentSource(@Param("user") User user, @Param("paymentSource") String paymentSource);
+
+    @Query("SELECT t FROM Transaction t WHERE t.user = :user AND (" +
+           "LOWER(t.title) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+           "LOWER(t.description) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+           "LOWER(t.category) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+           "LOWER(t.budgetCategory) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+           "LOWER(t.paymentSource) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+           "CAST(t.amount AS string) LIKE CONCAT('%', :q, '%')" +
+           ") AND (:start IS NULL OR t.date >= :start) AND (:end IS NULL OR t.date <= :end) " +
+           "ORDER BY t.date DESC")
+    List<Transaction> searchByUser(
+        @Param("user") User user,
+        @Param("q") String q,
+        @Param("start") LocalDate start,
+        @Param("end") LocalDate end
+    );
+
     // User-specific analytics
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user = :user AND t.type = :type")
     BigDecimal sumByUserAndType(@Param("user") User user, @Param("type") TransactionType type);

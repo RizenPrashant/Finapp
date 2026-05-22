@@ -1,12 +1,7 @@
 package com.finapp.config;
 
 import com.finapp.model.*;
-import com.finapp.repository.AssetRepository;
-import com.finapp.repository.BudgetLimitRepository;
-import com.finapp.repository.InvestmentRepository;
-import com.finapp.repository.TradeRepository;
-import com.finapp.repository.TransactionRepository;
-import com.finapp.repository.UserRepository;
+import com.finapp.repository.*;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +23,7 @@ public class DataSeeder implements CommandLineRunner {
     private final InvestmentRepository investmentRepository;
     private final UserRepository userRepository;
     private final EntityManager entityManager;
+    private final ImportFormatRepository importFormatRepository;
 
     @Override
     @Transactional
@@ -88,6 +84,8 @@ public class DataSeeder implements CommandLineRunner {
             System.out.println("=== DataSeeder: Seeding investments... ===");
             seedInvestments(defaultUser);
         }
+        System.out.println("=== DataSeeder: Upserting import formats... ===");
+        seedImportFormats();
         System.out.println("=== DataSeeder: Done! ===");
     }
 
@@ -462,5 +460,130 @@ public class DataSeeder implements CommandLineRunner {
         
         investmentRepository.saveAll(investments);
         System.out.println("=== DataSeeder: Seeded " + investments.size() + " investments ===");
+    }
+
+    private void upsertImportFormat(ImportFormat format) {
+        importFormatRepository.findByNameAndUserIsNull(format.getName())
+            .ifPresentOrElse(existing -> {
+                existing.setType(format.getType());
+                existing.setDateColumn(format.getDateColumn());
+                existing.setDescriptionColumn(format.getDescriptionColumn());
+                existing.setDebitColumn(format.getDebitColumn());
+                existing.setCreditColumn(format.getCreditColumn());
+                existing.setSymbolColumn(format.getSymbolColumn());
+                existing.setTradeTypeColumn(format.getTradeTypeColumn());
+                existing.setQuantityColumn(format.getQuantityColumn());
+                existing.setPriceColumn(format.getPriceColumn());
+                existing.setTradeDateColumn(format.getTradeDateColumn());
+                existing.setBalanceColumn(format.getBalanceColumn());
+                existing.setSkipRows(format.getSkipRows());
+                existing.setDateFormat(format.getDateFormat());
+                existing.setFileType(format.getFileType());
+                importFormatRepository.save(existing);
+            }, () -> importFormatRepository.save(format));
+    }
+
+    private void seedImportFormats() {
+        List<ImportFormat> formats = List.of(
+            // ICICI Bank - Based on actual XLS export format
+            ImportFormat.builder()
+                .name("ICICI Bank")
+                .type("BANK")
+                .dateColumn("Value Date")
+                .descriptionColumn("Transaction Remarks")
+                .debitColumn("Withdrawal Amount(INR)")
+                .creditColumn("Deposit Amount(INR)")
+                .balanceColumn("Balance")
+                .skipRows(0)
+                .dateFormat("dd.MM.yyyy")
+                .fileType("excel")
+                .isDefault(true)
+                .isSystem(true)
+                .build(),
+            
+            // HDFC Bank
+            ImportFormat.builder()
+                .name("HDFC Bank")
+                .type("BANK")
+                .dateColumn("Date")
+                .descriptionColumn("Narration")
+                .debitColumn("Withdrawal Amt")
+                .creditColumn("Deposit Amt")
+                .balanceColumn("Closing Balance")
+                .skipRows(1)
+                .dateFormat("dd/MM/yyyy")
+                .fileType("csv")
+                .isDefault(true)
+                .isSystem(true)
+                .build(),
+            
+            // SBI Bank
+            ImportFormat.builder()
+                .name("SBI Bank")
+                .type("BANK")
+                .dateColumn("Txn Date")
+                .descriptionColumn("Description")
+                .debitColumn("Debit")
+                .creditColumn("Credit")
+                .balanceColumn("Balance")
+                .skipRows(1)
+                .dateFormat("dd-MM-yyyy")
+                .fileType("csv")
+                .isDefault(true)
+                .isSystem(true)
+                .build(),
+            
+            // Generic CSV
+            ImportFormat.builder()
+                .name("Generic CSV")
+                .type("BANK")
+                .dateColumn("Date")
+                .descriptionColumn("Description")
+                .debitColumn("Debit")
+                .creditColumn("Credit")
+                .balanceColumn("Balance")
+                .skipRows(1)
+                .dateFormat("dd-MM-yyyy")
+                .fileType("csv")
+                .isDefault(true)
+                .isSystem(true)
+                .build(),
+            
+            // Zerodha Broker - columns match actual Zerodha Console tradebook XLSX export
+            // XLSX row 15 headers: Symbol, ISIN, Trade Date, Exchange, Segment, Series, Trade Type, Auction, Quantity, Price, Trade ID, Order ID, Order Execution Time
+            ImportFormat.builder()
+                .name("Zerodha")
+                .type("BROKER")
+                .symbolColumn("Symbol")
+                .tradeTypeColumn("Trade Type")
+                .quantityColumn("Quantity")
+                .priceColumn("Price")
+                .tradeDateColumn("Trade Date")
+                .skipRows(1)
+                .dateFormat("yyyy-MM-dd")
+                .fileType("excel")
+                .isDefault(true)
+                .isSystem(true)
+                .build(),
+            
+            // Upstox Broker
+            ImportFormat.builder()
+                .name("Upstox")
+                .type("BROKER")
+                .symbolColumn("scrip_name")
+                .tradeTypeColumn("side")
+                .quantityColumn("quantity")
+                .priceColumn("price")
+                .tradeDateColumn("trade_date")
+                .skipRows(1)
+                .dateFormat("yyyy-MM-dd")
+                .fileType("csv")
+                .isDefault(true)
+                .isSystem(true)
+                .build()
+        );
+        
+        formats.forEach(this::upsertImportFormat);
+        System.out.println("=== DataSeeder: Upserted " + formats.size() + " import formats ===");
     }
 }

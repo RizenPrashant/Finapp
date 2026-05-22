@@ -3,14 +3,14 @@
  * Pacific Finapp - Personal Finance Management Application
  * All rights reserved.
  */
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Download, Gift, Plus, Tag, Upload } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { ChevronLeft, ChevronRight, Download, Gift, Plus, Search, Tag, Upload, X } from 'lucide-react';
 import Header from '../components/Header';
 import TransactionRow from '../components/TransactionRow';
 import EditTransactionModal from '../components/EditTransactionModal';
 import AddTransactionModal from '../components/AddTransactionModal';
 import { isDeleteLocked, FILTER_PREFS_KEY, CUSTOM_FILTERS_KEY } from '../pages/Settings';
-import { getTransactions, updateTransaction, deleteTransaction, createTransaction, getCashbackWallets, getCashbackEntriesByWallet } from '../api';
+import { getTransactions, searchTransactions, updateTransaction, deleteTransaction, createTransaction, getCashbackWallets, getCashbackEntriesByWallet } from '../api';
 import ImportModal from '../components/ImportModal';
 import { exportToXlsx } from '../utils/exportXlsx';
 import { eventEmitter, EVENTS } from '../utils/events';
@@ -50,6 +50,10 @@ export default function Transactions({ onProfileClick }) {
   const [activeCustomFilter, setActiveCustomFilter] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportBankModal, setShowImportBankModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchDebounceRef = useRef(null);
 
   useEffect(() => {
     getCashbackWallets().then(r => setCashbackWallets(r.data)).catch(() => {});
@@ -138,6 +142,31 @@ export default function Transactions({ onProfileClick }) {
     if (cashbackMode) return;
     fetchTransactions(selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate, activeCustomFilter);
   }, [selectedMonth, selectedYear, filter, allMonths, filterType, selectedDate, customStartDate, customEndDate, cashbackMode, activeCustomFilter]);
+
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (!searchQuery.trim()) { setSearchResults(null); return; }
+    searchDebounceRef.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const params = {};
+        if (filterType === 'monthly') {
+          params.startDate = `${selectedYear}-${String(selectedMonth + 1).padStart(2,'0')}-01`;
+          params.endDate = new Date(selectedYear, selectedMonth + 1, 0).toISOString().split('T')[0];
+        } else if (filterType === 'yearly') {
+          params.startDate = `${selectedYear}-01-01`;
+          params.endDate = `${selectedYear}-12-31`;
+        } else if (filterType === 'custom') {
+          params.startDate = customStartDate;
+          params.endDate = customEndDate;
+        }
+        const res = await searchTransactions(searchQuery.trim(), params);
+        setSearchResults(res.data);
+      } catch { setSearchResults([]); }
+      finally { setSearchLoading(false); }
+    }, 400);
+    return () => clearTimeout(searchDebounceRef.current);
+  }, [searchQuery, filterType, selectedMonth, selectedYear, customStartDate, customEndDate]);
 
   const handleDelete = async (id) => {
     await deleteTransaction(id);
@@ -370,36 +399,46 @@ export default function Transactions({ onProfileClick }) {
 
         {/* Transactions List */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
-          <div className="flex items-center gap-3 p-6 border-b border-gray-50 dark:border-gray-700">
-            {['ALL', 'CREDIT', 'DEBIT'].map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${
-                  filter === f ? 'bg-slate-900 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                {f === 'ALL' ? 'All' : f === 'CREDIT' ? 'Income' : 'Expenses'}
-              </button>
-            ))}
-            <span className="ml-auto text-sm text-gray-400 dark:text-gray-500">
-              {activeCustomFilter && (
-                <span className="mr-2 px-2 py-0.5 rounded text-xs text-white" style={{ backgroundColor: activeCustomFilter.color }}>
-                  {activeCustomFilter.name}
-                </span>
+          <div className="flex flex-wrap items-center gap-2 p-4 sm:p-5 border-b border-gray-50 dark:border-gray-700">
+            <div className="flex items-center gap-1.5">
+              {['ALL', 'CREDIT', 'DEBIT'].map((f) => (
+                <button key={f} onClick={() => { setFilter(f); setSearchQuery(''); setSearchResults(null); }}
+                  className={`px-3 py-1.5 rounded-xl text-sm font-semibold transition ${
+                    filter === f ? 'bg-slate-900 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}>
+                  {f === 'ALL' ? 'All' : f === 'CREDIT' ? 'Income' : 'Expenses'}
+                </button>
+              ))}
+            </div>
+            <div className="flex-1 min-w-[180px] relative">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <input type="text" placeholder="Search transactions..." value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-7 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-500" />
+              {searchQuery && (
+                <button onClick={() => { setSearchQuery(''); setSearchResults(null); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X size={13} />
+                </button>
               )}
-              {transactions.length} transactions
+            </div>
+            <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+              {searchLoading ? 'Searching...' : searchResults !== null
+                ? `${searchResults.length} results`
+                : `${transactions.length} transactions`}
             </span>
           </div>
           <div className="divide-y divide-gray-50 dark:divide-gray-700">
-            {loading ? (
+            {loading && searchResults === null ? (
               <p className="text-center text-gray-400 dark:text-gray-500 py-12">Loading...</p>
-            ) : transactions.length === 0 ? (
+            ) : searchLoading ? (
+              <p className="text-center text-gray-400 dark:text-gray-500 py-12">Searching...</p>
+            ) : (searchResults ?? transactions).length === 0 ? (
               <p className="text-center text-gray-400 dark:text-gray-500 py-12">
-                {activeCustomFilter ? `No transactions match filter "${activeCustomFilter.name}".` : 'No transactions for this period.'}
+                {searchResults !== null ? `No results for "${searchQuery}"` : activeCustomFilter ? `No transactions match filter "${activeCustomFilter.name}".` : 'No transactions for this period.'}
               </p>
             ) : (
-              transactions.map((t) => (
+              (searchResults ?? transactions).map((t) => (
                 <TransactionRow
                   key={t.id}
                   transaction={t}

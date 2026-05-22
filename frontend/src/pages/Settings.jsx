@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Shield, ShieldOff, Building2, Plus, Trash2, Calendar, Filter, TrendingUp, Percent, Wallet, Tag, FileInput } from 'lucide-react';
 import Header from '../components/Header';
-import { getBudgets, saveBudget, getBrokers, getCompoundingSettings, updateCompoundingSettings } from '../api';
+import { getBudgets, saveBudget, getBrokers, getCompoundingSettings, updateCompoundingSettings, getImportFormats, createImportFormat, updateImportFormat, deleteImportFormat, getAssets } from '../api';
 
 export const DELETE_LOCK_KEY = 'finapp_delete_locked'; // legacy, kept for compat
 export const DELETE_LOCKS_KEY = 'finapp_delete_locks';
@@ -66,20 +66,22 @@ export default function Settings() {
     color: '#3B82F6',
   });
 
-  // Custom Import Formats State
+  // Import Formats State (backend-driven)
   const EMPTY_BANK_FORMAT = {
-    name: '', type: 'bank', skipRows: 1, dateFormat: 'dd/MM/yyyy',
-    dateColumn: '', descColumn: '', debitColumn: '', creditColumn: '',
+    name: '', type: 'BANK', skipRows: 1, dateFormat: 'dd/MM/yyyy', fileType: 'csv',
+    dateColumn: '', descriptionColumn: '', debitColumn: '', creditColumn: '',
   };
   const EMPTY_BROKER_FORMAT = {
-    name: '', type: 'broker', skipRows: 1, dateFormat: 'dd-MM-yyyy',
-    dateColumn: '', symbolColumn: '', qtyColumn: '', priceColumn: '', buySellColumn: '', tradeValueColumn: '',
+    name: '', type: 'BROKER', skipRows: 1, dateFormat: 'dd-MM-yyyy', fileType: 'csv',
+    dateColumn: '', symbolColumn: '', quantityColumn: '', priceColumn: '', tradeTypeColumn: '',
   };
-  const [importFormats, setImportFormats] = useState(() => {
-    const saved = localStorage.getItem(IMPORT_FORMATS_KEY);
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [allFormats, setAllFormats] = useState([]);
+  const [formatsLoading, setFormatsLoading] = useState(false);
   const [newFormat, setNewFormat] = useState(EMPTY_BANK_FORMAT);
+  const [editingFormat, setEditingFormat] = useState(null);
+  const [expandedFormatId, setExpandedFormatId] = useState(null);
+  const [assetsList, setAssetsList] = useState([]);
+  const [formatTab, setFormatTab] = useState('BANK');
 
   // Custom Bank & Broker Types State
   const [customBankTypes, setCustomBankTypes] = useState(() => {
@@ -103,7 +105,14 @@ export default function Settings() {
   });
   const [compoundingSaved, setCompoundingSaved] = useState(false);
 
+  const fetchImportFormats = () => {
+    setFormatsLoading(true);
+    getImportFormats().then(res => setAllFormats(res.data || [])).catch(() => {}).finally(() => setFormatsLoading(false));
+  };
+
   useEffect(() => {
+    fetchImportFormats();
+    getAssets().then(res => setAssetsList(res.data || [])).catch(() => {});
     Promise.all([
       getBudgets().then((res) => setBudgets(res.data.map((b) => ({ ...b, limitAmount: String(b.limitAmount) })))),
       getBrokers().then((res) => {
@@ -148,11 +157,6 @@ export default function Settings() {
     localStorage.setItem(CUSTOM_FILTERS_KEY, JSON.stringify(customFilters));
   }, [customFilters]);
 
-  // Save import formats to localStorage
-  useEffect(() => {
-    localStorage.setItem(IMPORT_FORMATS_KEY, JSON.stringify(importFormats));
-  }, [importFormats]);
-
   // Save custom bank/broker types to localStorage
   useEffect(() => {
     localStorage.setItem(CUSTOM_BANK_TYPES_KEY, JSON.stringify(customBankTypes));
@@ -178,16 +182,41 @@ export default function Settings() {
     setCustomFilters(customFilters.filter(f => f.id !== filterId));
   };
 
-  const handleAddImportFormat = () => {
-    const f = newFormat;
-    const isBankOk  = f.type === 'bank'   && f.name.trim() && f.dateColumn.trim() && f.descColumn.trim() && (f.debitColumn.trim() || f.creditColumn.trim());
-    const isBrokerOk = f.type === 'broker' && f.name.trim() && f.dateColumn.trim() && f.symbolColumn.trim() && f.qtyColumn.trim() && f.priceColumn.trim() && f.buySellColumn.trim();
+  const handleAddImportFormat = async () => {
+    const f = { ...newFormat };
+    if (f.name === '__custom__') f.name = (f._customName || '').trim();
+    delete f._customName;
+    const isBankOk   = f.type === 'BANK'   && f.name.trim() && f.dateColumn.trim() && f.descriptionColumn.trim() && (f.debitColumn.trim() || f.creditColumn.trim());
+    const isBrokerOk = f.type === 'BROKER' && f.name.trim() && f.dateColumn.trim() && f.symbolColumn.trim() && f.quantityColumn.trim() && f.priceColumn.trim() && f.tradeTypeColumn.trim();
     if (!isBankOk && !isBrokerOk) return;
-    setImportFormats([...importFormats, { ...f, id: Date.now() }]);
-    setNewFormat(f.type === 'bank' ? EMPTY_BANK_FORMAT : EMPTY_BROKER_FORMAT);
+    try {
+      await createImportFormat(f);
+      setNewFormat(f.type === 'BANK' ? { ...EMPTY_BANK_FORMAT } : { ...EMPTY_BROKER_FORMAT });
+      fetchImportFormats();
+    } catch (e) {
+      alert(e.response?.data?.message || 'Failed to save format');
+    }
   };
 
-  const handleRemoveImportFormat = (id) => setImportFormats(importFormats.filter(f => f.id !== id));
+  const handleDeleteImportFormat = async (id) => {
+    try {
+      await deleteImportFormat(id);
+      fetchImportFormats();
+    } catch (e) {
+      alert(e.response?.data?.message || 'Cannot delete this format');
+    }
+  };
+
+  const handleUpdateImportFormat = async () => {
+    if (!editingFormat) return;
+    try {
+      await updateImportFormat(editingFormat.id, editingFormat);
+      setEditingFormat(null);
+      fetchImportFormats();
+    } catch (e) {
+      alert(e.response?.data?.message || 'Failed to update format');
+    }
+  };
 
   const handleAddBroker = async () => {
     if (newBrokerName.trim() && !brokers.includes(newBrokerName.trim().toUpperCase())) {
@@ -600,130 +629,300 @@ export default function Settings() {
                   <FileInput size={20} className="text-orange-600 dark:text-orange-400" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">Custom Import Formats</h2>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">Define column layouts for any bank or broker CSV</p>
+                  <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">Import Formats</h2>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">View built-in formats · Add &amp; manage your own</p>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto px-6 pb-6">
-              <div className="space-y-4">
-                <div className="flex gap-2">
-                  {['bank', 'broker'].map(t => (
-                    <button key={t}
-                      onClick={() => setNewFormat(t === 'bank' ? { ...EMPTY_BANK_FORMAT } : { ...EMPTY_BROKER_FORMAT })}
-                      className={`px-4 py-1.5 rounded-lg text-sm font-medium border transition ${
-                        newFormat.type === t ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-                      }`}>
-                      {t === 'bank' ? '🏦 Bank Statement' : '📈 Broker / Trades'}
-                    </button>
-                  ))}
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <input value={newFormat.name} onChange={e => setNewFormat({...newFormat, name: e.target.value})}
-                    placeholder="Format name (e.g. Kotak Bank)"
-                    className="col-span-3 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400" />
-                  <div>
-                    <label className="text-xs text-gray-400 block mb-1">Skip header rows</label>
-                    <input type="number" min="0" max="10" value={newFormat.skipRows}
-                      onChange={e => setNewFormat({...newFormat, skipRows: parseInt(e.target.value)||1})}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400" />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-xs text-gray-400 block mb-1">Date format</label>
-                    <select value={newFormat.dateFormat} onChange={e => setNewFormat({...newFormat, dateFormat: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
-                      {/* Indian/Common Formats */}
-                      <option value="dd/MM/yyyy">dd/MM/yyyy (01/01/2024)</option>
-                      <option value="dd-MM-yyyy">dd-MM-yyyy (01-01-2024)</option>
-                      <option value="dd.MM.yyyy">dd.MM.yyyy (01.01.2024) - ICICI</option>
-                      <option value="dd,MM,yyyy">dd,MM,yyyy (01,01,2024) - ICICI Excel</option>
-                      <option value="dd/MM/yy">dd/MM/yy (01/01/24)</option>
-                      <option value="dd-MM-yy">dd-MM-yy (01-01-24)</option>
-                      <option value="dd.MM.yy">dd.MM.yy (01.01.24)</option>
-                      <option value="dd MMM yyyy">dd MMM yyyy (01 Jan 2024) - SBI</option>
-                      <option value="dd-MMM-yyyy">dd-MMM-yyyy (01-Jan-2024)</option>
-                      <option value="dd MMM yy">dd MMM yy (01 Jan 24)</option>
-                      <option value="dd-MMM-yy">dd-MMM-yy (01-Jan-24)</option>
-                      <option value="dd MMMM yyyy">dd MMMM yyyy (01 January 2024)</option>
-                      <option value="dd/MMM/yyyy">dd/MMM/yyyy (01/Jan/2024)</option>
-                      <option value="dd/MMM/yy">dd/MMM/yy (01/Jan/24)</option>
-                      {/* ISO/Standard Formats */}
-                      <option value="yyyy-MM-dd">yyyy-MM-dd (2024-01-01) - ISO</option>
-                      <option value="yyyy/MM/dd">yyyy/MM/dd (2024/01/01)</option>
-                      <option value="yyyy.MM.dd">yyyy.MM.dd (2024.01.01)</option>
-                      {/* US Formats */}
-                      <option value="MM/dd/yyyy">MM/dd/yyyy (01/01/2024) - US</option>
-                      <option value="MM-dd-yyyy">MM-dd-yyyy (01-01-2024) - US</option>
-                      <option value="MM/dd/yy">MM/dd/yy (01/01/24) - US</option>
-                      <option value="MMM dd, yyyy">MMM dd, yyyy (Jan 01, 2024)</option>
-                      <option value="MMMM dd, yyyy">MMMM dd, yyyy (January 01, 2024)</option>
-                      {/* European Formats */}
-                      <option value="dd/MM/yyyy HH:mm">dd/MM/yyyy HH:mm (01/01/2024 14:30)</option>
-                      <option value="dd-MM-yyyy HH:mm">dd-MM-yyyy HH:mm (01-01-2024 14:30)</option>
-                      <option value="dd.MM.yyyy HH:mm">dd.MM.yyyy HH:mm (01.01.2024 14:30)</option>
-                      <option value="yyyy-MM-dd HH:mm:ss">yyyy-MM-dd HH:mm:ss (2024-01-01 14:30:00)</option>
-                      {/* Compact Formats */}
-                      <option value="ddMMyyyy">ddMMyyyy (01012024)</option>
-                      <option value="yyyyMMdd">yyyyMMdd (20240101)</option>
-                    </select>
-                  </div>
-                </div>
-                {newFormat.type === 'bank' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      {key:'dateColumn', label:'Date column', ph:'e.g. Txn Date'},
-                      {key:'descColumn', label:'Description column', ph:'e.g. Narration'},
-                      {key:'debitColumn', label:'Debit column', ph:'e.g. Withdrawal Amt'},
-                      {key:'creditColumn', label:'Credit column', ph:'e.g. Deposit Amt'},
-                    ].map(({key,label,ph}) => (
-                      <div key={key}>
-                        <label className="text-xs text-gray-400 block mb-1">{label}</label>
-                        <input value={newFormat[key]} onChange={e => setNewFormat({...newFormat,[key]:e.target.value})}
-                          placeholder={ph}
-                          className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {newFormat.type === 'broker' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      {key:'symbolColumn', label:'Symbol column', ph:'e.g. Symbol'},
-                      {key:'dateColumn', label:'Trade date column', ph:'e.g. Trade Date'},
-                      {key:'buySellColumn', label:'Buy/Sell column', ph:'e.g. Trade Type'},
-                      {key:'qtyColumn', label:'Quantity column', ph:'e.g. Qty'},
-                      {key:'priceColumn', label:'Price column', ph:'e.g. Price'},
-                      {key:'tradeValueColumn', label:'Trade value column', ph:'e.g. Trade Value'},
-                    ].map(({key,label,ph}) => (
-                      <div key={key}>
-                        <label className="text-xs text-gray-400 block mb-1">{label}</label>
-                        <input value={newFormat[key]||''} onChange={e => setNewFormat({...newFormat,[key]:e.target.value})}
-                          placeholder={ph}
-                          className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <button onClick={handleAddImportFormat}
-                  className="flex items-center gap-1 px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition text-sm">
-                  <Plus size={16} /> Save Format
-                </button>
-                {importFormats.length > 0 && (
-                  <div className="space-y-2 mt-2">
-                    {importFormats.map(f => (
-                      <div key={f.id} className="flex items-center justify-between px-3 py-2 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-xl">
-                        <div>
-                          <span className="text-sm font-semibold text-orange-700 dark:text-orange-400">{f.name}</span>
-                          <span className="ml-2 text-xs text-gray-400">{f.type === 'bank' ? '🏦 Bank' : '📈 Broker'} · skip {f.skipRows} row(s) · {f.dateFormat}</span>
+              <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6">
+
+                {/* ── Saved Formats List ── */}
+                <div>
+                  {formatsLoading ? (
+                    <p className="text-sm text-gray-400 italic">Loading...</p>
+                  ) : allFormats.filter(f => f.type === formatTab).length === 0 ? (
+                    <p className="text-sm text-gray-400 italic">No {formatTab === 'BANK' ? 'bank' : 'broker'} formats found.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {allFormats.filter(f => f.type === formatTab).map(f => (
+                        <div key={f.id}>
+                          {/* ── Edit mode ── */}
+                          {editingFormat?.id === f.id ? (
+                            <div className="p-3 bg-orange-50 dark:bg-orange-900/10 border border-orange-300 dark:border-orange-700 rounded-xl space-y-2">
+                              <div className="grid grid-cols-3 gap-2">
+                                <input value={editingFormat.name} onChange={e => setEditingFormat({...editingFormat, name: e.target.value})}
+                                  className="col-span-3 px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400" />
+                                <div>
+                                  <label className="text-xs text-gray-400 block mb-1">Skip rows</label>
+                                  <input type="number" min="0" max="20" value={editingFormat.skipRows}
+                                    onChange={e => setEditingFormat({...editingFormat, skipRows: parseInt(e.target.value)||0})}
+                                    className="w-full px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400" />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-gray-400 block mb-1">File type</label>
+                                  <select value={editingFormat.fileType} onChange={e => setEditingFormat({...editingFormat, fileType: e.target.value})}
+                                    className="w-full px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
+                                    <option value="csv">CSV (.csv)</option>
+                                    <option value="excel">Excel (.xls / .xlsx)</option>
+                                    <option value="pdf">PDF (.pdf)</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="text-xs text-gray-400 block mb-1">Date format</label>
+                                  <select value={editingFormat.dateFormat} onChange={e => setEditingFormat({...editingFormat, dateFormat: e.target.value})}
+                                    className="w-full px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
+                                    <option value="dd/MM/yyyy">dd/MM/yyyy (01/01/2024)</option>
+                                    <option value="dd-MM-yyyy">dd-MM-yyyy (01-01-2024)</option>
+                                    <option value="dd.MM.yyyy">dd.MM.yyyy (01.01.2024) — ICICI</option>
+                                    <option value="dd.MM.yy">dd.MM.yy (01.01.24)</option>
+                                    <option value="dd MMM yyyy">dd MMM yyyy (01 Jan 2024)</option>
+                                    <option value="dd-MMM-yyyy">dd-MMM-yyyy (01-Jan-2024)</option>
+                                    <option value="dd-MMM-yy">dd-MMM-yy (01-Jan-24)</option>
+                                    <option value="yyyy-MM-dd">yyyy-MM-dd (2024-01-01)</option>
+                                    <option value="MM/dd/yyyy">MM/dd/yyyy (01/01/2024 US)</option>
+                                    <option value="d/M/yyyy">d/M/yyyy (1/1/2024)</option>
+                                  </select>
+                                </div>
+                              </div>
+                              {editingFormat.type === 'BANK' && (
+                                <div className="grid grid-cols-2 gap-2">
+                                  {[
+                                    {key:'dateColumn', label:'Date column'},
+                                    {key:'descriptionColumn', label:'Description column'},
+                                    {key:'debitColumn', label:'Debit column'},
+                                    {key:'creditColumn', label:'Credit column'},
+                                    {key:'balanceColumn', label:'Balance column'},
+                                  ].map(({key, label}) => (
+                                    <div key={key}>
+                                      <label className="text-xs text-gray-400 block mb-1">{label}</label>
+                                      <input value={editingFormat[key]||''} onChange={e => setEditingFormat({...editingFormat,[key]:e.target.value})}
+                                        className="w-full px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400" />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {editingFormat.type === 'BROKER' && (
+                                <div className="grid grid-cols-2 gap-2">
+                                  {[
+                                    {key:'symbolColumn', label:'Symbol column'},
+                                    {key:'dateColumn', label:'Date column'},
+                                    {key:'tradeTypeColumn', label:'Buy/Sell column'},
+                                    {key:'quantityColumn', label:'Quantity column'},
+                                    {key:'priceColumn', label:'Price column'},
+                                  ].map(({key, label}) => (
+                                    <div key={key}>
+                                      <label className="text-xs text-gray-400 block mb-1">{label}</label>
+                                      <input value={editingFormat[key]||''} onChange={e => setEditingFormat({...editingFormat,[key]:e.target.value})}
+                                        className="w-full px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400" />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="flex gap-2 pt-1">
+                                <button onClick={handleUpdateImportFormat}
+                                  className="px-4 py-1.5 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 transition">Save</button>
+                                <button onClick={() => setEditingFormat(null)}
+                                  className="px-4 py-1.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-300 dark:hover:bg-gray-500 transition">Cancel</button>
+                              </div>
+                            </div>
+                          ) : (
+                            /* ── View mode ── */
+                            <div className={`rounded-xl border overflow-hidden ${
+                              f.isSystem
+                                ? 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600'
+                                : 'bg-orange-50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800'
+                            }`}>
+                              {/* Header row — always visible, click to expand */}
+                              <div className="flex items-center justify-between px-3 py-2.5 cursor-pointer"
+                                onClick={() => setExpandedFormatId(expandedFormatId === f.id ? null : f.id)}>
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="text-base">{f.type === 'BANK' ? '🏦' : '📈'}</span>
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-sm font-semibold ${f.isSystem ? 'text-slate-600 dark:text-slate-300' : 'text-orange-700 dark:text-orange-400'}`}>{f.name}</span>
+                                      {f.isSystem && <span className="text-[10px] px-1.5 py-0.5 bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded font-medium">built-in</span>}
+                                    </div>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                                      {f.fileType?.toUpperCase()} · skip {f.skipRows} row(s) · {f.dateFormat}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0 ml-2">
+                                  {!f.isSystem && (
+                                    <>
+                                      <button onClick={e => { e.stopPropagation(); setEditingFormat({...f}); setExpandedFormatId(null); }}
+                                        className="px-2.5 py-1 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 transition font-medium">Edit</button>
+                                      <button onClick={e => { e.stopPropagation(); handleDeleteImportFormat(f.id); }}
+                                        className="p-1.5 text-gray-400 hover:text-red-500 transition"><Trash2 size={14} /></button>
+                                    </>
+                                  )}
+                                  <span className="text-gray-400 text-xs ml-1">{expandedFormatId === f.id ? '▲' : '▼'}</span>
+                                </div>
+                              </div>
+                              {/* Expanded detail panel */}
+                              {expandedFormatId === f.id && (
+                                <div className="px-3 pb-3 pt-1 border-t border-gray-200 dark:border-gray-600 space-y-1">
+                                  {f.type === 'BANK' && [
+                                    ['Date column', f.dateColumn],
+                                    ['Description column', f.descriptionColumn],
+                                    ['Debit column', f.debitColumn],
+                                    ['Credit column', f.creditColumn],
+                                    ['Balance column', f.balanceColumn],
+                                  ].filter(([,v]) => v).map(([label, val]) => (
+                                    <div key={label} className="flex justify-between text-xs">
+                                      <span className="text-gray-400 dark:text-gray-500">{label}</span>
+                                      <span className="font-mono text-gray-700 dark:text-gray-300">{val}</span>
+                                    </div>
+                                  ))}
+                                  {f.type === 'BROKER' && [
+                                    ['Symbol column', f.symbolColumn],
+                                    ['Date column', f.dateColumn],
+                                    ['Buy/Sell column', f.tradeTypeColumn],
+                                    ['Quantity column', f.quantityColumn],
+                                    ['Price column', f.priceColumn],
+                                  ].filter(([,v]) => v).map(([label, val]) => (
+                                    <div key={label} className="flex justify-between text-xs">
+                                      <span className="text-gray-400 dark:text-gray-500">{label}</span>
+                                      <span className="font-mono text-gray-700 dark:text-gray-300">{val}</span>
+                                    </div>
+                                  ))}
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-400 dark:text-gray-500">Date format</span>
+                                    <span className="font-mono text-gray-700 dark:text-gray-300">{f.dateFormat}</span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-400 dark:text-gray-500">Skip rows</span>
+                                    <span className="font-mono text-gray-700 dark:text-gray-300">{f.skipRows}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <button onClick={() => handleRemoveImportFormat(f.id)} className="p-1 text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Add New Format ── */}
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase block mb-2">Add New Format</label>
+                  <div className="space-y-3">
+                    <div className="flex gap-2">
+                      {['BANK', 'BROKER'].map(t => (
+                        <button key={t}
+                          onClick={() => { setNewFormat(t === 'BANK' ? { ...EMPTY_BANK_FORMAT } : { ...EMPTY_BROKER_FORMAT }); setFormatTab(t); }}
+                          className={`px-4 py-1.5 rounded-lg text-sm font-medium border transition ${
+                            formatTab === t ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                          }`}>
+                          {t === 'BANK' ? '🏦 Bank Statement' : '📈 Broker / Trades'}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-3">
+                        <label className="text-xs text-gray-400 block mb-1">Format name</label>
+                        {newFormat.type === 'BANK' ? (
+                          <select value={newFormat.name} onChange={e => setNewFormat({...newFormat, name: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
+                            <option value="">— Select bank / credit card —</option>
+                            {assetsList.filter(a => a.category === 'BANK' || a.category === 'CREDIT_CARD').map(a => (
+                              <option key={a.id} value={a.name}>{a.category === 'CREDIT_CARD' ? '💳' : '🏦'} {a.name}</option>
+                            ))}
+                            <option value="__custom__">✏️ Enter custom name...</option>
+                          </select>
+                        ) : (
+                          <select value={newFormat.name} onChange={e => setNewFormat({...newFormat, name: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
+                            <option value="">— Select broker —</option>
+                            {brokers.map(b => (
+                              <option key={b} value={b}>📈 {b}</option>
+                            ))}
+                            <option value="__custom__">✏️ Enter custom name...</option>
+                          </select>
+                        )}
+                        {newFormat.name === '__custom__' && (
+                          <input autoFocus value={newFormat._customName || ''} onChange={e => setNewFormat({...newFormat, _customName: e.target.value})}
+                            placeholder="Type custom name..."
+                            className="w-full mt-1 px-3 py-2 border border-orange-300 dark:border-orange-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400" />
+                        )}
                       </div>
-                    ))}
+                      <div>
+                        <label className="text-xs text-gray-400 block mb-1">Skip rows</label>
+                        <input type="number" min="0" max="20" value={newFormat.skipRows}
+                          onChange={e => setNewFormat({...newFormat, skipRows: parseInt(e.target.value)||0})}
+                          className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 block mb-1">File type</label>
+                        <select value={newFormat.fileType} onChange={e => setNewFormat({...newFormat, fileType: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
+                          <option value="csv">CSV (.csv)</option>
+                          <option value="excel">Excel (.xls / .xlsx)</option>
+                          <option value="pdf">PDF (.pdf)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 block mb-1">Date format</label>
+                        <select value={newFormat.dateFormat} onChange={e => setNewFormat({...newFormat, dateFormat: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
+                          <option value="dd/MM/yyyy">dd/MM/yyyy (01/01/2024)</option>
+                          <option value="dd-MM-yyyy">dd-MM-yyyy (01-01-2024)</option>
+                          <option value="dd.MM.yyyy">dd.MM.yyyy (01.01.2024) — ICICI</option>
+                          <option value="dd.MM.yy">dd.MM.yy (01.01.24)</option>
+                          <option value="dd MMM yyyy">dd MMM yyyy (01 Jan 2024)</option>
+                          <option value="dd-MMM-yyyy">dd-MMM-yyyy (01-Jan-2024)</option>
+                          <option value="dd-MMM-yy">dd-MMM-yy (01-Jan-24)</option>
+                          <option value="yyyy-MM-dd">yyyy-MM-dd (2024-01-01)</option>
+                          <option value="MM/dd/yyyy">MM/dd/yyyy (01/01/2024 US)</option>
+                          <option value="d/M/yyyy">d/M/yyyy (1/1/2024)</option>
+                        </select>
+                      </div>
+                    </div>
+                    {newFormat.type === 'BANK' && (
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          {key:'dateColumn', label:'Date column', ph:'e.g. Txn Date'},
+                          {key:'descriptionColumn', label:'Description column', ph:'e.g. Narration'},
+                          {key:'debitColumn', label:'Debit column', ph:'e.g. Withdrawal Amt'},
+                          {key:'creditColumn', label:'Credit column', ph:'e.g. Deposit Amt'},
+                          {key:'balanceColumn', label:'Balance column', ph:'e.g. Balance'},
+                        ].map(({key,label,ph}) => (
+                          <div key={key}>
+                            <label className="text-xs text-gray-400 block mb-1">{label}</label>
+                            <input value={newFormat[key]||''} onChange={e => setNewFormat({...newFormat,[key]:e.target.value})}
+                              placeholder={ph}
+                              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {newFormat.type === 'BROKER' && (
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          {key:'symbolColumn', label:'Symbol column', ph:'e.g. Symbol'},
+                          {key:'dateColumn', label:'Trade date column', ph:'e.g. Trade Date'},
+                          {key:'tradeTypeColumn', label:'Buy/Sell column', ph:'e.g. Trade Type'},
+                          {key:'quantityColumn', label:'Quantity column', ph:'e.g. Qty'},
+                          {key:'priceColumn', label:'Price column', ph:'e.g. Price'},
+                        ].map(({key,label,ph}) => (
+                          <div key={key}>
+                            <label className="text-xs text-gray-400 block mb-1">{label}</label>
+                            <input value={newFormat[key]||''} onChange={e => setNewFormat({...newFormat,[key]:e.target.value})}
+                              placeholder={ph}
+                              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button onClick={handleAddImportFormat}
+                      className="flex items-center gap-1 px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition text-sm">
+                      <Plus size={16} /> Save Format
+                    </button>
                   </div>
-                )}
-                <p className="text-xs text-gray-400 dark:text-gray-500">
-                  Column names are matched case-insensitively against the header row of your CSV/Excel file.
-                </p>
-              </div>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
+                    Column names are matched case-insensitively against the header row of your CSV/Excel file.
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -799,7 +998,7 @@ export default function Settings() {
                       onChange={(e) => setCompoundingSettings(prev => ({ ...prev, minReinvestAmount: parseFloat(e.target.value) || 0 }))}
                       className="flex-1 border border-gray-200 dark:border-gray-600 rounded-xl p-2 bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-green-500" placeholder="100" />
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">Profits below this amount won't be reinvested</p>
+                  <p className="text-xs text-gray-400 mt-1">Profits below this amount won&apos;t be reinvested</p>
                 </div>
                 <button
                   onClick={async () => {
@@ -877,10 +1076,9 @@ export default function Settings() {
               </div>
             </div>
           )}
-
-          </div>
         </div>
       </div>
     </div>
+  </div>
   );
 }

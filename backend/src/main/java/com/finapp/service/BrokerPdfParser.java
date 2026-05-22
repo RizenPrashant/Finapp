@@ -1,6 +1,7 @@
 package com.finapp.service;
 
 import com.finapp.dto.TradeDTO;
+import com.finapp.model.ImportFormat;
 import com.finapp.model.Trade;
 import com.finapp.model.TradeSegment;
 import com.finapp.model.TradeStatus;
@@ -12,6 +13,8 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,7 +26,9 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -49,6 +54,8 @@ import java.util.regex.Pattern;
  */
 @Service
 public class BrokerPdfParser {
+
+    private static final Logger log = LoggerFactory.getLogger(BrokerPdfParser.class);
 
     private static final String AMT  = "([\\d,]+\\.\\d+)";
     private static final String QTY  = "(\\d+)";
@@ -283,18 +290,22 @@ public class BrokerPdfParser {
         List<TradeDTO> list = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()));
              CSVReader csv = new CSVReaderBuilder(reader).withSkipLines(1).build()) {
-            // Detect if Zerodha P&L by peeking header
             String[] row;
+            int rowNum = 0;
             while ((row = csv.readNext()) != null) {
+                rowNum++;
                 if (row.length < 4) continue;
                 try {
                     TradeDTO dto = mapBrokerCsvRow(row, brokerType);
                     if (dto != null) list.add(dto);
-                } catch (Exception ignored) {}
+                } catch (Exception e) {
+                    log.warn("CSV row {} parse failed [{}]: {}", rowNum, brokerType, e.getMessage());
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException("Error parsing broker CSV: " + e.getMessage());
         }
+        log.info("parseCSV [{}] → {} trades parsed", brokerType, list.size());
         return list;
     }
 
@@ -317,26 +328,29 @@ public class BrokerPdfParser {
                     dto.setProfitLossPercentage(dto.getInvestedAmount().compareTo(BigDecimal.ZERO) != 0
                         ? pnl.divide(dto.getInvestedAmount(), 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
                         : BigDecimal.ZERO);
-                    dto.setBrokerage(BigDecimal.ZERO); // P&L CSV doesn't show brokerage
+                    dto.setBrokerage(BigDecimal.ZERO);
                     dto.setSegment(TradeSegment.EQUITY);
                     dto.setTradeType(Trade.TradeType.SWING);
                     dto.setPositionType(Trade.PositionType.LONG);
                     dto.setStatus(TradeStatus.CLOSED);
                     dto.setBroker("ZERODHA");
                 } else {
-                    // Trade Book: symbol, isin, trade_date, exchange, segment, trade_type, qty, price, trade_value
+                    // Tradebook columns (Console → Reports → Tradebook → Download XLSX/CSV):
+                    // [0]Symbol [1]ISIN [2]Trade Date [3]Exchange [4]Segment [5]Series
+                    // [6]Trade Type [7]Auction [8]Quantity [9]Price [10]Trade Value [11]Trade ID [12]Order ID
                     dto.setStockName(r[0].trim());
                     dto.setEntryDate(parseDateMulti(r[2].trim()));
                     dto.setSegment(mapSegment(r.length > 4 ? r[4] : "EQ"));
-                    boolean isBuy = r.length > 5 && r[5].trim().equalsIgnoreCase("BUY");
+                    boolean isBuy = r.length > 6 && r[6].trim().equalsIgnoreCase("buy");
                     dto.setTradeType(Trade.TradeType.SWING);
                     dto.setPositionType(isBuy ? Trade.PositionType.LONG : Trade.PositionType.SHORT);
-                    dto.setQuantity(parseInt(r[6]));
-                    BigDecimal price = parseMoney(r[7]);
+                    dto.setQuantity(parseInt(r[8]));
+                    BigDecimal price = parseMoney(r[9]);
                     dto.setBuyPrice(isBuy ? price : null);
                     dto.setSellPrice(!isBuy ? price : null);
-                    dto.setInvestedAmount(parseMoney(r[8]));
-                    dto.setBrokerage(r.length > 9 ? parseMoney(r[9]) : BigDecimal.ZERO);
+                    BigDecimal tradeVal = r.length > 10 && !r[10].isBlank() ? parseMoney(r[10]) : price.multiply(BigDecimal.valueOf(dto.getQuantity()));
+                    dto.setInvestedAmount(tradeVal);
+                    dto.setBrokerage(BigDecimal.ZERO);
                     dto.setStatus(TradeStatus.OPEN);
                     dto.setBroker("ZERODHA");
                 }
@@ -387,29 +401,145 @@ public class BrokerPdfParser {
     //  EXCEL PARSING (broker-specific column layouts)
     // ══════════════════════════════════════════════════════════════════════════
 
+    /**
+     * Dynamic Excel parsing using ImportFormat column name mapping.
+     * Reads the header row to build a columnName→index map, then uses
+     * the format's configured column names to extract data universally.
+     */
+    public List<TradeDTO> parseExcel(MultipartFile file, ImportFormat fmt) {
+        List<TradeDTO> list = new ArrayList<>();
+        try (InputStream is = file.getInputStream();
+             Workbook wb = WorkbookFactory.create(is)) {
+            Sheet sheet = wb.getSheetAt(0);
+
+            // Find header row (first row whose first non-empty cell matches a known column name from format)
+            int headerRow = -1;
+            Map<String, Integer> colIndex = new HashMap<>();
+            for (int i = 0; i <= Math.min(20, sheet.getLastRowNum()); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+                // Build candidate map for this row
+                Map<String, Integer> candidate = new HashMap<>();
+                for (int c = 0; c < row.getLastCellNum(); c++) {
+                    Cell cell = row.getCell(c);
+                    if (cell == null) continue;
+                    String val = getCellStr(cell).trim();
+                    if (!val.isEmpty()) candidate.put(val.toLowerCase(), c);
+                }
+                // Check if this row contains at least one of our expected column names
+                String sym = fmt.getSymbolColumn();
+                String dt  = fmt.getTradeDateColumn();
+                boolean hasSymbol = sym != null && candidate.containsKey(sym.toLowerCase());
+                boolean hasDate   = dt  != null && candidate.containsKey(dt.toLowerCase());
+                if (hasSymbol || hasDate) {
+                    headerRow = i;
+                    colIndex  = candidate;
+                    log.info("Excel header found at row {} via format '{}': cols={}", i, fmt.getName(), candidate.keySet());
+                    break;
+                }
+            }
+
+            if (headerRow < 0) {
+                log.warn("Excel header row not found for format '{}', sheet has {} rows", fmt.getName(), sheet.getLastRowNum());
+                return list;
+            }
+
+            // Helper to resolve column index by format field name
+            final Map<String, Integer> idx = colIndex;
+            java.util.function.Function<String, Integer> col = name ->
+                (name == null || name.isBlank()) ? -1 : idx.getOrDefault(name.toLowerCase().trim(), -1);
+            java.util.function.BiFunction<String[], Integer, String> get = (r, i2) ->
+                (i2 < 0 || i2 >= r.length) ? "" : (r[i2] == null ? "" : r[i2].trim());
+
+            int symCol  = col.apply(fmt.getSymbolColumn());
+            int dtCol   = col.apply(fmt.getTradeDateColumn());
+            int bsCol   = col.apply(fmt.getTradeTypeColumn());
+            int qtyCol  = col.apply(fmt.getQuantityColumn());
+            int priceCol= col.apply(fmt.getPriceColumn());
+
+            log.info("Column indices — symbol:{} date:{} buySell:{} qty:{} price:{}", symCol, dtCol, bsCol, qtyCol, priceCol);
+
+            for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+                try {
+                    String[] r = rowToStrings(row, Math.max(15, row.getLastCellNum()));
+                    String symbol = get.apply(r, symCol);
+                    if (symbol.isBlank()) continue; // skip summary/footer rows
+
+                    TradeDTO dto = new TradeDTO();
+                    dto.setStockName(symbol);
+                    dto.setEntryDate(parseDateMulti(get.apply(r, dtCol)));
+
+                    String bs = get.apply(r, bsCol).toUpperCase();
+                    boolean isBuy = bs.startsWith("B");
+                    dto.setTradeType(Trade.TradeType.SWING);
+                    dto.setPositionType(isBuy ? Trade.PositionType.LONG : Trade.PositionType.SHORT);
+
+                    dto.setQuantity(parseInt(get.apply(r, qtyCol)));
+                    BigDecimal price = parseMoney(get.apply(r, priceCol));
+                    dto.setBuyPrice(isBuy  ? price : null);
+                    dto.setSellPrice(!isBuy ? price : null);
+                    dto.setInvestedAmount(price.multiply(BigDecimal.valueOf(dto.getQuantity())));
+                    dto.setBrokerage(BigDecimal.ZERO);
+                    dto.setSegment(TradeSegment.EQUITY);
+                    dto.setStatus(TradeStatus.OPEN);
+                    dto.setBroker(fmt.getName().toUpperCase().split(" ")[0]);
+                    list.add(dto);
+                } catch (Exception e) {
+                    log.warn("Excel row {} parse failed [{}]: {}", i, fmt.getName(), e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error parsing broker Excel: " + e.getMessage());
+        }
+        log.info("parseExcel [{}] → {} trades parsed", fmt.getName(), list.size());
+        return list;
+    }
+
     public List<TradeDTO> parseExcel(MultipartFile file, String brokerType) {
         List<TradeDTO> list = new ArrayList<>();
         try (InputStream is = file.getInputStream();
              Workbook wb = WorkbookFactory.create(is)) {
             Sheet sheet = wb.getSheetAt(0);
-            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+            int dataStartRow = 1;
+            for (int i = 0; i <= Math.min(20, sheet.getLastRowNum()); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+                Cell c0 = row.getCell(0);
+                String first = c0 == null ? "" : getCellStr(c0).toLowerCase().trim();
+                log.info("Header scan row {}: first cell = '{}'", i, first);
+                if (first.equals("symbol") || first.equals("instrument_name") || first.equals("stock")) {
+                    dataStartRow = i + 1;
+                    log.info("Excel header found at row {}, data starts at row {}", i, dataStartRow);
+                    break;
+                }
+            }
+            log.info("parseExcel [{}] dataStartRow={} lastRow={}", brokerType, dataStartRow, sheet.getLastRowNum());
+            for (int i = dataStartRow; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
                 try {
-                    String[] r = rowToStrings(row, 10);
+                    String[] r = rowToStrings(row, 15);
+                    log.info("Data row {}: r[0]='{}' r[1]='{}' r[2]='{}' r[6]='{}' r[8]='{}'", i, r[0], r[1], r[2], r.length>6?r[6]:"?", r.length>8?r[8]:"?");
+                    if (r[0] == null || r[0].isBlank()) continue;
                     TradeDTO dto = mapBrokerCsvRow(r, brokerType);
                     if (dto != null) list.add(dto);
-                } catch (Exception ignored) {}
+                } catch (Exception e) {
+                    log.warn("Excel row {} parse failed [{}]: {}", i, brokerType, e.getMessage());
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException("Error parsing broker Excel: " + e.getMessage());
         }
+        log.info("parseExcel [{}] → {} trades parsed", brokerType, list.size());
         return list;
     }
 
     private String[] rowToStrings(Row row, int maxCols) {
-        String[] arr = new String[maxCols];
-        for (int c = 0; c < maxCols; c++) {
+        int cols = Math.max(maxCols, row.getLastCellNum());
+        String[] arr = new String[cols];
+        for (int c = 0; c < cols; c++) {
             Cell cell = row.getCell(c);
             arr[c] = cell == null ? "" : getCellStr(cell);
         }

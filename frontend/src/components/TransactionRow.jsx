@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowDownLeft, ArrowUpRight, Trash2, Pencil, AlertTriangle, Building2, CreditCard, Gift } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Trash2, Pencil, AlertTriangle, Building2, CreditCard, Gift, HandCoins } from 'lucide-react';
 
 function DeleteConfirmDialog({ transaction, onConfirm, onCancel }) {
   return (
@@ -86,9 +86,16 @@ export default function TransactionRow({ transaction, onDelete, onEdit, deleteLo
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <p className={`font-bold ${isCredit ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
-            {isCredit ? '+' : '-'}₹{parseFloat(transaction.amount).toLocaleString()}
-          </p>
+          <div className="text-right">
+            <p className={`font-bold ${isCredit ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
+              {isCredit ? '+' : '-'}₹{parseFloat(transaction.amount).toLocaleString()}
+            </p>
+            {transaction.balanceAfter != null && (
+              <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                Bal: ₹{parseFloat(transaction.balanceAfter).toLocaleString()}
+              </p>
+            )}
+          </div>
           {onEdit && (
             <button
               onClick={(e) => { e.stopPropagation(); onEdit(transaction); }}

@@ -1,13 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, FileSpreadsheet, FileText, Eye, CheckCircle, AlertCircle, Loader2, Settings } from 'lucide-react';
-import { previewTradesImport, importTrades, previewBankStatementImport, importBankStatement, importBankStatementJson, importTradesJson } from '../api';
+import { previewTradesImport, importTrades, previewBankStatementImport, importBankStatement, importBankStatementJson, importTradesJson, getImportFormats, getImportFormatsByType } from '../api';
 import { eventEmitter, EVENTS } from '../utils/events';
 
-const IMPORT_FORMATS_KEY = 'finapp_custom_import_formats';
-const CUSTOM_BANK_TYPES_KEY   = 'finapp_custom_bank_types';
-const CUSTOM_BROKER_TYPES_KEY = 'finapp_custom_broker_types';
-const BUILT_IN_BANK_TYPES   = ['SBI', 'ICICI', 'HDFC', 'GENERIC'];
-const BUILT_IN_BROKER_TYPES = ['ZERODHA', 'UPSTOX', 'GENERIC'];
 
 // ─── Client-side CSV parser using custom column-name mapping ─────────────────
 function parseCustomCSV(text, fmt) {
@@ -29,17 +24,21 @@ function parseCustomCSV(text, fmt) {
   if (fmt.type === 'bank') {
     return dataLines.map((line, i) => {
       const row = line.split(',');
-      const date   = cell(row, fmt.dateColumn);
-      const desc   = cell(row, fmt.descColumn);
-      const debit  = parseFloat(cell(row, fmt.debitColumn).replace(/,/g,'')) || 0;
-      const credit = parseFloat(cell(row, fmt.creditColumn).replace(/,/g,'')) || 0;
+      const date    = cell(row, fmt.dateColumn);
+      const desc    = cell(row, fmt.descriptionColumn || fmt.descColumn);
+      const debit   = parseFloat(cell(row, fmt.debitColumn).replace(/,/g,'')) || 0;
+      const credit  = parseFloat(cell(row, fmt.creditColumn).replace(/,/g,'')) || 0;
+      const balRaw  = fmt.balanceColumn ? cell(row, fmt.balanceColumn).replace(/,/g,'') : '';
+      const balance = balRaw ? parseFloat(balRaw) : null;
       if (!date) return null;
-      return {
+      const row2 = {
         rowNum: i + fmt.skipRows + 1, date, description: desc,
         amount: debit > 0 ? debit : credit,
         type: debit > 0 ? 'DEBIT' : 'CREDIT',
         category: 'Uncategorized',
       };
+      if (balance !== null && !isNaN(balance)) row2.balance = balance;
+      return row2;
     }).filter(Boolean);
   } else {
     return dataLines.map((line, i) => {
@@ -67,35 +66,45 @@ function parseCustomCSV(text, fmt) {
 const ImportModal = ({ isOpen, onClose, type, bankName }) => {
   const [file, setFile] = useState(null);
   const [format, setFormat] = useState('csv');
-  const [bankType, setBankType]       = useState('SBI');
-  const [brokerType, setBrokerType]   = useState('ZERODHA');
-  const [accountType, setAccountType]  = useState('BANK'); // BANK or CREDIT_CARD
-  const [customFormat, setCustomFormat] = useState(null);  // selected custom format object or null
-  const [customFormats, setCustomFormats] = useState([]);
+  const [accountType, setAccountType] = useState('BANK'); // BANK or CREDIT_CARD
+  const [selectedFormat, setSelectedFormat] = useState(null); // Selected format from API
+  const [availableFormats, setAvailableFormats] = useState([]); // Formats from API
   const [previewData, setPreviewData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [formatsLoading, setFormatsLoading] = useState(false);
   const fileInputRef = useRef(null);
 
   const isTrades = type === 'trades';
   const isBankStatement = type === 'bank-statement';
 
-  // Merge built-in + custom types from Settings
-  const bankTypes = [...BUILT_IN_BANK_TYPES, ...(JSON.parse(localStorage.getItem(CUSTOM_BANK_TYPES_KEY) || '[]'))];
-  const brokerTypes = [...BUILT_IN_BROKER_TYPES, ...(JSON.parse(localStorage.getItem(CUSTOM_BROKER_TYPES_KEY) || '[]'))];
-
-  // Load custom formats from localStorage whenever modal opens
+  // Load formats from API whenever modal opens
   useEffect(() => {
     if (isOpen) {
-      const saved = localStorage.getItem(IMPORT_FORMATS_KEY);
-      const all = saved ? JSON.parse(saved) : [];
-      const relevant = all.filter(f => isTrades ? f.type === 'broker' : f.type === 'bank');
-      setCustomFormats(relevant);
-      setCustomFormat(null);
+      loadFormats();
     }
-  }, [isOpen, isTrades]);
+  }, [isOpen]);
+
+  const loadFormats = async () => {
+    setFormatsLoading(true);
+    try {
+      const type = isTrades ? 'BROKER' : 'BANK';
+      const response = await getImportFormatsByType(type);
+      setAvailableFormats(response.data || []);
+      // Select first default format if available
+      const defaultFormat = response.data?.find(f => f.default);
+      if (defaultFormat) {
+        setSelectedFormat(defaultFormat);
+      }
+    } catch (err) {
+      console.error('Failed to load import formats:', err);
+      setError('Failed to load import formats. Please try again.');
+    } finally {
+      setFormatsLoading(false);
+    }
+  };
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -129,30 +138,36 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
   });
 
   const handlePreview = async () => {
-    console.log('handlePreview called - file:', file?.name, 'format:', format, 'bankType:', bankType);
+    console.log('handlePreview called - file:', file?.name, 'format:', format, 'selectedFormat:', selectedFormat?.name);
     if (!file) { setError('Please select a file first'); return; }
+    if (!selectedFormat) { setError('Please select an import format'); return; }
     setLoading(true); setError(null);
     try {
       console.log('Sending preview request...');
-      if (customFormat && format !== 'pdf') {
-        // Client-side parse using custom column mapping
+      if (format === 'csv') {
+        // Client-side parse using the selected format's column mapping
         const text = await readFileText();
-        const rows = parseCustomCSV(text, customFormat);
+        const rows = parseCustomCSV(text, selectedFormat);
         setPreviewData({
           success: true, totalRows: rows.length,
           previewData: rows.slice(0, 10),
           isPreview: true, _customRows: rows,
         });
       } else {
+        // Excel / PDF - send to backend for parsing
         const formData = new FormData();
         formData.append('file', file);
         formData.append('format', format);
+        formData.append('formatId', selectedFormat.id);
+        const brokerKey = selectedFormat.name.toUpperCase().split(' ')[0]; // e.g. "ZERODHA" or "ICICI"
+        if (isTrades) {
+          formData.append('brokerType', brokerKey);
+        } else {
+          formData.append('bankType', brokerKey);
+        }
         if (isBankStatement) {
-          formData.append('bankName', bankName || 'Imported Bank');
-          formData.append('bankType', bankType);
+          formData.append('bankName', selectedFormat.linkedAsset?.name || selectedFormat.name);
           formData.append('accountType', accountType);
-        } else if (isTrades) {
-          formData.append('brokerType', brokerType);
         }
         const response = isTrades
           ? await previewTradesImport(formData)
@@ -168,23 +183,31 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
   };
 
   const handleImport = async () => {
-    console.log('handleImport called - file:', file?.name, 'format:', format, 'bankType:', bankType);
+    console.log('handleImport called - file:', file?.name, 'format:', format, 'selectedFormat:', selectedFormat?.name);
     if (!file) { setError('Please select a file first'); return; }
+    if (!selectedFormat) { setError('Please select an import format'); return; }
     setImporting(true); setError(null);
     try {
       console.log('Sending import request...');
-      if (customFormat && format !== 'pdf') {
+      if (format === 'csv') {
         // Client-side parse then send as JSON to backend
-        const rows = previewData?._customRows || parseCustomCSV(await readFileText(), customFormat);
+        const rows = previewData?._customRows || parseCustomCSV(await readFileText(), selectedFormat);
         let response;
+        // Use linked asset name if available, otherwise use format name
+        const bankNameToUse = selectedFormat.linkedAsset?.name || selectedFormat.name;
         if (isBankStatement) {
-          const bName = bankName || customFormat.name;
           const transactions = rows.map(r => ({
             date: r.date, description: r.description, title: r.description,
             amount: r.amount, type: r.type,
-            budgetCategory: r.category, paymentSource: bName,
+            budgetCategory: r.category, paymentSource: bankNameToUse,
+            ...(r.balance != null ? { balanceAfter: r.balance } : {}),
           }));
-          response = await importBankStatementJson({ bankName: bName, accountType, transactions });
+          response = await importBankStatementJson({ 
+            bankName: bankNameToUse, 
+            accountType, 
+            transactions,
+            formatId: selectedFormat.id  // Pass format ID for backend reference
+          });
         } else {
           const trades = rows.map(r => ({
             stockName: r.stockName, entryDate: r.entryDate,
@@ -197,18 +220,23 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
         }
         setResult({
           ...response.data,
-          message: `Custom format "${customFormat.name}": ${response.data.message}`,
+          message: `${selectedFormat.name}: ${response.data.message}`,
         });
       } else {
+        // Excel / PDF import - send to backend
         const formData = new FormData();
         formData.append('file', file);
         formData.append('format', format);
+        formData.append('formatId', selectedFormat.id);
+        const brokerKey2 = selectedFormat.name.toUpperCase().split(' ')[0]; // e.g. "ZERODHA" or "ICICI"
+        if (isTrades) {
+          formData.append('brokerType', brokerKey2);
+        } else {
+          formData.append('bankType', brokerKey2);
+        }
         if (isBankStatement) {
-          formData.append('bankName', bankName || 'Imported Bank');
-          formData.append('bankType', bankType);
+          formData.append('bankName', selectedFormat.linkedAsset?.name || selectedFormat.name);
           formData.append('accountType', accountType);
-        } else if (isTrades) {
-          formData.append('brokerType', brokerType);
         }
         const response = isTrades
           ? await importTrades(formData)
@@ -270,16 +298,29 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
           {!result && (
             <>
               {/* Format Selection */}
-              <div className="flex gap-2 flex-wrap">
-                {[{val:'csv',label:'CSV',Icon:FileText},{val:'excel',label:'Excel',Icon:FileSpreadsheet},{val:'pdf',label:'PDF',Icon:FileText}].map(({val,label,Icon})=>(
-                  <button key={val}
-                    onClick={() => setFormat(val)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
-                      format === val ? 'bg-indigo-50 border-indigo-500 text-indigo-600' : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500 dark:text-gray-300'
-                    }`}>
-                    <Icon className="w-4 h-4" />{label}
-                  </button>
-                ))}
+              <div className="space-y-1.5">
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    {val:'csv',   label:'CSV',   ext:'.csv',        Icon:FileText},
+                    {val:'excel', label:'Excel', ext:'.xls / .xlsx', Icon:FileSpreadsheet},
+                    {val:'pdf',   label:'PDF',   ext:'.pdf',        Icon:FileText},
+                  ].map(({val,label,ext,Icon})=>(
+                    <button key={val}
+                      onClick={() => setFormat(val)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
+                        format === val ? 'bg-indigo-50 border-indigo-500 text-indigo-600' : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500 dark:text-gray-300'
+                      }`}>
+                      <Icon className="w-4 h-4" />
+                      <span>{label}</span>
+                      <span className={`text-[10px] ${format === val ? 'text-indigo-400' : 'text-gray-400'}`}>{ext}</span>
+                    </button>
+                  ))}
+                </div>
+                {format === 'pdf' && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-lg">
+                    ⚠️ PDF parsing uses text extraction — only built-in bank formats (ICICI, HDFC, SBI) are supported. Custom formats work with CSV/Excel only.
+                  </p>
+                )}
               </div>
 
               {/* Account type selector (Bank vs Credit Card) */}
@@ -302,52 +343,49 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
                 </div>
               )}
 
-              {/* Bank / Broker type selector */}
+              {/* Import Format Selector from API */}
               <div className="space-y-2">
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {isBankStatement ? 'Bank / Format:' : 'Broker / Format:'}
+                  {isBankStatement ? 'Select Bank Format:' : 'Select Broker Format:'}
                 </span>
                 <div className="flex gap-2 flex-wrap">
-                  {/* Built-in + custom types */}
-                  {(isBankStatement ? bankTypes : brokerTypes).map(t => {
-                    const isCustom = isBankStatement
-                      ? !BUILT_IN_BANK_TYPES.includes(t)
-                      : !BUILT_IN_BROKER_TYPES.includes(t);
-                    return (
-                      <button key={t}
-                        onClick={() => { isBankStatement ? setBankType(t) : setBrokerType(t); setCustomFormat(null); }}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
-                          !customFormat && (isBankStatement ? bankType : brokerType) === t
-                            ? 'bg-indigo-600 border-indigo-600 text-white'
-                            : isCustom
-                              ? 'border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:border-indigo-400'
-                              : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-indigo-400'
-                        }`}>
-                        {t}
-                      </button>
-                    );
-                  })}
-                  {/* Custom formats from Settings */}
-                  {customFormats.map(cf => (
-                    <button key={cf.id}
-                      onClick={() => setCustomFormat(cf)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
-                        customFormat?.id === cf.id
-                          ? 'bg-orange-500 border-orange-500 text-white'
-                          : 'border-orange-200 dark:border-orange-700 text-orange-600 dark:text-orange-400 hover:border-orange-400'
-                      }`}>
-                      ✦ {cf.name}
-                    </button>
-                  ))}
-                  {customFormats.length === 0 && format !== 'pdf' && (
-                    <span className="text-xs text-gray-400 dark:text-gray-500 self-center">
-                      Add custom formats in <Settings size={11} className="inline" /> Settings
+                  {formatsLoading ? (
+                    <span className="text-xs text-gray-400 dark:text-gray-500">Loading formats...</span>
+                  ) : availableFormats.length === 0 ? (
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      No formats available. Add in <Settings size={11} className="inline" /> Settings
                     </span>
+                  ) : (
+                    availableFormats.map(fmt => {
+                      const isSystem = fmt.system;
+                      const isLinked = fmt.linkedAssetId;
+                      return (
+                        <button key={fmt.id}
+                          onClick={() => setSelectedFormat(fmt)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all flex items-center gap-1 ${
+                            selectedFormat?.id === fmt.id
+                              ? 'bg-indigo-600 border-indigo-600 text-white'
+                              : isSystem
+                                ? 'border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-300 hover:border-indigo-400'
+                                : 'border-orange-200 dark:border-orange-700 text-orange-600 dark:text-orange-400 hover:border-orange-400'
+                          }`}>
+                          {isSystem ? '🏦' : '✦'}
+                          {fmt.name}
+                          {isLinked && <span className="text-[10px] opacity-70">(linked)</span>}
+                        </button>
+                      );
+                    })
                   )}
                 </div>
-                {customFormat && (
-                  <p className="text-xs text-orange-600 dark:text-orange-400">
-                    Using custom format: <strong>{customFormat.name}</strong> · skip {customFormat.skipRows} row(s) · {customFormat.dateFormat}
+                {selectedFormat && (
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    Using: <strong>{selectedFormat.name}</strong>
+                    {selectedFormat.linkedAssetName && (
+                      <span className="text-green-600 dark:text-green-400"> → linked to {selectedFormat.linkedAssetName}</span>
+                    )}
+                    {!selectedFormat.linkedAssetName && (
+                      <span className="text-orange-500"> → will create asset if not exists</span>
+                    )}
                   </p>
                 )}
               </div>

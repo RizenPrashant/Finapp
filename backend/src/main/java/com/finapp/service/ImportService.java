@@ -6,6 +6,7 @@ import com.finapp.dto.TransactionDTO;
 import com.finapp.model.Asset;
 import com.finapp.model.AssetCategory;
 import com.finapp.model.AssetType;
+import com.finapp.model.ImportFormat;
 import com.finapp.model.Trade;
 import com.finapp.model.TradeSegment;
 import com.finapp.model.TradeStatus;
@@ -13,12 +14,14 @@ import com.finapp.model.Transaction;
 import com.finapp.model.TransactionType;
 import com.finapp.model.User;
 import com.finapp.repository.AssetRepository;
+import com.finapp.repository.ImportFormatRepository;
 import com.finapp.repository.TradeRepository;
 import com.finapp.repository.TransactionRepository;
 import com.finapp.repository.UserRepository;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
 import lombok.RequiredArgsConstructor;
+import org.springframework.transaction.annotation.Transactional;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
@@ -43,20 +46,25 @@ public class ImportService {
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
     private final AssetRepository assetRepository;
+    private final ImportFormatRepository importFormatRepository;
     private final BankPdfParser bankPdfParser;
     private final BrokerPdfParser brokerPdfParser;
 
     // ==================== TRADES IMPORT ====================
 
     public ImportResponseDTO importTrades(MultipartFile file, String format, String username) {
-        return importTrades(file, format, username, null);
+        return importTrades(file, format, username, null, null);
     }
 
     public ImportResponseDTO importTrades(MultipartFile file, String format, String username, String brokerType) {
+        return importTrades(file, format, username, brokerType, null);
+    }
+
+    public ImportResponseDTO importTrades(MultipartFile file, String format, String username, String brokerType, Long formatId) {
         User user = userRepository.findByEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        List<TradeDTO> trades = parseTradesFile(file, format, brokerType);
+        List<TradeDTO> trades = parseTradesFile(file, format, brokerType, formatId);
         List<String> errors = new ArrayList<>();
         int imported = 0;
 
@@ -102,11 +110,15 @@ public class ImportService {
     }
 
     public ImportResponseDTO previewTrades(MultipartFile file, String format) {
-        return previewTrades(file, format, null);
+        return previewTrades(file, format, null, null);
     }
 
     public ImportResponseDTO previewTrades(MultipartFile file, String format, String brokerType) {
-        List<TradeDTO> trades = parseTradesFile(file, format, brokerType);
+        return previewTrades(file, format, brokerType, null);
+    }
+
+    public ImportResponseDTO previewTrades(MultipartFile file, String format, String brokerType, Long formatId) {
+        List<TradeDTO> trades = parseTradesFile(file, format, brokerType, formatId);
         List<Map<String, Object>> previewData = new ArrayList<>();
 
         for (TradeDTO trade : trades) {
@@ -135,8 +147,12 @@ public class ImportService {
                 .build();
     }
 
-    private List<TradeDTO> parseTradesFile(MultipartFile file, String format, String brokerType) {
+    private List<TradeDTO> parseTradesFile(MultipartFile file, String format, String brokerType, Long formatId) {
         String bt = brokerType != null ? brokerType : "GENERIC";
+        if (formatId != null && ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format))) {
+            ImportFormat fmt = importFormatRepository.findById(formatId).orElse(null);
+            if (fmt != null) return brokerPdfParser.parseExcel(file, fmt);
+        }
         if ("csv".equalsIgnoreCase(format)) {
             return brokerPdfParser.parseCSV(file, bt);
         } else if ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format)) {
@@ -229,6 +245,7 @@ public class ImportService {
         return importBankStatement(file, format, bankName, username, bankType, "BANK");
     }
 
+    @Transactional
     public ImportResponseDTO importBankStatement(MultipartFile file, String format, String bankName, String username, String bankType, String accountType) {
         User user = userRepository.findByEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -259,18 +276,52 @@ public class ImportService {
                     .isPreview(false).build();
         }
         List<String> errors = new ArrayList<>();
-        int imported = 0;
         int dupes = 0;
+
+        // Pre-fetch all existing hashes in one query (avoids N DB round-trips)
+        java.util.Set<String> existingHashes = transactionRepository.findAllImportHashesByUser(user);
+
+        // Find the latest transaction date already stored for this asset
+        LocalDate existingLatestDate = transactionRepository
+                .findMaxDateByUserAndPaymentSource(user, bankName)
+                .orElse(LocalDate.MIN);
+
+        // Find the max date in the incoming batch to decide if balance update is warranted
+        LocalDate importMaxDate = transactions.stream()
+                .map(TransactionDTO::getDate)
+                .filter(d -> d != null)
+                .max(LocalDate::compareTo)
+                .orElse(LocalDate.MIN);
+
+        BigDecimal runningBalance = bankAsset.getValue() != null ? bankAsset.getValue() : BigDecimal.ZERO;
+        BigDecimal latestDateBalance = null;
+        LocalDate latestDateSeen = LocalDate.MIN;
+
+        List<Transaction> batch = new ArrayList<>();
 
         for (int i = 0; i < transactions.size(); i++) {
             try {
                 TransactionDTO dto = transactions.get(i);
                 String hash = generateTxnHash(user.getId(), dto.getDate(), dto.getAmount(),
                         dto.getTitle() != null ? dto.getTitle() : dto.getDescription());
-                if (transactionRepository.existsByUserAndImportHash(user, hash)) {
+                if (existingHashes.contains(hash)) {
                     dupes++;
                     continue;
                 }
+                existingHashes.add(hash); // prevent dupes within same batch
+
+                if (assetCategory == AssetCategory.BANK) {
+                    runningBalance = dto.getType() == TransactionType.CREDIT
+                        ? runningBalance.add(dto.getAmount())
+                        : runningBalance.subtract(dto.getAmount());
+                } else if (assetCategory == AssetCategory.CREDIT_CARD) {
+                    runningBalance = dto.getType() == TransactionType.DEBIT
+                        ? runningBalance.add(dto.getAmount())
+                        : runningBalance.subtract(dto.getAmount());
+                }
+
+                BigDecimal txnBalanceAfter = dto.getBalanceAfter() != null ? dto.getBalanceAfter() : runningBalance;
+
                 Transaction txn = new Transaction();
                 txn.setUser(user);
                 txn.setTitle(dto.getTitle() != null ? dto.getTitle() : dto.getDescription() != null ? dto.getDescription() : "Imported");
@@ -283,11 +334,27 @@ public class ImportService {
                 txn.setPaymentSource(bankName);
                 txn.setReferenceNumber(dto.getReferenceNumber());
                 txn.setImportHash(hash);
-                transactionRepository.save(txn);
-                imported++;
+                txn.setBalanceAfter(txnBalanceAfter);
+                batch.add(txn);
+
+                if (dto.getDate() != null && !dto.getDate().isBefore(latestDateSeen)) {
+                    latestDateSeen = dto.getDate();
+                    latestDateBalance = txnBalanceAfter;
+                }
             } catch (Exception e) {
                 errors.add("Row " + (i + 1) + ": " + e.getMessage());
             }
+        }
+
+        // Batch insert — single DB round-trip for all rows
+        if (!batch.isEmpty()) {
+            transactionRepository.saveAll(batch);
+        }
+        int imported = batch.size();
+
+        if (imported > 0 && !importMaxDate.isBefore(existingLatestDate) && latestDateBalance != null) {
+            bankAsset.setValue(latestDateBalance);
+            assetRepository.save(bankAsset);
         }
 
         String msg = "Imported " + imported + " transactions" + (dupes > 0 ? ", " + dupes + " duplicates skipped" : "");
@@ -321,11 +388,12 @@ public class ImportService {
         List<Map<String, Object>> previewData = new ArrayList<>();
 
         for (TransactionDTO txn : transactions) {
-            Map<String, Object> map = new HashMap<>();
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("date", txn.getDate());
             map.put("description", txn.getDescription());
             map.put("amount", txn.getAmount());
             map.put("type", txn.getType());
-            map.put("date", txn.getDate());
+            if (txn.getBalanceAfter() != null) map.put("balance", txn.getBalanceAfter());
             map.put("category", txn.getBudgetCategory());
             previewData.add(map);
         }
@@ -492,13 +560,14 @@ public class ImportService {
         return importBankStatementJson(bankName, transactions, username, "BANK");
     }
 
+    @Transactional
     public ImportResponseDTO importBankStatementJson(String bankName, List<TransactionDTO> transactions, String username, String accountType) {
         User user = userRepository.findByEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         AssetCategory assetCategory = "CREDIT_CARD".equalsIgnoreCase(accountType) ? AssetCategory.CREDIT_CARD : AssetCategory.BANK;
 
-        assetRepository.findByUserAndName(user, bankName).orElseGet(() -> {
+        Asset jsonAsset = assetRepository.findByUserAndName(user, bankName).orElseGet(() -> {
             Asset asset = new Asset();
             asset.setUser(user);
             asset.setName(bankName);
@@ -509,8 +578,24 @@ public class ImportService {
         });
 
         List<String> errors = new ArrayList<>();
-        int imported = 0;
         int dupes = 0;
+
+        java.util.Set<String> existingHashesJson = transactionRepository.findAllImportHashesByUser(user);
+
+        LocalDate existingLatestDateJson = transactionRepository
+                .findMaxDateByUserAndPaymentSource(user, bankName)
+                .orElse(LocalDate.MIN);
+
+        LocalDate importMaxDateJson = transactions.stream()
+                .map(dto -> dto.getDate() != null ? dto.getDate() : LocalDate.now())
+                .max(LocalDate::compareTo)
+                .orElse(LocalDate.MIN);
+
+        BigDecimal runningBalanceJson = jsonAsset.getValue() != null ? jsonAsset.getValue() : BigDecimal.ZERO;
+        BigDecimal latestDateBalanceJson = null;
+        LocalDate latestDateSeenJson = LocalDate.MIN;
+
+        List<Transaction> batchJson = new ArrayList<>();
 
         for (int i = 0; i < transactions.size(); i++) {
             try {
@@ -518,27 +603,57 @@ public class ImportService {
                 LocalDate txDate = dto.getDate() != null ? dto.getDate() : LocalDate.now();
                 String hash = generateTxnHash(user.getId(), txDate, dto.getAmount(),
                         dto.getTitle() != null ? dto.getTitle() : dto.getDescription());
-                if (transactionRepository.existsByUserAndImportHash(user, hash)) {
+                if (existingHashesJson.contains(hash)) {
                     dupes++;
                     continue;
                 }
+                existingHashesJson.add(hash);
+
+                TransactionType txType = dto.getType() != null ? dto.getType() : TransactionType.DEBIT;
+                if (assetCategory == AssetCategory.BANK) {
+                    runningBalanceJson = txType == TransactionType.CREDIT
+                        ? runningBalanceJson.add(dto.getAmount())
+                        : runningBalanceJson.subtract(dto.getAmount());
+                } else if (assetCategory == AssetCategory.CREDIT_CARD) {
+                    runningBalanceJson = txType == TransactionType.DEBIT
+                        ? runningBalanceJson.add(dto.getAmount())
+                        : runningBalanceJson.subtract(dto.getAmount());
+                }
+
+                BigDecimal txnBalanceAfter = dto.getBalanceAfter() != null ? dto.getBalanceAfter() : runningBalanceJson;
+
                 Transaction txn = new Transaction();
                 txn.setUser(user);
                 txn.setTitle(dto.getTitle() != null ? dto.getTitle() : dto.getDescription() != null ? dto.getDescription() : "Imported");
                 txn.setDescription(dto.getDescription());
                 txn.setAmount(dto.getAmount());
-                txn.setType(dto.getType() != null ? dto.getType() : TransactionType.DEBIT);
+                txn.setType(txType);
                 txn.setCategory(dto.getBudgetCategory() != null ? dto.getBudgetCategory() : "Uncategorized");
                 txn.setDate(txDate);
                 txn.setBudgetCategory(dto.getBudgetCategory() != null ? dto.getBudgetCategory() : "Uncategorized");
                 txn.setPaymentSource(bankName);
                 txn.setReferenceNumber(dto.getReferenceNumber());
                 txn.setImportHash(hash);
-                transactionRepository.save(txn);
-                imported++;
+                txn.setBalanceAfter(txnBalanceAfter);
+                batchJson.add(txn);
+
+                if (!txDate.isBefore(latestDateSeenJson)) {
+                    latestDateSeenJson = txDate;
+                    latestDateBalanceJson = txnBalanceAfter;
+                }
             } catch (Exception e) {
                 errors.add("Row " + (i + 1) + ": " + e.getMessage());
             }
+        }
+
+        if (!batchJson.isEmpty()) {
+            transactionRepository.saveAll(batchJson);
+        }
+        int imported = batchJson.size();
+
+        if (imported > 0 && !importMaxDateJson.isBefore(existingLatestDateJson) && latestDateBalanceJson != null) {
+            jsonAsset.setValue(latestDateBalanceJson);
+            assetRepository.save(jsonAsset);
         }
 
         String msg = "Imported " + imported + " transactions" + (dupes > 0 ? ", " + dupes + " duplicates skipped" : "");

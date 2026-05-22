@@ -37,6 +37,7 @@ api.interceptors.response.use(
 export const getDashboardSummary = (params = {}) => api.get('/dashboard/summary', { params });
 
 export const getTransactions = (params = {}) => api.get('/transactions', { params });
+export const searchTransactions = (q, params = {}) => api.get('/transactions/search', { params: { q, ...params } });
 export const getTransactionsByBudget = (budgetCategory, params = {}) => api.get(`/transactions/budget/${encodeURIComponent(budgetCategory)}`, { params });
 export const getTransactionsBySource = (source) => api.get(`/transactions/source/${encodeURIComponent(source)}`);
 export const getTransactionsByType = (type) => api.get(`/transactions/type/${type}`);
@@ -131,6 +132,16 @@ export const toggleTransactionTaxInclude = (id, includeInTax) =>
 // Profile APIs
 export const getProfile = () => api.get('/profile');
 export const updateProfile = (data) => api.put('/profile', data);
+
+// Import Format APIs
+export const getImportFormats = () => api.get('/import-formats');
+export const getImportFormatsByType = (type) => api.get(`/import-formats/type/${type}`);
+export const getImportFormatsBanks = () => api.get('/import-formats/banks');
+export const getImportFormatsBrokers = () => api.get('/import-formats/brokers');
+export const getImportFormatById = (id) => api.get(`/import-formats/${id}`);
+export const createImportFormat = (data) => api.post('/import-formats', data);
+export const updateImportFormat = (id, data) => api.put(`/import-formats/${id}`, data);
+export const deleteImportFormat = (id) => api.delete(`/import-formats/${id}`);
 
 // Import APIs
 export const previewTradesImport = (formData) => api.post('/import/preview/trades', formData, {
