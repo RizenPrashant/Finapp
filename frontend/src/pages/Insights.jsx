@@ -4,6 +4,7 @@
  * All rights reserved.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, ArrowLeft, Trash2, Edit3, TrendingUp, TrendingDown, DollarSign, PieChart, Target, ArrowUp, ArrowDown, Home, Gem, Briefcase, Building2, Landmark, Wallet, Receipt, CreditCard as CreditCardIcon, Edit2, ArrowUpCircle, ArrowDownCircle, Calendar, Tag, X } from 'lucide-react';
 import Header from '../components/Header';
 import AddAssetModal from '../components/AddAssetModal';
@@ -34,13 +35,12 @@ const investmentTypes = [
   { value: 'ALL', label: 'All', icon: PieChart },
   { value: 'PROPERTY', label: 'Property', icon: Home },
   { value: 'GOLD', label: 'Gold', icon: Gem },
-  { value: 'STOCKS', label: 'Stocks', icon: TrendingUp },
   { value: 'MUTUAL_FUND', label: 'Mutual Fund', icon: Briefcase },
   { value: 'FD', label: 'Fixed Deposit', icon: DollarSign },
-  { value: 'CRYPTOCURRENCY', label: 'Crypto', icon: Target },
 ];
 
 export default function Insights({ onProfileClick }) {
+  const navigate = useNavigate();
   const [summary, setSummary] = useState(null);
   const [selectedType, setSelectedType] = useState(null); // null = summary view
   

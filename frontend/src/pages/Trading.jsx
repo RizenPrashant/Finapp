@@ -1,19 +1,23 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, TrendingUp, TrendingDown, Activity, DollarSign, Target, Percent, Briefcase, Building2, ChevronLeft, ChevronRight, Calendar, TrendingUp as TrendingUpIcon, Upload } from 'lucide-react';
-import { getTrades, getTradesByStatus, getTradesByBroker, getBrokers, getTradingAnalytics, deleteTrade, createTrade, updateTrade, getCompoundingHistory, createCompoundingHistory, deleteCompoundingHistory } from '../api';
+import { Plus, TrendingUp, TrendingDown, Activity, DollarSign, Target, Percent, Briefcase, Building2, ChevronLeft, ChevronRight, Calendar, TrendingUp as TrendingUpIcon, Upload, Grid3X3, List, PieChart } from 'lucide-react';
+import { getTrades, getTradesByStatus, getTradesByBroker, getBrokers, getTradingAnalytics, deleteTrade, createTrade, updateTrade, getCompoundingHistory, createCompoundingHistory, deleteCompoundingHistory, getStockHoldings } from '../api';
 import AddTradeModal from '../components/AddTradeModal';
 import ImportModal from '../components/ImportModal';
 import TradeCard from '../components/TradeCard';
+import StockHoldingCard from '../components/StockHoldingCard';
 import { FILTER_PREFS_KEY, isDeleteLocked } from '../pages/Settings';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 export default function Trading() {
   const [trades, setTrades] = useState([]);
+  const [holdings, setHoldings] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [compoundingHistory, setCompoundingHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
+  const [viewMode, setViewMode] = useState('portfolio'); // 'portfolio' or 'trades'
   const [selectedBroker, setSelectedBroker] = useState('');
+  const [selectedSegment, setSelectedSegment] = useState('');
   const [brokers, setBrokers] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCompoundingModal, setShowCompoundingModal] = useState(false);
@@ -55,13 +59,15 @@ export default function Trading() {
         tradesPromise = getTrades();
       }
 
-      const [tradesRes, analyticsRes, compoundingRes, brokersRes] = await Promise.all([
+      const [tradesRes, holdingsRes, analyticsRes, compoundingRes, brokersRes] = await Promise.all([
         tradesPromise,
+        getStockHoldings(),
         getTradingAnalytics(),
         getCompoundingHistory(),
         getBrokers()
       ]);
       setTrades(tradesRes.data);
+      setHoldings(holdingsRes.data || []);
       setAnalytics(analyticsRes.data);
       // Only show trade-linked compounding entries in Trading page
       const tradeLinkedCompounding = (compoundingRes.data || []).filter(h => h.tradeId != null);
@@ -440,35 +446,93 @@ export default function Trading() {
         </div>
       )}
 
-      {/* Tabs & Broker Filter - Sticky */}
+      {/* Tabs & View Mode - Sticky */}
       <div className="sticky top-0 z-20 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm px-6 py-3 border-b border-gray-200/50 dark:border-gray-700/50">
         <div className="flex flex-wrap items-center gap-3">
-
-          <div className="flex gap-2">
-            {['all', 'open', 'closed'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => { setActiveTab(tab); setSelectedBroker(''); }}
-                className={`px-4 py-2 rounded-xl font-medium transition-colors ${
-                  activeTab === tab && !selectedBroker
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)} Trades
-              </button>
-            ))}
+          {/* View Mode Toggle */}
+          <div className="flex gap-1 bg-white dark:bg-gray-800 p-1 rounded-xl border border-gray-200 dark:border-gray-600">
+            <button
+              onClick={() => setViewMode('portfolio')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                viewMode === 'portfolio'
+                  ? 'bg-slate-900 text-white'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <PieChart size={14} />
+              Portfolio
+            </button>
+            <button
+              onClick={() => setViewMode('trades')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                viewMode === 'trades'
+                  ? 'bg-slate-900 text-white'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <List size={14} />
+              Trades
+            </button>
           </div>
 
-          <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
+          <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+
+          {/* Trade Status Tabs - Only in Trades View */}
+          {viewMode === 'trades' && (
+            <div className="flex gap-2">
+              {['all', 'open', 'closed'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => { setActiveTab(tab); setSelectedBroker(''); }}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    activeTab === tab && !selectedBroker
+                      ? 'bg-slate-900 text-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Segment Filter - Only in Portfolio View */}
+          {viewMode === 'portfolio' && (
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedSegment}
+                onChange={(e) => setSelectedSegment(e.target.value)}
+                className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+              >
+                <option value="">All Segments</option>
+                <option value="EQUITY">Equity</option>
+                <option value="CRYPTO">Crypto</option>
+                <option value="MUTUAL_FUND">Mutual Fund</option>
+                <option value="FNO">F&O</option>
+                <option value="INTRADAY">Intraday</option>
+                <option value="SWING">Swing</option>
+                <option value="LONG_TERM">Long Term</option>
+              </select>
+              {selectedSegment && (
+                <button
+                  onClick={() => setSelectedSegment('')}
+                  className="text-xs text-gray-500 hover:text-red-500 underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
 
           {/* Broker Filter */}
           <div className="flex items-center gap-2">
-            <Building2 size={18} className="text-gray-500" />
+            <Building2 size={16} className="text-gray-500" />
             <select
               value={selectedBroker}
               onChange={(e) => setSelectedBroker(e.target.value)}
-              className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+              className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
             >
               <option value="">All Brokers</option>
               {brokers.map((broker) => (
@@ -487,35 +551,105 @@ export default function Trading() {
         </div>
       </div>
 
-      {/* Trades Grid - Using Filtered Data */}
+      {/* Content Area - Portfolio or Trades View */}
       <div className="px-6 pb-6">
-        {filteredTrades.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-12 text-center">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Activity size={24} className="text-gray-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">
-              {trades.length === 0 ? 'No trades yet' : 'No trades for this period'}
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400">
-              {trades.length === 0 ? 'Add your first trade to start tracking your portfolio' : 'Try changing the date filter'}
-            </p>
-          </div>
+        {viewMode === 'portfolio' ? (
+          // Portfolio View - Stock Holdings
+          <>
+            {(() => {
+              // Filter holdings by segment if selected
+              let filteredHoldings = holdings;
+              if (selectedSegment) {
+                filteredHoldings = holdings.filter(h => h.segment === selectedSegment);
+              }
+              // Filter by broker if selected (check if any trade in holding has that broker)
+              if (selectedBroker) {
+                filteredHoldings = holdings.filter(h => 
+                  h.trades.some(t => t.broker === selectedBroker)
+                );
+              }
+              
+              if (filteredHoldings.length === 0) {
+                return (
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl p-12 text-center">
+                    <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <PieChart size={24} className="text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">
+                      {holdings.length === 0 ? 'No holdings yet' : 'No holdings match filters'}
+                    </h3>
+                    <p className="text-gray-500 dark:text-gray-400">
+                      {holdings.length === 0 
+                        ? 'Add your first trade to start tracking your portfolio' 
+                        : 'Try changing the segment or broker filter'}
+                    </p>
+                  </div>
+                );
+              }
+              
+              return (
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {filteredHoldings.map((holding) => (
+                    <StockHoldingCard
+                      key={holding.stockName}
+                      holding={holding}
+                      onTradeClick={(trade) => {
+                        setEditingTrade({
+                          id: trade.tradeId,
+                          stockName: holding.stockName,
+                          quantity: trade.quantity,
+                          buyPrice: trade.buyPrice,
+                          sellPrice: trade.sellPrice,
+                          investedAmount: trade.investedAmount,
+                          returnAmount: trade.returnAmount,
+                          profitLoss: trade.profitLoss,
+                          status: trade.status,
+                          entryDate: trade.entryDate,
+                          exitDate: trade.exitDate,
+                          broker: trade.broker,
+                          notes: trade.notes,
+                          segment: holding.segment
+                        });
+                        setShowAddModal(true);
+                      }}
+                    />
+                  ))}
+                </div>
+              );
+            })()}
+          </>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredTrades.map((trade) => (
-              <TradeCard
-                key={trade.id}
-                trade={trade}
-                onEdit={() => {
-                  setEditingTrade(trade);
-                  setShowAddModal(true);
-                }}
-                onDelete={() => handleDelete(trade.id)}
-                deleteLocked={tradeDeleteLocked}
-              />
-            ))}
-          </div>
+          // Trades View - Individual Trades
+          <>
+            {filteredTrades.length === 0 ? (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl p-12 text-center">
+                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Activity size={24} className="text-gray-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">
+                  {trades.length === 0 ? 'No trades yet' : 'No trades for this period'}
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400">
+                  {trades.length === 0 ? 'Add your first trade to start tracking your portfolio' : 'Try changing the date filter'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredTrades.map((trade) => (
+                  <TradeCard
+                    key={trade.id}
+                    trade={trade}
+                    onEdit={() => {
+                      setEditingTrade(trade);
+                      setShowAddModal(true);
+                    }}
+                    onDelete={() => handleDelete(trade.id)}
+                    deleteLocked={tradeDeleteLocked}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
       </div> {/* End Scrollable Content */}

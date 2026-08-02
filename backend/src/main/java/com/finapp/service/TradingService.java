@@ -1,6 +1,7 @@
 package com.finapp.service;
 
 import com.finapp.dto.CompoundingHistoryDTO;
+import com.finapp.dto.StockHoldingsDTO;
 import com.finapp.dto.TradeAnalyticsDTO;
 import com.finapp.dto.TradeDTO;
 import com.finapp.model.*;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +62,108 @@ public class TradingService {
 
     public List<String> getBrokers(User user) {
         return tradeRepository.findDistinctBrokersByUser(user);
+    }
+
+    public List<StockHoldingsDTO> getStockHoldings(User user) {
+        List<Trade> allTrades = getAllTrades(user);
+        
+        // Group trades by stock name
+        Map<String, List<Trade>> tradesByStock = allTrades.stream()
+                .collect(Collectors.groupingBy(Trade::getStockName));
+        
+        List<StockHoldingsDTO> holdings = new ArrayList<>();
+        
+        for (Map.Entry<String, List<Trade>> entry : tradesByStock.entrySet()) {
+            String stockName = entry.getKey();
+            List<Trade> stockTrades = entry.getValue();
+            
+            // Calculate aggregated values
+            int totalQty = 0;
+            BigDecimal totalInvested = BigDecimal.ZERO;
+            BigDecimal avgBuyPrice = BigDecimal.ZERO;
+            int openTrades = 0;
+            int closedTrades = 0;
+            String segment = "EQUITY";
+            
+            List<StockHoldingsDTO.TradeDetail> tradeDetails = new ArrayList<>();
+            
+            for (Trade trade : stockTrades) {
+                if (trade.getSegment() != null) {
+                    segment = trade.getSegment().name();
+                }
+                
+                int qty = trade.getQuantity() != null ? trade.getQuantity() : 0;
+                BigDecimal buyPrice = trade.getBuyPrice() != null ? trade.getBuyPrice() : BigDecimal.ZERO;
+                BigDecimal invested = trade.getInvestedAmount() != null ? trade.getInvestedAmount() 
+                        : buyPrice.multiply(new BigDecimal(qty));
+                
+                // For BUY trades (Long positions), add quantity
+                // For SELL/Closed trades, subtract quantity
+                if (trade.getStatus() == TradeStatus.OPEN) {
+                    totalQty += qty;
+                    totalInvested = totalInvested.add(invested);
+                    openTrades++;
+                } else {
+                    // CLOSED trade - check if it's a sell
+                    closedTrades++;
+                    // If it's a closed trade with profit/loss, it was a sell
+                    if (trade.getSellPrice() != null) {
+                        // This was a sell, reduce quantity
+                        totalQty -= qty;
+                        // Note: We don't subtract from totalInvested for closed trades
+                        // as the capital was returned
+                    }
+                }
+                
+                tradeDetails.add(StockHoldingsDTO.TradeDetail.builder()
+                        .tradeId(trade.getId())
+                        .quantity(qty)
+                        .buyPrice(buyPrice)
+                        .sellPrice(trade.getSellPrice())
+                        .investedAmount(invested)
+                        .returnAmount(trade.getReturnAmount())
+                        .profitLoss(trade.getProfitLoss())
+                        .status(trade.getStatus().name())
+                        .entryDate(trade.getEntryDate() != null ? trade.getEntryDate().toString() : null)
+                        .exitDate(trade.getExitDate() != null ? trade.getExitDate().toString() : null)
+                        .broker(trade.getBroker())
+                        .notes(trade.getNotes())
+                        .build());
+            }
+            
+            // Calculate average buy price
+            if (totalQty > 0 && totalInvested.compareTo(BigDecimal.ZERO) > 0) {
+                avgBuyPrice = totalInvested.divide(new BigDecimal(totalQty), 4, RoundingMode.HALF_UP);
+            }
+            
+            // For current value, we need current market price
+            // For now, use avg buy price as current value (can be enhanced with live price API)
+            BigDecimal currentValue = avgBuyPrice.multiply(new BigDecimal(Math.max(0, totalQty)));
+            BigDecimal unrealizedPnl = BigDecimal.ZERO;
+            BigDecimal unrealizedPnlPct = BigDecimal.ZERO;
+            
+            StockHoldingsDTO holding = StockHoldingsDTO.builder()
+                    .stockName(stockName)
+                    .segment(segment)
+                    .totalQuantity(Math.max(0, totalQty))
+                    .averageBuyPrice(avgBuyPrice)
+                    .totalInvested(totalInvested)
+                    .currentValue(currentValue)
+                    .unrealizedPnl(unrealizedPnl)
+                    .unrealizedPnlPercentage(unrealizedPnlPct)
+                    .totalTrades(stockTrades.size())
+                    .openTrades(openTrades)
+                    .closedTrades(closedTrades)
+                    .trades(tradeDetails)
+                    .build();
+            
+            holdings.add(holding);
+        }
+        
+        // Sort by total invested amount (descending)
+        return holdings.stream()
+                .sorted((a, b) -> b.getTotalInvested().compareTo(a.getTotalInvested()))
+                .collect(Collectors.toList());
     }
 
     @Transactional

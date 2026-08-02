@@ -149,10 +149,20 @@ public class ImportService {
 
     private List<TradeDTO> parseTradesFile(MultipartFile file, String format, String brokerType, Long formatId) {
         String bt = brokerType != null ? brokerType : "GENERIC";
-        if (formatId != null && ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format))) {
+
+        // If formatId is provided, use custom format parsing
+        if (formatId != null) {
             ImportFormat fmt = importFormatRepository.findById(formatId).orElse(null);
-            if (fmt != null) return brokerPdfParser.parseExcel(file, fmt);
+            if (fmt != null) {
+                if ("csv".equalsIgnoreCase(format)) {
+                    return brokerPdfParser.parseCSVWithFormat(file, fmt);
+                } else if ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format)) {
+                    return brokerPdfParser.parseExcel(file, fmt);
+                }
+            }
         }
+
+        // Fallback to predefined broker formats
         if ("csv".equalsIgnoreCase(format)) {
             return brokerPdfParser.parseCSV(file, bt);
         } else if ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format)) {

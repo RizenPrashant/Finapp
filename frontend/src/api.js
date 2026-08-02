@@ -65,6 +65,7 @@ export const getTradesByStatus = (status) => api.get(`/trading/trades/status/${s
 export const getTradesBySegment = (segment) => api.get(`/trading/trades/segment/${segment}`);
 export const getTradesByBroker = (broker) => api.get(`/trading/trades/broker/${broker}`);
 export const getBrokers = () => api.get('/trading/brokers');
+export const getStockHoldings = () => api.get('/trading/holdings');
 export const createTrade = (data) => api.post('/trading/trades', data);
 export const updateTrade = (id, data) => api.put(`/trading/trades/${id}`, data);
 export const deleteTrade = (id) => api.delete(`/trading/trades/${id}`);

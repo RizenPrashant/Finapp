@@ -3,6 +3,8 @@ package com.finapp.service;
 import com.finapp.dto.TradeDTO;
 import com.finapp.model.ImportFormat;
 import com.finapp.model.Trade;
+import com.finapp.model.Trade.TradeType;
+import com.finapp.model.Trade.PositionType;
 import com.finapp.model.TradeSegment;
 import com.finapp.model.TradeStatus;
 import com.opencsv.CSVReader;
@@ -309,6 +311,120 @@ public class BrokerPdfParser {
         return list;
     }
 
+    /**
+     * Parse CSV using custom ImportFormat column mappings (for user-defined formats)
+     */
+    public List<TradeDTO> parseCSVWithFormat(MultipartFile file, ImportFormat fmt) {
+        List<TradeDTO> list = new ArrayList<>();
+        int skipRows = fmt.getSkipRows() != null ? fmt.getSkipRows() : 1;
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()));
+             CSVReader csv = new CSVReaderBuilder(reader).withSkipLines(skipRows).build()) {
+
+            // Read header row to get column indices
+            String[] header = csv.readNext();
+            if (header == null) {
+                throw new RuntimeException("CSV file is empty");
+            }
+
+            // Create column name to index mapping
+            Map<String, Integer> colIndex = new HashMap<>();
+            for (int i = 0; i < header.length; i++) {
+                colIndex.put(header[i].trim().toLowerCase(), i);
+            }
+
+            // Get column indices from format configuration
+            Integer symbolIdx = getColumnIndex(colIndex, fmt.getSymbolColumn());
+            Integer qtyIdx = getColumnIndex(colIndex, fmt.getQuantityColumn());
+            Integer priceIdx = getColumnIndex(colIndex, fmt.getPriceColumn());
+            Integer tradeTypeIdx = getColumnIndex(colIndex, fmt.getTradeTypeColumn());
+            Integer dateIdx = getColumnIndex(colIndex, fmt.getTradeDateColumn());
+
+            if (symbolIdx == null) {
+                throw new RuntimeException("Symbol column not found in CSV. Expected: " + fmt.getSymbolColumn());
+            }
+
+            String[] row;
+            int rowNum = skipRows + 1; // +1 for header
+            while ((row = csv.readNext()) != null) {
+                rowNum++;
+                if (row.length < 2) continue; // Skip empty rows
+
+                try {
+                    TradeDTO dto = new TradeDTO();
+
+                    // Stock Symbol
+                    dto.setStockName(row[symbolIdx].trim());
+
+                    // Quantity
+                    if (qtyIdx != null && qtyIdx < row.length) {
+                        dto.setQuantity(parseInt(row[qtyIdx]));
+                    } else {
+                        dto.setQuantity(0);
+                    }
+
+                    // Price
+                    BigDecimal price = BigDecimal.ZERO;
+                    if (priceIdx != null && priceIdx < row.length) {
+                        price = parseMoney(row[priceIdx]);
+                    }
+
+                    // Trade Type (Buy/Sell)
+                    String tradeType = "BUY";
+                    if (tradeTypeIdx != null && tradeTypeIdx < row.length) {
+                        String tt = row[tradeTypeIdx].trim().toUpperCase();
+                        tradeType = tt.startsWith("B") ? "BUY" : "SELL";
+                    }
+
+                    // Set buy/sell prices and position type
+                    if ("BUY".equals(tradeType)) {
+                        dto.setBuyPrice(price);
+                        dto.setPositionType(PositionType.LONG);
+                    } else {
+                        dto.setSellPrice(price);
+                        dto.setPositionType(PositionType.SHORT);
+                    }
+
+                    // Default trade type (can be updated later if parsed from data)
+                    dto.setTradeType(TradeType.SWING);
+
+                    // Calculate invested amount
+                    if (dto.getQuantity() > 0 && price.compareTo(BigDecimal.ZERO) > 0) {
+                        dto.setInvestedAmount(price.multiply(BigDecimal.valueOf(dto.getQuantity())));
+                    }
+
+                    // Trade Date
+                    if (dateIdx != null && dateIdx < row.length) {
+                        dto.setEntryDate(parseDateMulti(row[dateIdx].trim()));
+                    } else {
+                        dto.setEntryDate(LocalDate.now());
+                    }
+
+                    // Default values
+                    dto.setStatus(TradeStatus.OPEN);
+                    dto.setSegment(TradeSegment.EQUITY);
+                    dto.setPositionType(Trade.PositionType.LONG);
+                    dto.setBroker(fmt.getName());
+
+                    if (dto.getStockName() != null && !dto.getStockName().isEmpty()) {
+                        list.add(dto);
+                    }
+                } catch (Exception e) {
+                    log.warn("CSV row {} parse failed: {}", rowNum, e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error parsing CSV with custom format: " + e.getMessage(), e);
+        }
+        log.info("parseCSVWithFormat [{}] → {} trades parsed", fmt.getName(), list.size());
+        return list;
+    }
+
+    private Integer getColumnIndex(Map<String, Integer> colIndex, String columnName) {
+        if (columnName == null || columnName.trim().isEmpty()) return null;
+        return colIndex.get(columnName.trim().toLowerCase());
+    }
+
     private TradeDTO mapBrokerCsvRow(String[] r, String brokerType) {
         TradeDTO dto = new TradeDTO();
         switch (brokerType == null ? "GENERIC" : brokerType.toUpperCase()) {
@@ -446,18 +562,33 @@ public class BrokerPdfParser {
 
             // Helper to resolve column index by format field name
             final Map<String, Integer> idx = colIndex;
-            java.util.function.Function<String, Integer> col = name ->
-                (name == null || name.isBlank()) ? -1 : idx.getOrDefault(name.toLowerCase().trim(), -1);
+            java.util.function.Function<String, Integer> col = name -> {
+                if (name == null || name.isBlank()) return -1;
+                String key = name.toLowerCase().trim();
+                Integer result = idx.get(key);
+                log.debug("Column lookup: '{}' -> key='{}' -> index={}", name, key, result);
+                return result != null ? result : -1;
+            };
             java.util.function.BiFunction<String[], Integer, String> get = (r, i2) ->
                 (i2 < 0 || i2 >= r.length) ? "" : (r[i2] == null ? "" : r[i2].trim());
 
-            int symCol  = col.apply(fmt.getSymbolColumn());
-            int dtCol   = col.apply(fmt.getTradeDateColumn());
-            int bsCol   = col.apply(fmt.getTradeTypeColumn());
-            int qtyCol  = col.apply(fmt.getQuantityColumn());
-            int priceCol= col.apply(fmt.getPriceColumn());
+            String symColName = fmt.getSymbolColumn();
+            String dtColName = fmt.getTradeDateColumn();
+            String bsColName = fmt.getTradeTypeColumn();
+            String qtyColName = fmt.getQuantityColumn();
+            String priceColName = fmt.getPriceColumn();
 
-            log.info("Column indices — symbol:{} date:{} buySell:{} qty:{} price:{}", symCol, dtCol, bsCol, qtyCol, priceCol);
+            log.info("Format columns — symbol:'{}' date:'{}' buySell:'{}' qty:'{}' price:'{}'",
+                symColName, dtColName, bsColName, qtyColName, priceColName);
+            log.info("Available columns in header: {}", idx.keySet());
+
+            int symCol  = col.apply(symColName);
+            int dtCol   = col.apply(dtColName);
+            int bsCol   = col.apply(bsColName);
+            int qtyCol  = col.apply(qtyColName);
+            int priceCol= col.apply(priceColName);
+
+            log.info("Resolved column indices — symbol:{} date:{} buySell:{} qty:{} price:{}", symCol, dtCol, bsCol, qtyCol, priceCol);
 
             for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
@@ -469,7 +600,23 @@ public class BrokerPdfParser {
 
                     TradeDTO dto = new TradeDTO();
                     dto.setStockName(symbol);
-                    dto.setEntryDate(parseDateMulti(get.apply(r, dtCol)));
+
+                    // Date parsing with fallback
+                    String dateStr = get.apply(r, dtCol);
+                    if (dateStr.isBlank() && dtCol < 0) {
+                        log.warn("Date column not found or empty, using current date for row {}", i);
+                        dto.setEntryDate(LocalDate.now());
+                    } else if (dateStr.isBlank()) {
+                        log.warn("Empty date in row {}, using current date", i);
+                        dto.setEntryDate(LocalDate.now());
+                    } else {
+                        try {
+                            dto.setEntryDate(parseDateMulti(dateStr));
+                        } catch (Exception e) {
+                            log.warn("Cannot parse date '{}', using current date: {}", dateStr, e.getMessage());
+                            dto.setEntryDate(LocalDate.now());
+                        }
+                    }
 
                     String bs = get.apply(r, bsCol).toUpperCase();
                     boolean isBuy = bs.startsWith("B");
