@@ -8,13 +8,16 @@ import com.finapp.model.User;
 import com.finapp.repository.UserRepository;
 import com.finapp.service.BudgetLimitService;
 import com.finapp.service.JwtService;
+import com.finapp.service.UserService;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -29,17 +32,20 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final BudgetLimitService budgetLimitService;
+    private final UserService userService;
 
     public AuthController(AuthenticationManager authenticationManager,
                          UserRepository userRepository,
                          PasswordEncoder passwordEncoder,
                          JwtService jwtService,
-                         BudgetLimitService budgetLimitService) {
+                         BudgetLimitService budgetLimitService,
+                         UserService userService) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.budgetLimitService = budgetLimitService;
+        this.userService = userService;
     }
 
     @PostMapping("/register")
@@ -96,6 +102,23 @@ public class AuthController {
         dto.setColor(color);
         dto.setNote(note);
         return dto;
+    }
+
+    @PutMapping("/change-password")
+    public ResponseEntity<?> changePassword(
+            Authentication authentication,
+            @RequestBody Map<String, String> body) {
+        String currentPassword = body.get("currentPassword");
+        String newPassword = body.get("newPassword");
+        if (currentPassword == null || newPassword == null || newPassword.length() < 6) {
+            return ResponseEntity.badRequest().body("Invalid request. New password must be at least 6 characters.");
+        }
+        try {
+            userService.changePassword(authentication, currentPassword, newPassword);
+            return ResponseEntity.ok(Map.of("message", "Password changed successfully"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @PostMapping("/login")

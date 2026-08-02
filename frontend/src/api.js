@@ -132,6 +132,7 @@ export const toggleTransactionTaxInclude = (id, includeInTax) =>
 // Profile APIs
 export const getProfile = () => api.get('/profile');
 export const updateProfile = (data) => api.put('/profile', data);
+export const changePassword = (data) => api.put('/auth/change-password', data);
 
 // Import Format APIs
 export const getImportFormats = () => api.get('/import-formats');
