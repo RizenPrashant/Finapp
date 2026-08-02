@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Shield, ShieldOff, Building2, Plus, Trash2, Calendar, Filter, TrendingUp, Percent, Wallet, Tag, FileInput } from 'lucide-react';
+import { Shield, ShieldOff, Building2, Plus, Trash2, Calendar, Filter, TrendingUp, Percent, Wallet, Tag, FileInput, KeyRound } from 'lucide-react';
 import Header from '../components/Header';
-import { getBudgets, saveBudget, getBrokers, getCompoundingSettings, updateCompoundingSettings, getImportFormats, createImportFormat, updateImportFormat, deleteImportFormat, getAssets } from '../api';
+import { getBudgets, saveBudget, getBrokers, getCompoundingSettings, updateCompoundingSettings, getImportFormats, createImportFormat, updateImportFormat, deleteImportFormat, getAssets, changePassword } from '../api';
 
 export const DELETE_LOCK_KEY = 'finapp_delete_locked'; // legacy, kept for compat
 export const DELETE_LOCKS_KEY = 'finapp_delete_locks';
@@ -104,6 +104,32 @@ export default function Settings() {
     minReinvestAmount: 100,
   });
   const [compoundingSaved, setCompoundingSaved] = useState(false);
+
+  // Change Password State
+  const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [pwStatus, setPwStatus] = useState(null); // null | 'success' | 'error'
+  const [pwMessage, setPwMessage] = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
+
+  const handleChangePassword = async () => {
+    if (pwForm.newPassword !== pwForm.confirmPassword) {
+      setPwStatus('error'); setPwMessage('New passwords do not match.'); return;
+    }
+    if (pwForm.newPassword.length < 6) {
+      setPwStatus('error'); setPwMessage('New password must be at least 6 characters.'); return;
+    }
+    setPwLoading(true);
+    try {
+      await changePassword({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword });
+      setPwStatus('success'); setPwMessage('Password changed successfully!');
+      setPwForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setTimeout(() => setPwStatus(null), 3000);
+    } catch (e) {
+      setPwStatus('error'); setPwMessage(e.response?.data || 'Failed to change password.');
+    } finally {
+      setPwLoading(false);
+    }
+  };
 
   const fetchImportFormats = () => {
     setFormatsLoading(true);
@@ -356,6 +382,38 @@ export default function Settings() {
                     </div>
                   );
                 })}
+              </div>
+
+              {/* Change Password */}
+              <div className="mt-6 pt-5 border-t border-gray-100 dark:border-gray-700">
+                <div className="flex items-center gap-2 mb-3">
+                  <KeyRound size={16} className="text-emerald-500" />
+                  <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Change Password</p>
+                </div>
+                <div className="space-y-3">
+                  {['currentPassword', 'newPassword', 'confirmPassword'].map((field) => (
+                    <input
+                      key={field}
+                      type="password"
+                      placeholder={field === 'currentPassword' ? 'Current password' : field === 'newPassword' ? 'New password' : 'Confirm new password'}
+                      value={pwForm[field]}
+                      onChange={(e) => setPwForm({ ...pwForm, [field]: e.target.value })}
+                      className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-emerald-400"
+                    />
+                  ))}
+                  {pwStatus && (
+                    <p className={`text-xs font-medium ${pwStatus === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
+                      {pwMessage}
+                    </p>
+                  )}
+                  <button
+                    onClick={handleChangePassword}
+                    disabled={pwLoading || !pwForm.currentPassword || !pwForm.newPassword || !pwForm.confirmPassword}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition text-sm disabled:opacity-50"
+                  >
+                    {pwLoading ? 'Changing...' : 'Change Password'}
+                  </button>
+                </div>
               </div>
               </div>
             </div>
