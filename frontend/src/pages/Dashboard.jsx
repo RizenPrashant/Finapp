@@ -21,6 +21,8 @@ import {
   updateTransaction,
   deleteTransaction,
   getCashbackWallets,
+  getCashbackEntries,
+  getTradingAnalytics,
 } from '../api';
 import { eventEmitter, EVENTS } from '../utils/events';
 
@@ -94,19 +96,60 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
 
   const fetchBudgets = useCallback(async () => {
     const res = await getBudgets();
-    console.log('Budgets API response:', res.data);
     setBudgets(res.data);
     const dateParams = getDateRangeParams();
     const spentMap = {};
-    await Promise.all(
-      res.data.map(async (b) => {
-        const t = await getTransactionsByBudget(b.category, dateParams);
-        spentMap[b.category] = t.data
-          .filter((tx) => tx.type === 'DEBIT')
-          .reduce((sum, tx) => sum + parseFloat(tx.amount), 0);
-      })
+    const budgetTxResults = await Promise.all(
+      res.data.map(b => getTransactionsByBudget(b.category, dateParams))
     );
-    setBudgetSpent(spentMap);
+    res.data.forEach((b, i) => {
+      const txs = budgetTxResults[i].data;
+      if (b.category === 'Monthly Revenue') {
+        spentMap[b.category] = txs
+          .filter(tx => tx.type === 'CREDIT')
+          .reduce((sum, tx) => sum + parseFloat(tx.amount), 0);
+      } else {
+        spentMap[b.category] = txs
+          .filter(tx => tx.type === 'DEBIT')
+          .reduce((sum, tx) => sum + parseFloat(tx.amount), 0);
+      }
+    });
+    // Monthly Total Expense = sum of its 3 sub-categories
+    const combinedCats = ['Monthly Food Expense', 'Monthly Spend', 'Miscellaneous'];
+    if (combinedCats.every(c => spentMap[c] !== undefined)) {
+      spentMap['Monthly Total Expense'] = combinedCats.reduce((sum, c) => sum + (spentMap[c] || 0), 0);
+    }
+
+    // Add cashback + trading to Monthly Revenue separately (non-blocking)
+    const { startDate, endDate } = dateParams;
+    const inRange = (dateStr) => {
+      if (!startDate || !endDate) return true;
+      const d = String(dateStr).substring(0, 10);
+      return d >= startDate && d <= endDate;
+    };
+    setBudgetSpent({ ...spentMap });
+
+    // Fetch cashback + trading in background and update Monthly Revenue
+    Promise.all([
+      getCashbackEntries().catch(() => ({ data: [] })),
+      getTradingAnalytics().catch(() => ({ data: { monthlyPnL: {} } })),
+    ]).then(([cashbackRes, analyticsRes]) => {
+      const cashbackSum = (cashbackRes.data || [])
+        .filter(e => e.type === 'EARNED' && inRange(e.date))
+        .reduce((sum, e) => sum + parseFloat(e.amount), 0);
+      const monthlyPnL = analyticsRes.data?.monthlyPnL || {};
+      let tradingSum = 0;
+      Object.entries(monthlyPnL).forEach(([monthKey, pnl]) => {
+        const pnlNum = parseFloat(pnl);
+        if (pnlNum > 0 && inRange(`${monthKey}-01`)) tradingSum += pnlNum;
+      });
+      if (cashbackSum > 0 || tradingSum > 0) {
+        setBudgetSpent(prev => ({
+          ...prev,
+          'Monthly Revenue': (prev['Monthly Revenue'] || 0) + cashbackSum + tradingSum,
+        }));
+      }
+    });
   }, [getDateRangeParams]);
 
   useEffect(() => {
@@ -151,11 +194,76 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
     };
   }, [fetchSummary, fetchBudgets]);
 
+  const COMBINED_EXPENSE_CATEGORIES = ['Monthly Food Expense', 'Monthly Spend', 'Miscellaneous'];
+  const REVENUE_CATEGORY = 'Monthly Revenue';
+
   const handleBudgetClick = async (budget) => {
     setSelectedBudget(budget);
     const dateParams = getDateRangeParams();
-    const res = await getTransactionsByBudget(budget.category, dateParams);
-    setTransactions(res.data);
+    if (budget.category === 'Monthly Total Expense') {
+      const results = await Promise.all(
+        COMBINED_EXPENSE_CATEGORIES.map(cat => getTransactionsByBudget(cat, dateParams))
+      );
+      const all = results.flatMap(r => r.data).sort((a, b) => new Date(b.date) - new Date(a.date));
+      setTransactions(all);
+    } else if (budget.category === REVENUE_CATEGORY) {
+      const [txRes, cashbackRes, analyticsRes] = await Promise.all([
+        getTransactionsByBudget(REVENUE_CATEGORY, dateParams),
+        getCashbackEntries().catch(() => ({ data: [] })),
+        getTradingAnalytics().catch(() => ({ data: { monthlyPnL: {} } })),
+      ]);
+      const creditTxs = txRes.data.filter(tx => tx.type === 'CREDIT');
+      const { startDate, endDate } = dateParams;
+
+      const inRange = (dateStr) => {
+        if (!startDate || !endDate) return true;
+        const d = String(dateStr).substring(0, 10);
+        return d >= startDate && d <= endDate;
+      };
+
+      const cashbackVirtual = (cashbackRes.data || [])
+        .filter(e => e.type === 'EARNED' && inRange(e.date))
+        .map(e => ({
+          id: `cb-${e.id}`,
+          title: `Cashback: ${e.source || e.description}`,
+          amount: e.amount,
+          type: 'CREDIT',
+          category: 'Cashback',
+          budgetCategory: REVENUE_CATEGORY,
+          date: String(e.date).substring(0, 10),
+          description: e.description,
+          paymentSource: 'Cashback Wallet',
+          virtual: true,
+        }));
+
+      const tradingVirtual = [];
+      const monthlyPnL = analyticsRes.data?.monthlyPnL || {};
+      Object.entries(monthlyPnL).forEach(([monthKey, pnl]) => {
+        const pnlNum = parseFloat(pnl);
+        if (pnlNum <= 0) return;
+        const entryDate = `${monthKey}-01`;
+        if (!inRange(entryDate)) return;
+        tradingVirtual.push({
+          id: `trade-${monthKey}`,
+          title: `Trading Profit (${monthKey})`,
+          amount: pnlNum,
+          type: 'CREDIT',
+          category: 'Trading',
+          budgetCategory: REVENUE_CATEGORY,
+          date: entryDate,
+          description: `Realized P&L for ${monthKey}`,
+          paymentSource: 'Trading Account',
+          virtual: true,
+        });
+      });
+
+      const all = [...creditTxs, ...cashbackVirtual, ...tradingVirtual]
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+      setTransactions(all);
+    } else {
+      const res = await getTransactionsByBudget(budget.category, dateParams);
+      setTransactions(res.data);
+    }
   };
 
   const handleStatClick = async (type) => {
@@ -182,9 +290,13 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
   const handleSaveTransaction = async (data) => {
     await createTransaction(data);
     eventEmitter.emit(EVENTS.TRANSACTION_CREATED, data);
-    const dateParams = getDateRangeParams();
-    const res = await getTransactionsByBudget(selectedBudget.category, dateParams);
-    setTransactions(res.data);
+    if (selectedBudget?.category === REVENUE_CATEGORY) {
+      await handleBudgetClick(selectedBudget);
+    } else {
+      const dateParams = getDateRangeParams();
+      const res = await getTransactionsByBudget(selectedBudget.category, dateParams);
+      setTransactions(res.data);
+    }
     fetchSummary();
     fetchBudgets();
   };
@@ -192,9 +304,13 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
   const handleEdit = async (id, data) => {
     await updateTransaction(id, data);
     eventEmitter.emit(EVENTS.TRANSACTION_UPDATED, { id, ...data });
-    const dateParams = getDateRangeParams();
-    const res = await getTransactionsByBudget(selectedBudget.category, dateParams);
-    setTransactions(res.data);
+    if (selectedBudget?.category === REVENUE_CATEGORY) {
+      await handleBudgetClick(selectedBudget);
+    } else {
+      const dateParams = getDateRangeParams();
+      const res = await getTransactionsByBudget(selectedBudget.category, dateParams);
+      setTransactions(res.data);
+    }
     fetchSummary();
     fetchBudgets();
   };
@@ -227,7 +343,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
                   <p className="text-xs text-gray-400 dark:text-gray-500">{transactions.length} transactions</p>
                 </div>
               </div>
-              {!selectedBudget.virtual && (
+              {!selectedBudget.virtual && selectedBudget.category !== 'Monthly Total Expense' && (
                 <button
                   onClick={() => setShowModal(true)}
                   className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-slate-700 transition text-sm"
@@ -237,7 +353,17 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
               )}
             </div>
 
-            {/* Balance Breakdown */}
+            {/* Monthly Total Expense Breakdown */}
+            {selectedBudget.category === 'Monthly Total Expense' && (
+              <div className="grid grid-cols-3 gap-4 p-6 border-b border-gray-50 dark:border-gray-700">
+                {COMBINED_EXPENSE_CATEGORIES.map(cat => (
+                  <div key={cat} className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{cat}</p>
+                    <p className="text-lg font-bold text-red-500 dark:text-red-400">{fmt(budgetSpent[cat] || 0)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
             {selectedBudget.isBalance && (
               <div className="grid grid-cols-3 gap-4 p-6 border-b border-gray-50 dark:border-gray-700">
                 <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4">

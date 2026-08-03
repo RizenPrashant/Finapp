@@ -95,7 +95,7 @@ public class DataSeeder implements CommandLineRunner {
             BudgetLimit.builder().category("Monthly Total Savings").limitAmount(new BigDecimal("10000")).color("#4CAF50").note("Nice! Keep saving to reach your goal.").user(user).build(),
             BudgetLimit.builder().category("Monthly Total Expense").limitAmount(new BigDecimal("50000")).color("#D32F2F").note("Warning: You're close to your max expense.").user(user).build(),
             BudgetLimit.builder().category("Monthly Food Expense").limitAmount(new BigDecimal("15000")).color("#4CAF50").note("You're managing food expenses well.").user(user).build(),
-            BudgetLimit.builder().category("Monthly Investment").limitAmount(new BigDecimal("10000")).color("#FFA000").note("Consider boosting investments.").user(user).build(),
+            BudgetLimit.builder().category("Monthly Revenue").limitAmount(new BigDecimal("10000")).color("#FFA000").note("Track all your income sources.").user(user).build(),
             BudgetLimit.builder().category("Miscellaneous").limitAmount(new BigDecimal("10000")).color("#4CAF50").note("Track your miscellaneous costs.").user(user).build()
         );
         budgetLimitRepository.saveAll(limits);
@@ -115,8 +115,8 @@ public class DataSeeder implements CommandLineRunner {
             Transaction.builder().title("Fuel").amount(new BigDecimal("4000")).type(TransactionType.DEBIT).category("Transport").budgetCategory("Monthly Spend").date(LocalDate.of(2025, 10, 3)).user(user).build(),
             Transaction.builder().title("Netflix Subscription").amount(new BigDecimal("649")).type(TransactionType.DEBIT).category("Entertainment").budgetCategory("Miscellaneous").date(LocalDate.of(2025, 10, 3)).user(user).build(),
             Transaction.builder().title("Gym Membership").amount(new BigDecimal("1500")).type(TransactionType.DEBIT).category("Health").budgetCategory("Miscellaneous").date(LocalDate.of(2025, 10, 2)).user(user).build(),
-            Transaction.builder().title("Mutual Fund SIP").amount(new BigDecimal("4000")).type(TransactionType.DEBIT).category("Investment").budgetCategory("Monthly Investment").date(LocalDate.of(2025, 10, 1)).user(user).build(),
-            Transaction.builder().title("Stock Purchase").amount(new BigDecimal("2000")).type(TransactionType.DEBIT).category("Investment").budgetCategory("Monthly Investment").date(LocalDate.of(2025, 10, 6)).user(user).build(),
+            Transaction.builder().title("Mutual Fund SIP").amount(new BigDecimal("4000")).type(TransactionType.DEBIT).category("Investment").budgetCategory("Monthly Revenue").date(LocalDate.of(2025, 10, 1)).user(user).build(),
+            Transaction.builder().title("Stock Purchase").amount(new BigDecimal("2000")).type(TransactionType.DEBIT).category("Investment").budgetCategory("Monthly Revenue").date(LocalDate.of(2025, 10, 6)).user(user).build(),
             Transaction.builder().title("Savings Deposit").amount(new BigDecimal("7500")).type(TransactionType.DEBIT).category("Savings").budgetCategory("Monthly Total Savings").date(LocalDate.of(2025, 10, 1)).user(user).build()
         );
         transactionRepository.saveAll(transactions);
