@@ -11,16 +11,19 @@ const categoryOptions = {
   'Monthly Food Expense': ['Groceries', 'Dining Out', 'Cafe', 'Food Delivery'],
   'Monthly Spend': ['Rent', 'Utilities', 'Transport', 'Housing', 'Bills'],
   'Monthly Investment': ['Mutual Fund', 'Stocks', 'Gold', 'FD'],
+  'Monthly Revenue': ['Salary', 'Freelance', 'Business', 'Dividend', 'Interest', 'Others'],
   'Monthly Total Savings': ['Savings Deposit'],
   'Miscellaneous': ['Entertainment', 'Health', 'Shopping', 'Others'],
   'Income': ['Salary', 'Freelance', 'Business', 'Others'],
 };
 
+const CREDIT_DEFAULT_CATEGORIES = ['Monthly Revenue', 'Monthly Total Savings', 'Income'];
+
 export default function AddTransactionModal({ budgetCategory, onClose, onSave, prefilledSource }) {
   const [form, setForm] = useState({
     title: '',
     amount: '',
-    type: 'DEBIT',
+    type: CREDIT_DEFAULT_CATEGORIES.includes(budgetCategory) ? 'CREDIT' : 'DEBIT',
     category: categoryOptions[budgetCategory]?.[0] || 'Others',
     budgetCategory: budgetCategory,
     date: new Date().toISOString().split('T')[0],

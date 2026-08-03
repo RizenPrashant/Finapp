@@ -96,7 +96,7 @@ export default function TransactionRow({ transaction, onDelete, onEdit, deleteLo
               </p>
             )}
           </div>
-          {onEdit && (
+          {onEdit && !transaction.virtual && (
             <button
               onClick={(e) => { e.stopPropagation(); onEdit(transaction); }}
               className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
@@ -105,7 +105,7 @@ export default function TransactionRow({ transaction, onDelete, onEdit, deleteLo
               <Pencil size={15} />
             </button>
           )}
-          {onDelete && (
+          {onDelete && !transaction.virtual && (
             <button
               onClick={handleDeleteClick}
               className={`opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all ${
