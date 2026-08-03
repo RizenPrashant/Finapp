@@ -21,6 +21,7 @@ import Udhar from './pages/Udhar';
 import Tax from './pages/Tax';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import { updateProfile } from './api';
 
 function MainLayout() {
@@ -86,6 +87,7 @@ export default function App() {
       {/* Public Routes */}
       <Route path="/login" element={isAuthenticated ? <Navigate to="/" /> : <Login />} />
       <Route path="/register" element={isAuthenticated ? <Navigate to="/" /> : <Register />} />
+      <Route path="/forgot-password" element={isAuthenticated ? <Navigate to="/" /> : <ForgotPassword />} />
       
       {/* Protected Routes */}
       <Route path="/*" element={

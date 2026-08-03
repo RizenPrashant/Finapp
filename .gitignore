@@ -1,0 +1,19 @@
+# Backend build
+backend/target/
+
+# Frontend build
+frontend/dist/
+frontend/node_modules/
+
+# Environment / secrets
+backend/src/main/resources/application-dev.properties
+backend/src/main/resources/application-prod.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
