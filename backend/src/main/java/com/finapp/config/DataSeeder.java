@@ -45,8 +45,8 @@ public class DataSeeder implements CommandLineRunner {
                 entityManager.createNativeQuery("SET SESSION sql_mode='NO_AUTO_VALUE_ON_ZERO'").executeUpdate();
 
                 entityManager.createNativeQuery(
-                    "INSERT INTO users (id, email, password, first_name, last_name, role, enabled, created_at, updated_at) " +
-                    "VALUES (0, 'test@finapp.com', '$2a$10$N9qoSnQfTw9jSgXw1AZ9bOjF5.KC8lQ8Q2q4m7Y3X9v5w8q2r4t6', 'Test', 'User', 'USER', true, NOW(), NOW()) " +
+                    "INSERT INTO users (id, email, password, first_name, last_name, role, created_at, updated_at) " +
+                    "VALUES (0, 'test@finapp.com', '$2a$10$N9qoSnQfTw9jSgXw1AZ9bOjF5.KC8lQ8Q2q4m7Y3X9v5w8q2r4t6', 'Test', 'User', 'USER', NOW(), NOW()) " +
                     "ON DUPLICATE KEY UPDATE email = 'test@finapp.com'"
                 ).executeUpdate();
                 entityManager.flush();
