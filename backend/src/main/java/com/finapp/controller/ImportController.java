@@ -41,9 +41,10 @@ public class ImportController {
             @RequestParam(value = "bankName") String bankName,
             @RequestParam(value = "bankType", required = false) String bankType,
             @RequestParam(value = "accountType", defaultValue = "BANK") String accountType,
+            @RequestParam(value = "formatId", required = false) Long formatId,
             Authentication authentication) {
 
-        ImportResponseDTO result = importService.importBankStatement(file, format, bankName, authentication.getName(), bankType, accountType);
+        ImportResponseDTO result = importService.importBankStatement(file, format, bankName, authentication.getName(), bankType, accountType, formatId);
         return ResponseEntity.ok(result);
     }
 
@@ -64,9 +65,10 @@ public class ImportController {
             @RequestParam(value = "format", defaultValue = "csv") String format,
             @RequestParam(value = "bankName") String bankName,
             @RequestParam(value = "bankType", required = false) String bankType,
-            @RequestParam(value = "accountType", defaultValue = "BANK") String accountType) {
+            @RequestParam(value = "accountType", defaultValue = "BANK") String accountType,
+            @RequestParam(value = "formatId", required = false) Long formatId) {
 
-        ImportResponseDTO result = importService.previewBankStatement(file, format, bankName, bankType);
+        ImportResponseDTO result = importService.previewBankStatement(file, format, bankName, bankType, formatId);
         return ResponseEntity.ok(result);
     }
 

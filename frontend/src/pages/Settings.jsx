@@ -729,7 +729,9 @@ export default function Settings() {
                                   <select value={editingFormat.dateFormat} onChange={e => setEditingFormat({...editingFormat, dateFormat: e.target.value})}
                                     className="w-full px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
                                     <option value="dd/MM/yyyy">dd/MM/yyyy (01/01/2024)</option>
+                                    <option value="dd/MM/yy">dd/MM/yy (01/01/24)</option>
                                     <option value="dd-MM-yyyy">dd-MM-yyyy (01-01-2024)</option>
+                                    <option value="dd-MM-yy">dd-MM-yy (01-01-24)</option>
                                     <option value="dd.MM.yyyy">dd.MM.yyyy (01.01.2024) — ICICI</option>
                                     <option value="dd.MM.yy">dd.MM.yy (01.01.24)</option>
                                     <option value="dd MMM yyyy">dd MMM yyyy (01 Jan 2024)</option>
@@ -924,7 +926,9 @@ export default function Settings() {
                         <select value={newFormat.dateFormat} onChange={e => setNewFormat({...newFormat, dateFormat: e.target.value})}
                           className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
                           <option value="dd/MM/yyyy">dd/MM/yyyy (01/01/2024)</option>
+                          <option value="dd/MM/yy">dd/MM/yy (01/01/24)</option>
                           <option value="dd-MM-yyyy">dd-MM-yyyy (01-01-2024)</option>
+                          <option value="dd-MM-yy">dd-MM-yy (01-01-24)</option>
                           <option value="dd.MM.yyyy">dd.MM.yyyy (01.01.2024) — ICICI</option>
                           <option value="dd.MM.yy">dd.MM.yy (01.01.24)</option>
                           <option value="dd MMM yyyy">dd MMM yyyy (01 Jan 2024)</option>

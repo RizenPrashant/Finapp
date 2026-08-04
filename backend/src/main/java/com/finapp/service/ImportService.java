@@ -257,6 +257,11 @@ public class ImportService {
 
     @Transactional
     public ImportResponseDTO importBankStatement(MultipartFile file, String format, String bankName, String username, String bankType, String accountType) {
+        return importBankStatement(file, format, bankName, username, bankType, accountType, null);
+    }
+
+    @Transactional
+    public ImportResponseDTO importBankStatement(MultipartFile file, String format, String bankName, String username, String bankType, String accountType, Long formatId) {
         User user = userRepository.findByEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -276,7 +281,7 @@ public class ImportService {
 
         List<TransactionDTO> transactions;
         try {
-            transactions = parseBankStatementFile(file, format, bankName, bankType);
+            transactions = parseBankStatementFile(file, format, bankName, bankType, formatId);
         } catch (RuntimeException e) {
             return ImportResponseDTO.builder()
                     .success(false)
@@ -381,13 +386,17 @@ public class ImportService {
     }
 
     public ImportResponseDTO previewBankStatement(MultipartFile file, String format, String bankName) {
-        return previewBankStatement(file, format, bankName, null);
+        return previewBankStatement(file, format, bankName, null, null);
     }
 
     public ImportResponseDTO previewBankStatement(MultipartFile file, String format, String bankName, String bankType) {
+        return previewBankStatement(file, format, bankName, bankType, null);
+    }
+
+    public ImportResponseDTO previewBankStatement(MultipartFile file, String format, String bankName, String bankType, Long formatId) {
         List<TransactionDTO> transactions;
         try {
-            transactions = parseBankStatementFile(file, format, bankName, bankType);
+            transactions = parseBankStatementFile(file, format, bankName, bankType, formatId);
         } catch (RuntimeException e) {
             return ImportResponseDTO.builder()
                     .success(false)
@@ -417,7 +426,22 @@ public class ImportService {
                 .build();
     }
 
-    private List<TransactionDTO> parseBankStatementFile(MultipartFile file, String format, String bankName, String bankType) {
+    private List<TransactionDTO> parseBankStatementFile(MultipartFile file, String format, String bankName, String bankType, Long formatId) {
+        if (formatId != null) {
+            ImportFormat fmt = importFormatRepository.findById(formatId).orElse(null);
+            if (fmt != null) {
+                List<TransactionDTO> txns;
+                if ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format)) {
+                    txns = bankPdfParser.parseExcel(file, fmt);
+                } else if ("csv".equalsIgnoreCase(format)) {
+                    txns = bankPdfParser.parseCSVWithFormat(file, fmt);
+                } else {
+                    txns = bankPdfParser.parse(file, bankType != null ? bankType : "GENERIC");
+                }
+                txns.forEach(t -> t.setPaymentSource(bankName));
+                return txns;
+            }
+        }
         String bt = bankType != null ? bankType : "GENERIC";
         List<TransactionDTO> txns;
         if ("csv".equalsIgnoreCase(format)) {

@@ -5,11 +5,25 @@ import { eventEmitter, EVENTS } from '../utils/events';
 
 
 // ─── Client-side CSV parser using custom column-name mapping ─────────────────
+function splitCSVLine(line) {
+  const result = [];
+  let cur = '', inQuote = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQuote = !inQuote; }
+    else if (ch === ',' && !inQuote) { result.push(cur.trim()); cur = ''; }
+    else { cur += ch; }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
 function parseCustomCSV(text, fmt) {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length <= fmt.skipRows) return [];
-  const header = lines[fmt.skipRows - 1].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
-  const dataLines = lines.slice(fmt.skipRows);
+  const skip = fmt.skipRows ?? 1;
+  if (lines.length <= skip) return [];
+  const header = splitCSVLine(lines[skip - 1]).map(h => h.replace(/^"|"$/g, '').toLowerCase());
+  const dataLines = lines.slice(skip);
 
   const col = (name) => {
     if (!name || !name.trim()) return -1;
@@ -18,12 +32,12 @@ function parseCustomCSV(text, fmt) {
   const cell = (row, name) => {
     const idx = col(name);
     if (idx < 0) return '';
-    return (row[idx] || '').trim().replace(/^"|"$/g, '');
+    return (row[idx] || '').replace(/^"|"$/g, '').trim();
   };
 
-  if (fmt.type === 'bank') {
+  if (fmt.type?.toUpperCase() === 'BANK') {
     return dataLines.map((line, i) => {
-      const row = line.split(',');
+      const row = splitCSVLine(line);
       const date    = cell(row, fmt.dateColumn);
       const desc    = cell(row, fmt.descriptionColumn || fmt.descColumn);
       const debit   = parseFloat(cell(row, fmt.debitColumn).replace(/,/g,'')) || 0;
@@ -42,7 +56,7 @@ function parseCustomCSV(text, fmt) {
     }).filter(Boolean);
   } else {
     return dataLines.map((line, i) => {
-      const row = line.split(',');
+      const row = splitCSVLine(line);
       const symbol  = cell(row, fmt.symbolColumn);
       const date    = cell(row, fmt.dateColumn);
       const bs      = cell(row, fmt.buySellColumn).toUpperCase();
@@ -158,8 +172,8 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('format', format);
-        formData.append('formatId', selectedFormat.id);
-        const brokerKey = selectedFormat.name.toUpperCase().split(' ')[0]; // e.g. "ZERODHA" or "ICICI"
+        if (selectedFormat.id) formData.append('formatId', selectedFormat.id);
+        const brokerKey = selectedFormat.name.toUpperCase().split(' ')[0];
         if (isTrades) {
           formData.append('brokerType', brokerKey);
         } else {
@@ -227,8 +241,8 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('format', format);
-        formData.append('formatId', selectedFormat.id);
-        const brokerKey2 = selectedFormat.name.toUpperCase().split(' ')[0]; // e.g. "ZERODHA" or "ICICI"
+        if (selectedFormat.id) formData.append('formatId', selectedFormat.id);
+        const brokerKey2 = selectedFormat.name.toUpperCase().split(' ')[0];
         if (isTrades) {
           formData.append('brokerType', brokerKey2);
         } else {

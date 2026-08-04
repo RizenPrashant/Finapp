@@ -1,6 +1,7 @@
 package com.finapp.service;
 
 import com.finapp.dto.TransactionDTO;
+import com.finapp.model.ImportFormat;
 import com.finapp.model.TransactionType;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
@@ -21,6 +22,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -279,6 +281,58 @@ public class BankPdfParser {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    //  CSV PARSING WITH CUSTOM ImportFormat
+    // ══════════════════════════════════════════════════════════════════════════
+
+    public List<TransactionDTO> parseCSVWithFormat(MultipartFile file, ImportFormat fmt) {
+        List<TransactionDTO> list = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()));
+             CSVReader csv = new CSVReaderBuilder(reader).withSkipLines(0).build()) {
+            int skip = fmt.getSkipRows() != null ? fmt.getSkipRows() : 1;
+            List<String[]> allRows = csv.readAll();
+            if (allRows.size() <= skip) return list;
+            // Find header row
+            String[] headerRow = allRows.get(skip - 1);
+            Map<String, Integer> colIndex = new java.util.LinkedHashMap<>();
+            for (int i = 0; i < headerRow.length; i++) {
+                if (headerRow[i] != null && !headerRow[i].isBlank())
+                    colIndex.put(headerRow[i].trim().toLowerCase(), i);
+            }
+            DateTimeFormatter dateFmt = fmt.getDateFormat() != null
+                ? DateTimeFormatter.ofPattern(fmt.getDateFormat()) : null;
+            for (int i = skip; i < allRows.size(); i++) {
+                String[] r = allRows.get(i);
+                try {
+                    String dateStr = getColVal(r, colIndex, fmt.getDateColumn());
+                    if (dateStr.isBlank()) continue;
+                    String desc   = getColVal(r, colIndex, fmt.getDescriptionColumn());
+                    String debit  = getColVal(r, colIndex, fmt.getDebitColumn());
+                    String credit = getColVal(r, colIndex, fmt.getCreditColumn());
+                    String bal    = getColVal(r, colIndex, fmt.getBalanceColumn());
+                    TransactionDTO dto = new TransactionDTO();
+                    dto.setDate(dateFmt != null ? LocalDate.parse(dateStr, dateFmt) : parseDateMulti(dateStr));
+                    dto.setTitle(desc); dto.setDescription(desc);
+                    setDebitCredit(dto, debit, credit, desc);
+                    if (!bal.isBlank()) dto.setBalanceAfter(parseMoneySafe(bal));
+                    dto.setBudgetCategory(guessCategory(desc));
+                    if (dto.getAmount() != null && dto.getAmount().compareTo(BigDecimal.ZERO) != 0)
+                        list.add(dto);
+                } catch (Exception ignored) {}
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error parsing bank CSV: " + e.getMessage());
+        }
+        return list;
+    }
+
+    private String getColVal(String[] r, Map<String, Integer> colIndex, String colName) {
+        if (colName == null) return "";
+        Integer idx = colIndex.get(colName.trim().toLowerCase());
+        if (idx == null || idx >= r.length) return "";
+        return r[idx] == null ? "" : r[idx].trim();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     //  CSV  PARSING  (bank-specific column layouts)
     // ══════════════════════════════════════════════════════════════════════════
 
@@ -385,13 +439,9 @@ public class BankPdfParser {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
                 String[] r = rowToStrings(row, 10);
-                // Skip header/metadata rows until we find actual data
                 if (!dataStarted) {
-                    if (isDataRow(r, bankType)) {
-                        dataStarted = true;
-                    } else {
-                        continue;
-                    }
+                    if (isDataRow(r, bankType)) dataStarted = true;
+                    else continue;
                 }
                 try {
                     TransactionDTO dto = mapBankCsvRow(r, bankType);
@@ -399,14 +449,113 @@ public class BankPdfParser {
                         && dto.getAmount().compareTo(BigDecimal.ZERO) != 0) {
                         list.add(dto);
                     }
-                } catch (Exception e) {
-                    // Skip rows that fail to parse
-                }
+                } catch (Exception ignored) {}
             }
         } catch (Exception e) {
             throw new RuntimeException("Error parsing bank Excel: " + e.getMessage());
         }
         return list;
+    }
+
+    /** Parse Excel using a custom ImportFormat — column names resolved from header row */
+    public List<TransactionDTO> parseExcel(MultipartFile file, ImportFormat fmt) {
+        List<TransactionDTO> list = new ArrayList<>();
+        try (InputStream is = file.getInputStream();
+             Workbook wb = WorkbookFactory.create(is)) {
+            Sheet sheet = wb.getSheetAt(0);
+            int skip = fmt.getSkipRows() != null ? fmt.getSkipRows() : 1;
+            // Find header row: scan until we find a row whose first non-empty cell
+            // matches one of the configured column names
+            Map<String, Integer> colIndex = null;
+            int dataStartRow = -1;
+            for (int i = 0; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+                String[] r = rowToStrings(row, 15);
+                Map<String, Integer> candidate = buildColIndex(r);
+                if (isHeaderRow(candidate, fmt)) {
+                    colIndex = candidate;
+                    dataStartRow = i + 1;
+                    break;
+                }
+            }
+            if (colIndex == null) throw new RuntimeException("Could not find header row matching format columns");
+            DateTimeFormatter dateFmt = fmt.getDateFormat() != null
+                ? DateTimeFormatter.ofPattern(fmt.getDateFormat()) : null;
+            for (int i = dataStartRow; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+                String[] r = rowToStrings(row, 15);
+                try {
+                    TransactionDTO dto = mapRowWithFormat(r, colIndex, fmt, dateFmt);
+                    if (dto != null && dto.getDate() != null && dto.getAmount() != null
+                        && dto.getAmount().compareTo(BigDecimal.ZERO) != 0) {
+                        list.add(dto);
+                    }
+                } catch (Exception ignored) {}
+            }
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Error parsing bank Excel: " + e.getMessage());
+        }
+        return list;
+    }
+
+    private Map<String, Integer> buildColIndex(String[] headers) {
+        Map<String, Integer> map = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < headers.length; i++) {
+            if (!headers[i].isBlank()) map.put(headers[i].trim().toLowerCase(), i);
+        }
+        return map;
+    }
+
+    private boolean isHeaderRow(Map<String, Integer> candidate, ImportFormat fmt) {
+        int matches = 0;
+        if (fmt.getDateColumn() != null && candidate.containsKey(fmt.getDateColumn().trim().toLowerCase())) matches++;
+        if (fmt.getDescriptionColumn() != null && candidate.containsKey(fmt.getDescriptionColumn().trim().toLowerCase())) matches++;
+        if (fmt.getDebitColumn() != null && candidate.containsKey(fmt.getDebitColumn().trim().toLowerCase())) matches++;
+        if (fmt.getCreditColumn() != null && candidate.containsKey(fmt.getCreditColumn().trim().toLowerCase())) matches++;
+        return matches >= 2; // at least 2 configured columns must match
+    }
+
+    private TransactionDTO mapRowWithFormat(String[] r, Map<String, Integer> colIndex, ImportFormat fmt, DateTimeFormatter dateFmt) {
+        String dateStr = getCol(r, colIndex, fmt.getDateColumn());
+        if (dateStr.isBlank()) return null;
+        String desc   = getCol(r, colIndex, fmt.getDescriptionColumn());
+        String debit  = getCol(r, colIndex, fmt.getDebitColumn());
+        String credit = getCol(r, colIndex, fmt.getCreditColumn());
+        String balStr = getCol(r, colIndex, fmt.getBalanceColumn());
+        // Single amount column fallback
+        if (debit.isBlank() && credit.isBlank() && fmt.getAmountColumn() != null) {
+            String amt = getCol(r, colIndex, fmt.getAmountColumn());
+            if (!amt.isBlank()) {
+                BigDecimal val = parseMoneySafe(amt.replace("-", ""));
+                if (val == null) return null;
+                TransactionDTO dto = new TransactionDTO();
+                dto.setDate(dateFmt != null ? LocalDate.parse(dateStr, dateFmt) : parseDateMulti(dateStr));
+                dto.setTitle(desc); dto.setDescription(desc);
+                dto.setAmount(val);
+                dto.setType(amt.startsWith("-") ? TransactionType.DEBIT : TransactionType.CREDIT);
+                if (!balStr.isBlank()) dto.setBalanceAfter(parseMoneySafe(balStr));
+                dto.setBudgetCategory(guessCategory(desc));
+                return dto;
+            }
+        }
+        TransactionDTO dto = new TransactionDTO();
+        dto.setDate(dateFmt != null ? LocalDate.parse(dateStr, dateFmt) : parseDateMulti(dateStr));
+        dto.setTitle(desc); dto.setDescription(desc);
+        setDebitCredit(dto, debit, credit, desc);
+        if (!balStr.isBlank()) dto.setBalanceAfter(parseMoneySafe(balStr));
+        dto.setBudgetCategory(guessCategory(desc));
+        return dto;
+    }
+
+    private String getCol(String[] r, Map<String, Integer> colIndex, String colName) {
+        if (colName == null) return "";
+        Integer idx = colIndex.get(colName.trim().toLowerCase());
+        if (idx == null || idx >= r.length) return "";
+        return r[idx] == null ? "" : r[idx].trim();
     }
 
     private boolean isDataRow(String[] r, String bankType) {
