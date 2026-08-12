@@ -470,6 +470,10 @@ public class DataSeeder implements CommandLineRunner {
                 existing.setDescriptionColumn(format.getDescriptionColumn());
                 existing.setDebitColumn(format.getDebitColumn());
                 existing.setCreditColumn(format.getCreditColumn());
+                existing.setAmountColumn(format.getAmountColumn());
+                existing.setDebitIndicator(format.getDebitIndicator());
+                existing.setCreditIndicator(format.getCreditIndicator());
+                existing.setTypeIndicatorMode(format.getTypeIndicatorMode());
                 existing.setSymbolColumn(format.getSymbolColumn());
                 existing.setTradeTypeColumn(format.getTradeTypeColumn());
                 existing.setQuantityColumn(format.getQuantityColumn());
@@ -577,6 +581,84 @@ public class DataSeeder implements CommandLineRunner {
                 .tradeDateColumn("trade_date")
                 .skipRows(1)
                 .dateFormat("yyyy-MM-dd")
+                .fileType("csv")
+                .isDefault(true)
+                .isSystem(true)
+                .build(),
+
+            // ── Credit Card Formats (CSV/Excel based) ─────────────────────────
+            // NOTE: Most CC PDFs are image-based and cannot be parsed.
+            // These formats are for CSV/Excel exports from CC portals.
+            ImportFormat.builder()
+                .name("HDFC Credit Card")
+                .type("CREDIT_CARD")
+                .dateColumn("Date")
+                .descriptionColumn("Description")
+                .amountColumn("Amount")
+                .debitIndicator("Dr")
+                .creditIndicator("Cr")
+                .typeIndicatorMode("SUFFIX")
+                .skipRows(1)
+                .dateFormat("dd/MM/yyyy")
+                .fileType("csv")
+                .isDefault(true)
+                .isSystem(true)
+                .build(),
+
+            ImportFormat.builder()
+                .name("ICICI Credit Card")
+                .type("CREDIT_CARD")
+                .dateColumn("Date")
+                .descriptionColumn("Transaction Details")
+                .amountColumn("Amount")
+                .creditIndicator("CR")
+                .typeIndicatorMode("SUFFIX")
+                .skipRows(1)
+                .dateFormat("dd/MM/yyyy")
+                .fileType("csv")
+                .isDefault(true)
+                .isSystem(true)
+                .build(),
+
+            ImportFormat.builder()
+                .name("SBI Card")
+                .type("CREDIT_CARD")
+                .dateColumn("Date")
+                .descriptionColumn("Description")
+                .amountColumn("Amount")
+                .typeIndicatorMode("KEYWORD")
+                .skipRows(1)
+                .dateFormat("dd MMM yyyy")
+                .fileType("csv")
+                .isDefault(true)
+                .isSystem(true)
+                .build(),
+
+            ImportFormat.builder()
+                .name("Axis Bank Credit Card")
+                .type("CREDIT_CARD")
+                .dateColumn("Date")
+                .descriptionColumn("Description")
+                .amountColumn("Amount")
+                .debitIndicator("Dr")
+                .creditIndicator("Cr")
+                .typeIndicatorMode("SUFFIX")
+                .skipRows(1)
+                .dateFormat("dd-MM-yyyy")
+                .fileType("csv")
+                .isDefault(true)
+                .isSystem(true)
+                .build(),
+
+            ImportFormat.builder()
+                .name("Generic Credit Card")
+                .type("CREDIT_CARD")
+                .dateColumn("Date")
+                .descriptionColumn("Description")
+                .amountColumn("Amount")
+                .typeIndicatorMode("KEYWORD")
+                .skipRows(1)
+                .dateFormat("dd-MM-yyyy")
                 .fileType("csv")
                 .isDefault(true)
                 .isSystem(true)

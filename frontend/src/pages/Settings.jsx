@@ -71,6 +71,10 @@ export default function Settings() {
     name: '', type: 'BANK', skipRows: 1, dateFormat: 'dd/MM/yyyy', fileType: 'csv',
     dateColumn: '', descriptionColumn: '', debitColumn: '', creditColumn: '',
   };
+  const EMPTY_CC_FORMAT = {
+    name: '', type: 'CREDIT_CARD', skipRows: 0, dateFormat: 'dd/MM/yyyy', fileType: 'pdf',
+    dateColumn: '', descriptionColumn: '', amountColumn: '', debitIndicator: 'Dr', creditIndicator: 'Cr', typeIndicatorMode: 'SUFFIX',
+  };
   const EMPTY_BROKER_FORMAT = {
     name: '', type: 'BROKER', skipRows: 1, dateFormat: 'dd-MM-yyyy', fileType: 'csv',
     dateColumn: '', symbolColumn: '', quantityColumn: '', priceColumn: '', tradeTypeColumn: '',
@@ -212,12 +216,13 @@ export default function Settings() {
     const f = { ...newFormat };
     if (f.name === '__custom__') f.name = (f._customName || '').trim();
     delete f._customName;
-    const isBankOk   = f.type === 'BANK'   && f.name.trim() && f.dateColumn.trim() && f.descriptionColumn.trim() && (f.debitColumn.trim() || f.creditColumn.trim());
-    const isBrokerOk = f.type === 'BROKER' && f.name.trim() && f.dateColumn.trim() && f.symbolColumn.trim() && f.quantityColumn.trim() && f.priceColumn.trim() && f.tradeTypeColumn.trim();
-    if (!isBankOk && !isBrokerOk) return;
+    const isBankOk   = f.type === 'BANK'        && f.name.trim() && f.dateColumn.trim() && f.descriptionColumn.trim() && (f.debitColumn.trim() || f.creditColumn.trim());
+    const isCCOk     = f.type === 'CREDIT_CARD'  && f.name?.trim() && f.dateColumn?.trim() && f.descriptionColumn?.trim() && f.amountColumn?.trim();
+    const isBrokerOk = f.type === 'BROKER'       && f.name.trim() && f.dateColumn.trim() && f.symbolColumn.trim() && f.quantityColumn.trim() && f.priceColumn.trim() && f.tradeTypeColumn.trim();
+    if (!isBankOk && !isCCOk && !isBrokerOk) return;
     try {
       await createImportFormat(f);
-      setNewFormat(f.type === 'BANK' ? { ...EMPTY_BANK_FORMAT } : { ...EMPTY_BROKER_FORMAT });
+      setNewFormat(f.type === 'BANK' ? { ...EMPTY_BANK_FORMAT } : f.type === 'CREDIT_CARD' ? { ...EMPTY_CC_FORMAT } : { ...EMPTY_BROKER_FORMAT });
       fetchImportFormats();
     } catch (e) {
       alert(e.response?.data?.message || 'Failed to save format');
@@ -760,6 +765,33 @@ export default function Settings() {
                                   ))}
                                 </div>
                               )}
+                              {editingFormat.type === 'CREDIT_CARD' && (
+                                <div className="grid grid-cols-2 gap-2">
+                                  {[
+                                    {key:'dateColumn',        label:'Date column'},
+                                    {key:'descriptionColumn', label:'Description column'},
+                                    {key:'amountColumn',      label:'Amount column'},
+                                    {key:'debitIndicator',    label:'Debit indicator (e.g. Dr)'},
+                                    {key:'creditIndicator',   label:'Credit indicator (e.g. Cr)'},
+                                  ].map(({key, label}) => (
+                                    <div key={key}>
+                                      <label className="text-xs text-gray-400 block mb-1">{label}</label>
+                                      <input value={editingFormat[key]||''} onChange={e => setEditingFormat({...editingFormat,[key]:e.target.value})}
+                                        className="w-full px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400" />
+                                    </div>
+                                  ))}
+                                  <div className="col-span-2">
+                                    <label className="text-xs text-gray-400 block mb-1">Dr/Cr detection mode</label>
+                                    <select value={editingFormat.typeIndicatorMode||'SUFFIX'} onChange={e => setEditingFormat({...editingFormat, typeIndicatorMode: e.target.value})}
+                                      className="w-full px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
+                                      <option value="SUFFIX">SUFFIX — amount ends with CR</option>
+                                      <option value="COLUMN">COLUMN — separate Dr/Cr column</option>
+                                      <option value="SIGNED">SIGNED — negative = credit</option>
+                                      <option value="">KEYWORD — guess from description</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              )}
                               {editingFormat.type === 'BROKER' && (
                                 <div className="grid grid-cols-2 gap-2">
                                   {[
@@ -833,6 +865,18 @@ export default function Settings() {
                                       <span className="font-mono text-gray-700 dark:text-gray-300">{val}</span>
                                     </div>
                                   ))}
+                                  {f.type === 'CREDIT_CARD' && [
+                                    ['Date column', f.dateColumn],
+                                    ['Description column', f.descriptionColumn],
+                                    ['Amount column', f.amountColumn],
+                                    ['Debit indicator', f.debitIndicator],
+                                    ['Credit indicator', f.creditIndicator],
+                                  ].filter(([,v]) => v).map(([label, val]) => (
+                                    <div key={label} className="flex justify-between text-xs">
+                                      <span className="text-gray-400 dark:text-gray-500">{label}</span>
+                                      <span className="font-mono text-gray-700 dark:text-gray-300">{val}</span>
+                                    </div>
+                                  ))}
                                   {f.type === 'BROKER' && [
                                     ['Symbol column', f.symbolColumn],
                                     ['Date column', f.dateColumn],
@@ -868,13 +912,13 @@ export default function Settings() {
                   <label className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase block mb-2">Add New Format</label>
                   <div className="space-y-3">
                     <div className="flex gap-2">
-                      {['BANK', 'BROKER'].map(t => (
+                      {['BANK', 'CREDIT_CARD', 'BROKER'].map(t => (
                         <button key={t}
-                          onClick={() => { setNewFormat(t === 'BANK' ? { ...EMPTY_BANK_FORMAT } : { ...EMPTY_BROKER_FORMAT }); setFormatTab(t); }}
+                          onClick={() => { setNewFormat(t === 'BANK' ? { ...EMPTY_BANK_FORMAT } : t === 'CREDIT_CARD' ? { ...EMPTY_CC_FORMAT } : { ...EMPTY_BROKER_FORMAT }); setFormatTab(t); }}
                           className={`px-4 py-1.5 rounded-lg text-sm font-medium border transition ${
                             formatTab === t ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
                           }`}>
-                          {t === 'BANK' ? '🏦 Bank Statement' : '📈 Broker / Trades'}
+                          {t === 'BANK' ? '🏦 Bank Statement' : t === 'CREDIT_CARD' ? '💳 Credit Card' : '📈 Broker / Trades'}
                         </button>
                       ))}
                     </div>
@@ -884,9 +928,18 @@ export default function Settings() {
                         {newFormat.type === 'BANK' ? (
                           <select value={newFormat.name} onChange={e => setNewFormat({...newFormat, name: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
-                            <option value="">— Select bank / credit card —</option>
-                            {assetsList.filter(a => a.category === 'BANK' || a.category === 'CREDIT_CARD').map(a => (
-                              <option key={a.id} value={a.name}>{a.category === 'CREDIT_CARD' ? '💳' : '🏦'} {a.name}</option>
+                            <option value="">— Select bank account —</option>
+                            {assetsList.filter(a => a.category === 'BANK').map(a => (
+                              <option key={a.id} value={a.name}>🏦 {a.name}</option>
+                            ))}
+                            <option value="__custom__">✏️ Enter custom name...</option>
+                          </select>
+                        ) : newFormat.type === 'CREDIT_CARD' ? (
+                          <select value={newFormat.name} onChange={e => setNewFormat({...newFormat, name: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
+                            <option value="">— Select credit card —</option>
+                            {assetsList.filter(a => a.category === 'CREDIT_CARD').map(a => (
+                              <option key={a.id} value={a.name}>💳 {a.name}</option>
                             ))}
                             <option value="__custom__">✏️ Enter custom name...</option>
                           </select>
@@ -956,6 +1009,34 @@ export default function Settings() {
                               className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400" />
                           </div>
                         ))}
+                      </div>
+                    )}
+                    {newFormat.type === 'CREDIT_CARD' && (
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          {key:'dateColumn',        label:'Date column',        ph:'e.g. Date'},
+                          {key:'descriptionColumn', label:'Description column', ph:'e.g. Description'},
+                          {key:'amountColumn',      label:'Amount column',      ph:'e.g. Amount'},
+                          {key:'debitIndicator',    label:'Debit indicator',    ph:'e.g. Dr'},
+                          {key:'creditIndicator',   label:'Credit indicator',   ph:'e.g. Cr'},
+                        ].map(({key,label,ph}) => (
+                          <div key={key}>
+                            <label className="text-xs text-gray-400 block mb-1">{label}</label>
+                            <input value={newFormat[key]||''} onChange={e => setNewFormat({...newFormat,[key]:e.target.value})}
+                              placeholder={ph}
+                              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400" />
+                          </div>
+                        ))}
+                        <div className="col-span-2">
+                          <label className="text-xs text-gray-400 block mb-1">Dr/Cr detection mode</label>
+                          <select value={newFormat.typeIndicatorMode||'SUFFIX'} onChange={e => setNewFormat({...newFormat, typeIndicatorMode: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
+                            <option value="SUFFIX">SUFFIX — amount ends with CR (e.g. 8365.75 CR)</option>
+                            <option value="COLUMN">COLUMN — separate Dr/Cr column (e.g. 470.00 Dr)</option>
+                            <option value="SIGNED">SIGNED — negative = credit (e.g. -470.00)</option>
+                            <option value="">KEYWORD — guess from description</option>
+                          </select>
+                        </div>
                       </div>
                     )}
                     {newFormat.type === 'BROKER' && (

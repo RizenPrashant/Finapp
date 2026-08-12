@@ -42,7 +42,7 @@ const investmentTypes = [
 export default function Insights({ onProfileClick }) {
   const navigate = useNavigate();
   const [summary, setSummary] = useState(null);
-  const [selectedType, setSelectedType] = useState(null); // null = summary view
+  const [selectedType, setSelectedType] = useState(() => sessionStorage.getItem('insights_selectedType') || null);
   
   // Assets data
   const [assets, setAssets] = useState([]);
@@ -66,7 +66,9 @@ export default function Insights({ onProfileClick }) {
   const [closingInvestment, setClosingInvestment] = useState(null);
 
   // Bank transactions drill-down
-  const [selectedBankAsset, setSelectedBankAsset] = useState(null); // asset object
+  const [selectedBankAsset, setSelectedBankAsset] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('insights_selectedBankAsset')) || null; } catch { return null; }
+  });
   const [bankTransactions, setBankTransactions] = useState([]);
   const [bankTxLoading, setBankTxLoading] = useState(false);
   const [showAddTxModal, setShowAddTxModal] = useState(false);
@@ -116,6 +118,7 @@ export default function Insights({ onProfileClick }) {
 
   const handleCardClick = (type) => {
     setSelectedType(type);
+    sessionStorage.setItem('insights_selectedType', type);
   };
 
   // Asset handlers
@@ -173,6 +176,7 @@ export default function Insights({ onProfileClick }) {
 
   const openSourceTransactions = async (asset) => {
     setSelectedBankAsset(asset);
+    sessionStorage.setItem('insights_selectedBankAsset', JSON.stringify(asset));
     setBankTxLoading(true);
     setTxDateFilter({ start: '', end: '' });
     setTxCategoryFilter([]);
@@ -349,7 +353,7 @@ export default function Insights({ onProfileClick }) {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => setSelectedBankAsset(null)}
+                onClick={() => { setSelectedBankAsset(null); sessionStorage.removeItem('insights_selectedBankAsset'); }}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 transition"
               >
                 <ArrowLeft size={18} />
@@ -724,7 +728,7 @@ export default function Insights({ onProfileClick }) {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => setSelectedType(null)}
+                onClick={() => { setSelectedType(null); sessionStorage.removeItem('insights_selectedType'); sessionStorage.removeItem('insights_selectedBankAsset'); }}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 transition"
               >
                 <ArrowLeft size={18} />

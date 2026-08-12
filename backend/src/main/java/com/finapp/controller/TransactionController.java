@@ -50,7 +50,10 @@ public class TransactionController {
         if (start != null && end != null) {
             LocalDate startDate = LocalDate.parse(start);
             LocalDate endDate = LocalDate.parse(end);
-            return transactionRepository.findByUserAndTypeAndDateBetweenOrderByDateDesc(user, type != null ? type : TransactionType.CREDIT, startDate, endDate);
+            // type null = all transactions in range (both CREDIT and DEBIT)
+            if (type != null)
+                return transactionRepository.findByUserAndTypeAndDateBetweenOrderByDateDesc(user, type, startDate, endDate);
+            return transactionRepository.findByUserAndDateBetweenOrderByDateDesc(user, startDate, endDate);
         }
         if (month != null && year != null) return transactionService.getByMonthAndYear(month, year, type, user);
         if (year != null) return transactionService.getByYear(year, type, user);
@@ -144,6 +147,22 @@ public class TransactionController {
         Transaction transaction = transactionRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new RuntimeException("Transaction not found"));
         transaction.setIncludeInTax(includeInTax);
+        transactionRepository.save(transaction);
+        return ResponseEntity.ok(transaction);
+    }
+
+    // Re-categorize a transaction — updates category + budgetCategory only
+    // Budget Overview automatically reflects the change since it aggregates from universal transactions
+    @PatchMapping("/{id}/categorize")
+    public ResponseEntity<Transaction> recategorize(
+            @PathVariable Long id,
+            @RequestParam String category,
+            @RequestParam String budgetCategory) {
+        User user = getCurrentUser();
+        Transaction transaction = transactionRepository.findByIdAndUser(id, user)
+                .orElseThrow(() -> new RuntimeException("Transaction not found"));
+        transaction.setCategory(category);
+        transaction.setBudgetCategory(budgetCategory);
         transactionRepository.save(transaction);
         return ResponseEntity.ok(transaction);
     }

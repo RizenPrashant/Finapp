@@ -33,7 +33,7 @@ import java.util.regex.Pattern;
  * and apply bank-specific regex patterns to find transaction rows.
  *
  * Typical statement formats:
- * ─────────────────────────────────────────────────────────────────────
+ * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  * SBI  : Date | Description | Ref No | Debit | Credit | Balance
  *        Date format: dd MMM yyyy  (e.g. 01 Jan 2024)
  *
@@ -42,7 +42,7 @@ import java.util.regex.Pattern;
  *
  * HDFC : Date | Narration | Value Dt | Debit | Credit | Balance
  *        Date format: dd/MM/yy     (e.g. 01/01/24)
- * ─────────────────────────────────────────────────────────────────────
+ * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  *
  * NOTE: These parsers handle the standard digital (text-based) PDFs.
  * Password-protected or scanned/image PDFs are NOT supported.
@@ -50,13 +50,19 @@ import java.util.regex.Pattern;
 @Service
 public class BankPdfParser {
 
-    // ── Amount pattern: optional commas, mandatory decimal (e.g. 1,23,456.78) ──
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(BankPdfParser.class);
+
+    // â”€â”€ Amount pattern: optional commas, mandatory decimal (e.g. 1,23,456.78) â”€â”€
     private static final String AMT = "([\\d,]+\\.\\d{2})";
 
-    // ────────────────────────────── PUBLIC API ──────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ PUBLIC API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public List<TransactionDTO> parse(MultipartFile file, String bankType) {
-        String text = extractText(file);
+        return parse(file, bankType, null);
+    }
+
+    public List<TransactionDTO> parse(MultipartFile file, String bankType, String password) {
+        String text = extractText(file, password);
         return switch (bankType.toUpperCase()) {
             case "SBI"   -> parseSbi(text);
             case "ICICI" -> parseIcici(text);
@@ -65,19 +71,37 @@ public class BankPdfParser {
         };
     }
 
-    // ─────────────────────────────── TEXT EXTRACT ───────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ TEXT EXTRACT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private String extractText(MultipartFile file) {
-        try (PDDocument doc = Loader.loadPDF(file.getInputStream().readAllBytes())) {
-            PDFTextStripper stripper = new PDFTextStripper();
-            stripper.setSortByPosition(true);
-            return stripper.getText(doc);
+        return extractText(file, null);
+    }
+
+    private String extractText(MultipartFile file, String password) {
+        try {
+            byte[] bytes = file.getInputStream().readAllBytes();
+            org.apache.pdfbox.pdfparser.PDFParser parser;
+            PDDocument doc;
+            if (password != null && !password.isBlank()) {
+                doc = Loader.loadPDF(bytes, password);
+            } else {
+                doc = Loader.loadPDF(bytes);
+            }
+            try (doc) {
+                PDFTextStripper stripper = new PDFTextStripper();
+                stripper.setSortByPosition(true);
+                return stripper.getText(doc);
+            }
         } catch (Exception e) {
-            throw new RuntimeException("Could not read PDF. Make sure it is a text-based (not scanned) PDF. Error: " + e.getMessage());
+            String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            if (msg.toLowerCase().contains("password") || msg.toLowerCase().contains("encrypt")) {
+                throw new RuntimeException("PDF is password protected. Please provide the correct password.");
+            }
+            throw new RuntimeException("Could not read PDF. Make sure it is a text-based (not scanned) PDF. Error: " + msg);
         }
     }
 
-    // ──────────────────────────────── SBI ───────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ SBI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Row: 01 Jan 2024   UPI/123456/Description   REF123   1000.00        50000.00
     //   OR 01 Jan 2024   UPI/Description                            500.00 50000.00
     private List<TransactionDTO> parseSbi(String text) {
@@ -104,8 +128,8 @@ public class BankPdfParser {
                 String   narr    = m.group(2).trim();
                 String   first   = m.group(3);   // debit or credit
                 String   second  = m.group(4);   // credit or null
-                // balance is last; if two amounts before balance → debit then credit
-                // if one amount before balance → determine by context keywords
+                // balance is last; if two amounts before balance â†’ debit then credit
+                // if one amount before balance â†’ determine by context keywords
                 TransactionDTO dto = new TransactionDTO();
                 dto.setDate(date);
                 dto.setTitle(narr);
@@ -132,7 +156,7 @@ public class BankPdfParser {
         return list;
     }
 
-    // ──────────────────────────────── ICICI ──────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ ICICI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Row: 01/01/2024   UPI-Description   1000.00      50000.00
     //   OR 01/01/2024   NEFT-Description              500.00  50000.00
     private List<TransactionDTO> parseIcici(String text) {
@@ -168,7 +192,7 @@ public class BankPdfParser {
         return list;
     }
 
-    // ──────────────────────────────── HDFC ───────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ HDFC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Row: 01/01/24  UPI-Description  01/01/24  1000.00   50000.00
     //   OR 01/01/24  NEFT-Description 01/01/24           500.00  50000.00
     private List<TransactionDTO> parseHdfc(String text) {
@@ -205,7 +229,7 @@ public class BankPdfParser {
         return list;
     }
 
-    // ─────────────────────────── GENERIC FALLBACK ────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ GENERIC FALLBACK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Tries to find any line with a date-like prefix followed by amounts
     private List<TransactionDTO> parseGeneric(String text) {
         List<TransactionDTO> list = new ArrayList<>();
@@ -231,7 +255,9 @@ public class BankPdfParser {
         return list;
     }
 
-    // ─────────────────────────────── HELPERS ─────────────────────────────────────
+
+
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private LocalDate parseDateMulti(String s) {
         s = s.trim().replace(',', '.'); // Handle dd,MM,yyyy format (commas to dots)
@@ -280,9 +306,9 @@ public class BankPdfParser {
             || n.contains("ATM CR") || n.contains("REV-") || n.contains("REVERSAL");
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     //  CSV PARSING WITH CUSTOM ImportFormat
-    // ══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     public List<TransactionDTO> parseCSVWithFormat(MultipartFile file, ImportFormat fmt) {
         List<TransactionDTO> list = new ArrayList<>();
@@ -291,26 +317,38 @@ public class BankPdfParser {
             int skip = fmt.getSkipRows() != null ? fmt.getSkipRows() : 1;
             List<String[]> allRows = csv.readAll();
             if (allRows.size() <= skip) return list;
-            // Find header row
-            String[] headerRow = allRows.get(skip - 1);
-            Map<String, Integer> colIndex = new java.util.LinkedHashMap<>();
-            for (int i = 0; i < headerRow.length; i++) {
-                if (headerRow[i] != null && !headerRow[i].isBlank())
-                    colIndex.put(headerRow[i].trim().toLowerCase(), i);
+            // scan for header row (don't assume fixed skip)
+            Map<String, Integer> colIndex = null;
+            int dataStart = skip;
+            for (int i = 0; i < Math.min(skip + 5, allRows.size()); i++) {
+                Map<String, Integer> candidate = new java.util.LinkedHashMap<>();
+                String[] hdr = allRows.get(i);
+                for (int j = 0; j < hdr.length; j++)
+                    if (hdr[j] != null && !hdr[j].isBlank()) candidate.put(hdr[j].trim().toLowerCase(), j);
+                if (isHeaderRow(candidate, fmt)) { colIndex = candidate; dataStart = i + 1; break; }
+            }
+            if (colIndex == null) {
+                // fallback: use row at (skip-1) as header
+                String[] hdr = allRows.get(skip - 1);
+                colIndex = new java.util.LinkedHashMap<>();
+                for (int j = 0; j < hdr.length; j++)
+                    if (hdr[j] != null && !hdr[j].isBlank()) colIndex.put(hdr[j].trim().toLowerCase(), j);
             }
             DateTimeFormatter dateFmt = fmt.getDateFormat() != null
                 ? DateTimeFormatter.ofPattern(fmt.getDateFormat()) : null;
-            for (int i = skip; i < allRows.size(); i++) {
+            for (int i = dataStart; i < allRows.size(); i++) {
                 String[] r = allRows.get(i);
                 try {
-                    String dateStr = getColVal(r, colIndex, fmt.getDateColumn());
+                    String dateStr = getColFuzzy(r, colIndex, fmt.getDateColumn());
                     if (dateStr.isBlank()) continue;
-                    String desc   = getColVal(r, colIndex, fmt.getDescriptionColumn());
-                    String debit  = getColVal(r, colIndex, fmt.getDebitColumn());
-                    String credit = getColVal(r, colIndex, fmt.getCreditColumn());
-                    String bal    = getColVal(r, colIndex, fmt.getBalanceColumn());
+                    String desc   = getColFuzzy(r, colIndex, fmt.getDescriptionColumn());
+                    String debit  = getColFuzzy(r, colIndex, fmt.getDebitColumn());
+                    String credit = getColFuzzy(r, colIndex, fmt.getCreditColumn());
+                    String bal    = getColFuzzy(r, colIndex, fmt.getBalanceColumn());
                     TransactionDTO dto = new TransactionDTO();
-                    dto.setDate(dateFmt != null ? LocalDate.parse(dateStr, dateFmt) : parseDateMulti(dateStr));
+                    try {
+                        dto.setDate(dateFmt != null ? LocalDate.parse(dateStr, dateFmt) : parseDateMulti(dateStr));
+                    } catch (Exception e) { dto.setDate(parseDateMulti(dateStr)); }
                     dto.setTitle(desc); dto.setDescription(desc);
                     setDebitCredit(dto, debit, credit, desc);
                     if (!bal.isBlank()) dto.setBalanceAfter(parseMoneySafe(bal));
@@ -331,11 +369,6 @@ public class BankPdfParser {
         if (idx == null || idx >= r.length) return "";
         return r[idx] == null ? "" : r[idx].trim();
     }
-
-    // ══════════════════════════════════════════════════════════════════════════
-    //  CSV  PARSING  (bank-specific column layouts)
-    // ══════════════════════════════════════════════════════════════════════════
-
     /**
      * Parse a bank statement CSV with the correct column layout for each bank.
      *
@@ -425,9 +458,9 @@ public class BankPdfParser {
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     //  EXCEL PARSING (bank-specific column layouts)
-    // ══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     public List<TransactionDTO> parseExcel(MultipartFile file, String bankType) {
         List<TransactionDTO> list = new ArrayList<>();
@@ -457,7 +490,7 @@ public class BankPdfParser {
         return list;
     }
 
-    /** Parse Excel using a custom ImportFormat — column names resolved from header row */
+    /** Parse Excel using a custom ImportFormat â€” column names resolved from header row */
     public List<TransactionDTO> parseExcel(MultipartFile file, ImportFormat fmt) {
         List<TransactionDTO> list = new ArrayList<>();
         try (InputStream is = file.getInputStream();
@@ -479,7 +512,18 @@ public class BankPdfParser {
                     break;
                 }
             }
-            if (colIndex == null) throw new RuntimeException("Could not find header row matching format columns");
+            if (colIndex == null) {
+            // Fallback: use first non-empty row as header
+            for (int i = 0; i <= sheet.getLastRowNum(); i++) {
+                Row r2 = sheet.getRow(i);
+                if (r2 == null) continue;
+                String[] hdr = rowToStrings(r2, 15);
+                Map<String, Integer> candidate = buildColIndex(hdr);
+                if (!candidate.isEmpty()) { colIndex = candidate; dataStartRow = i + 1; break; }
+            }
+            if (colIndex == null) throw new RuntimeException("Could not find header row. Format expects: date=" + fmt.getDateColumn() + ", debit=" + fmt.getDebitColumn());
+            log.warn("isHeaderRow match failed — using first non-empty row as fallback header: {}", colIndex.keySet());
+        }
             DateTimeFormatter dateFmt = fmt.getDateFormat() != null
                 ? DateTimeFormatter.ofPattern(fmt.getDateFormat()) : null;
             for (int i = dataStartRow; i <= sheet.getLastRowNum(); i++) {
@@ -511,44 +555,64 @@ public class BankPdfParser {
     }
 
     private boolean isHeaderRow(Map<String, Integer> candidate, ImportFormat fmt) {
-        int matches = 0;
-        if (fmt.getDateColumn() != null && candidate.containsKey(fmt.getDateColumn().trim().toLowerCase())) matches++;
-        if (fmt.getDescriptionColumn() != null && candidate.containsKey(fmt.getDescriptionColumn().trim().toLowerCase())) matches++;
-        if (fmt.getDebitColumn() != null && candidate.containsKey(fmt.getDebitColumn().trim().toLowerCase())) matches++;
-        if (fmt.getCreditColumn() != null && candidate.containsKey(fmt.getCreditColumn().trim().toLowerCase())) matches++;
-        return matches >= 2; // at least 2 configured columns must match
+        // Simple rule: date column must be present (exact normalized match)
+        // This prevents summary rows like "opening balance, total debit..." from being picked
+        if (fmt.getDateColumn() == null) return false;
+        String target = normalize(fmt.getDateColumn());
+        for (String k : candidate.keySet()) {
+            if (normalize(k).equals(target)) return true;
+        }
+        return false;
+    }
+
+    // Normalize: lowercase, collapse spaces, remove special chars for fuzzy matching
+    private String normalize(String s) {
+        return s.toLowerCase().replaceAll("[^a-z0-9]", " ").replaceAll("\\s+", " ").trim();
+    }
+
+    private boolean containsKeyPartial(Map<String, Integer> candidate, String colName) {
+        String target = normalize(colName);
+        for (String k : candidate.keySet()) {
+            if (normalize(k).equals(target)) return true;
+        }
+        return false;
+    }
+
+    private Integer resolveColIndex(Map<String, Integer> colIndex, String colName) {
+        if (colName == null) return null;
+        String target = normalize(colName);
+        for (Map.Entry<String, Integer> e : colIndex.entrySet()) {
+            if (normalize(e.getKey()).equals(target)) return e.getValue();
+        }
+        return null;
     }
 
     private TransactionDTO mapRowWithFormat(String[] r, Map<String, Integer> colIndex, ImportFormat fmt, DateTimeFormatter dateFmt) {
-        String dateStr = getCol(r, colIndex, fmt.getDateColumn());
+        String dateStr = getColFuzzy(r, colIndex, fmt.getDateColumn());
         if (dateStr.isBlank()) return null;
-        String desc   = getCol(r, colIndex, fmt.getDescriptionColumn());
-        String debit  = getCol(r, colIndex, fmt.getDebitColumn());
-        String credit = getCol(r, colIndex, fmt.getCreditColumn());
-        String balStr = getCol(r, colIndex, fmt.getBalanceColumn());
-        // Single amount column fallback
-        if (debit.isBlank() && credit.isBlank() && fmt.getAmountColumn() != null) {
-            String amt = getCol(r, colIndex, fmt.getAmountColumn());
-            if (!amt.isBlank()) {
-                BigDecimal val = parseMoneySafe(amt.replace("-", ""));
-                if (val == null) return null;
-                TransactionDTO dto = new TransactionDTO();
-                dto.setDate(dateFmt != null ? LocalDate.parse(dateStr, dateFmt) : parseDateMulti(dateStr));
-                dto.setTitle(desc); dto.setDescription(desc);
-                dto.setAmount(val);
-                dto.setType(amt.startsWith("-") ? TransactionType.DEBIT : TransactionType.CREDIT);
-                if (!balStr.isBlank()) dto.setBalanceAfter(parseMoneySafe(balStr));
-                dto.setBudgetCategory(guessCategory(desc));
-                return dto;
-            }
-        }
+        String desc   = getColFuzzy(r, colIndex, fmt.getDescriptionColumn());
+        String debit  = getColFuzzy(r, colIndex, fmt.getDebitColumn());
+        String credit = getColFuzzy(r, colIndex, fmt.getCreditColumn());
+        String balStr = getColFuzzy(r, colIndex, fmt.getBalanceColumn());
         TransactionDTO dto = new TransactionDTO();
-        dto.setDate(dateFmt != null ? LocalDate.parse(dateStr, dateFmt) : parseDateMulti(dateStr));
+        try {
+            dto.setDate(dateFmt != null ? LocalDate.parse(dateStr, dateFmt) : parseDateMulti(dateStr));
+        } catch (Exception e) {
+            // try ISO format from Excel date cells (yyyy-MM-dd)
+            dto.setDate(parseDateMulti(dateStr));
+        }
         dto.setTitle(desc); dto.setDescription(desc);
         setDebitCredit(dto, debit, credit, desc);
         if (!balStr.isBlank()) dto.setBalanceAfter(parseMoneySafe(balStr));
         dto.setBudgetCategory(guessCategory(desc));
         return dto;
+    }
+
+    private String getColFuzzy(String[] r, Map<String, Integer> colIndex, String colName) {
+        if (colName == null) return "";
+        Integer idx = resolveColIndex(colIndex, colName);
+        if (idx == null || idx >= r.length) return "";
+        return r[idx] == null ? "" : r[idx].trim();
     }
 
     private String getCol(String[] r, Map<String, Integer> colIndex, String colName) {

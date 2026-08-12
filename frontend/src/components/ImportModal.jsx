@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, FileSpreadsheet, FileText, Eye, CheckCircle, AlertCircle, Loader2, Settings } from 'lucide-react';
-import { previewTradesImport, importTrades, previewBankStatementImport, importBankStatement, importBankStatementJson, importTradesJson, getImportFormats, getImportFormatsByType } from '../api';
+import { previewTradesImport, importTrades, previewBankStatementImport, importBankStatement, importBankStatementJson, importTradesJson, getImportFormatsByType, previewCCStatementImport, importCCStatement, importCCStatementJson } from '../api';
 import { eventEmitter, EVENTS } from '../utils/events';
 
 
@@ -80,7 +80,6 @@ function parseCustomCSV(text, fmt) {
 const ImportModal = ({ isOpen, onClose, type, bankName }) => {
   const [file, setFile] = useState(null);
   const [format, setFormat] = useState('csv');
-  const [accountType, setAccountType] = useState('BANK'); // BANK or CREDIT_CARD
   const [selectedFormat, setSelectedFormat] = useState(null); // Selected format from API
   const [availableFormats, setAvailableFormats] = useState([]); // Formats from API
   const [previewData, setPreviewData] = useState(null);
@@ -89,29 +88,26 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [formatsLoading, setFormatsLoading] = useState(false);
+  const [pdfPassword, setPdfPassword] = useState('');
   const fileInputRef = useRef(null);
 
   const isTrades = type === 'trades';
   const isBankStatement = type === 'bank-statement';
+  const isCreditCard = type === 'credit-card';
 
-  // Load formats from API whenever modal opens
+  // Load formats from API whenever modal opens or type changes
   useEffect(() => {
-    if (isOpen) {
-      loadFormats();
-    }
-  }, [isOpen]);
+    if (isOpen) loadFormats();
+  }, [isOpen, type]);
 
   const loadFormats = async () => {
     setFormatsLoading(true);
     try {
-      const type = isTrades ? 'BROKER' : 'BANK';
-      const response = await getImportFormatsByType(type);
+      const apiType = type === 'trades' ? 'BROKER' : type === 'credit-card' ? 'CREDIT_CARD' : 'BANK';
+      const response = await getImportFormatsByType(apiType);
       setAvailableFormats(response.data || []);
-      // Select first default format if available
       const defaultFormat = response.data?.find(f => f.default);
-      if (defaultFormat) {
-        setSelectedFormat(defaultFormat);
-      }
+      if (defaultFormat) setSelectedFormat(defaultFormat);
     } catch (err) {
       console.error('Failed to load import formats:', err);
       setError('Failed to load import formats. Please try again.');
@@ -128,6 +124,7 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
       setPreviewData(null);
       setResult(null);
       setError(null);
+      setPdfPassword('');
       // Auto-detect format from file extension
       const ext = selectedFile.name.split('.').pop().toLowerCase();
       if (ext === 'xlsx' || ext === 'xls') {
@@ -154,7 +151,7 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
   const handlePreview = async () => {
     console.log('handlePreview called - file:', file?.name, 'format:', format, 'selectedFormat:', selectedFormat?.name);
     if (!file) { setError('Please select a file first'); return; }
-    if (!selectedFormat) { setError('Please select an import format'); return; }
+    if (!selectedFormat && format !== 'pdf') { setError('Please select an import format'); return; }
     setLoading(true); setError(null);
     try {
       console.log('Sending preview request...');
@@ -168,25 +165,23 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
           isPreview: true, _customRows: rows,
         });
       } else {
-        // Excel / PDF - send to backend for parsing
         const formData = new FormData();
         formData.append('file', file);
         formData.append('format', format);
-        if (selectedFormat.id) formData.append('formatId', selectedFormat.id);
-        const brokerKey = selectedFormat.name.toUpperCase().split(' ')[0];
+        if (selectedFormat?.id) formData.append('formatId', selectedFormat.id);
+        if (format === 'pdf' && pdfPassword) formData.append('pdfPassword', pdfPassword);
+        const brokerKey = selectedFormat ? selectedFormat.name.toUpperCase().split(' ')[0] : 'GENERIC';
+        let response;
         if (isTrades) {
           formData.append('brokerType', brokerKey);
+          response = await previewTradesImport(formData);
+        } else if (isCreditCard) {
+          response = await previewCCStatementImport(formData);
         } else {
           formData.append('bankType', brokerKey);
+          formData.append('bankName', selectedFormat?.linkedAsset?.name || selectedFormat?.name || bankName || 'Unknown');
+          response = await previewBankStatementImport(formData);
         }
-        if (isBankStatement) {
-          formData.append('bankName', selectedFormat.linkedAsset?.name || selectedFormat.name);
-          formData.append('accountType', accountType);
-        }
-        const response = isTrades
-          ? await previewTradesImport(formData)
-          : await previewBankStatementImport(formData);
-        console.log('Preview response:', response.data);
         if (response.data.success) setPreviewData(response.data);
         else setError(response.data.message || 'Preview failed');
       }
@@ -199,68 +194,61 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
   const handleImport = async () => {
     console.log('handleImport called - file:', file?.name, 'format:', format, 'selectedFormat:', selectedFormat?.name);
     if (!file) { setError('Please select a file first'); return; }
-    if (!selectedFormat) { setError('Please select an import format'); return; }
+    if (!selectedFormat && format !== 'pdf') { setError('Please select an import format'); return; }
     setImporting(true); setError(null);
     try {
       console.log('Sending import request...');
       if (format === 'csv') {
         // Client-side parse then send as JSON to backend
         const rows = previewData?._customRows || parseCustomCSV(await readFileText(), selectedFormat);
-        let response;
-        // Use linked asset name if available, otherwise use format name
         const bankNameToUse = selectedFormat.linkedAsset?.name || selectedFormat.name;
-        if (isBankStatement) {
+        let response;
+        if (isCreditCard) {
           const transactions = rows.map(r => ({
             date: r.date, description: r.description, title: r.description,
-            amount: r.amount, type: r.type,
-            budgetCategory: r.category, paymentSource: bankNameToUse,
+            amount: r.amount, type: r.type, budgetCategory: r.category, paymentSource: bankNameToUse,
             ...(r.balance != null ? { balanceAfter: r.balance } : {}),
           }));
-          response = await importBankStatementJson({ 
-            bankName: bankNameToUse, 
-            accountType, 
-            transactions,
-            formatId: selectedFormat.id  // Pass format ID for backend reference
-          });
+          response = await importCCStatementJson({ bankName: bankNameToUse, transactions });
+        } else if (isBankStatement) {
+          const transactions = rows.map(r => ({
+            date: r.date, description: r.description, title: r.description,
+            amount: r.amount, type: r.type, budgetCategory: r.category, paymentSource: bankNameToUse,
+            ...(r.balance != null ? { balanceAfter: r.balance } : {}),
+          }));
+          response = await importBankStatementJson({ bankName: bankNameToUse, accountType: 'BANK', transactions });
         } else {
           const trades = rows.map(r => ({
-            stockName: r.stockName, entryDate: r.entryDate,
-            tradeType: r.tradeType, quantity: r.quantity,
-            buyPrice: r.buyPrice, sellPrice: r.sellPrice,
-            investedAmount: r.investedAmount, status: r.status,
-            segment: r.segment, positionType: r.positionType, broker: r.broker,
+            stockName: r.stockName, entryDate: r.entryDate, tradeType: r.tradeType,
+            quantity: r.quantity, buyPrice: r.buyPrice, sellPrice: r.sellPrice,
+            investedAmount: r.investedAmount, status: r.status, segment: r.segment,
+            positionType: r.positionType, broker: r.broker,
           }));
           response = await importTradesJson({ trades });
         }
-        setResult({
-          ...response.data,
-          message: `${selectedFormat.name}: ${response.data.message}`,
-        });
+        setResult({ ...response.data, message: `${selectedFormat.name}: ${response.data.message}` });
       } else {
-        // Excel / PDF import - send to backend
         const formData = new FormData();
         formData.append('file', file);
         formData.append('format', format);
-        if (selectedFormat.id) formData.append('formatId', selectedFormat.id);
-        const brokerKey2 = selectedFormat.name.toUpperCase().split(' ')[0];
+        if (selectedFormat?.id) formData.append('formatId', selectedFormat.id);
+        if (format === 'pdf' && pdfPassword) formData.append('pdfPassword', pdfPassword);
+        const brokerKey = selectedFormat ? selectedFormat.name.toUpperCase().split(' ')[0] : 'GENERIC';
+        let response;
         if (isTrades) {
-          formData.append('brokerType', brokerKey2);
+          formData.append('brokerType', brokerKey);
+          response = await importTrades(formData);
+        } else if (isCreditCard) {
+          formData.append('ccName', selectedFormat?.linkedAsset?.name || selectedFormat?.name || 'Credit Card');
+          response = await importCCStatement(formData);
         } else {
-          formData.append('bankType', brokerKey2);
+          formData.append('bankType', brokerKey);
+          formData.append('bankName', selectedFormat?.linkedAsset?.name || selectedFormat?.name || bankName || 'Unknown');
+          response = await importBankStatement(formData);
         }
-        if (isBankStatement) {
-          formData.append('bankName', selectedFormat.linkedAsset?.name || selectedFormat.name);
-          formData.append('accountType', accountType);
-        }
-        const response = isTrades
-          ? await importTrades(formData)
-          : await importBankStatement(formData);
-        console.log('Import response:', response.data);
         setResult(response.data);
-        // Emit event to refresh assets after successful import
-        if (response.data.success && response.data.importedCount > 0) {
+        if (response.data.success && response.data.importedCount > 0)
           eventEmitter.emit(EVENTS.TRANSACTIONS_IMPORTED, response.data);
-        }
       }
       setPreviewData(null);
     } catch (err) {
@@ -295,7 +283,7 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
           <div className="flex items-center gap-2">
             <Upload className="w-5 h-5 text-indigo-600" />
             <h2 className="text-lg font-semibold">
-              Import {isTrades ? 'Trades' : 'Bank Statement'}
+              Import {isTrades ? 'Trades' : isCreditCard ? 'Credit Card Statement' : 'Bank Statement'}
             </h2>
           </div>
           <button
@@ -331,36 +319,30 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
                   ))}
                 </div>
                 {format === 'pdf' && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-lg">
-                    ⚠️ PDF parsing uses text extraction — only built-in bank formats (ICICI, HDFC, SBI) are supported. Custom formats work with CSV/Excel only.
-                  </p>
+                  <div className="space-y-2">
+                    <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-lg">
+                      ⚠️ PDF parsing uses text extraction — only built-in bank formats (ICICI, HDFC, SBI) are supported. Custom formats work with CSV/Excel only.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">🔒 PDF Password (if protected):</span>
+                      <input
+                        type="password"
+                        value={pdfPassword}
+                        onChange={e => setPdfPassword(e.target.value)}
+                        placeholder="Leave blank if not password protected"
+                        className="flex-1 px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-400"
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {/* Account type selector (Bank vs Credit Card) */}
-              {isBankStatement && (
-                <div className="space-y-2">
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Account Type:</span>
-                  <div className="flex gap-2">
-                    {[{val:'BANK',label:'🏦 Bank Account'},{val:'CREDIT_CARD',label:'💳 Credit Card'}].map(({val,label})=>(
-                      <button key={val}
-                        onClick={() => setAccountType(val)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
-                          accountType === val
-                            ? 'bg-indigo-600 border-indigo-600 text-white'
-                            : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-indigo-400'
-                        }`}>
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+
 
               {/* Import Format Selector from API */}
               <div className="space-y-2">
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {isBankStatement ? 'Select Bank Format:' : 'Select Broker Format:'}
+                  {isTrades ? 'Select Broker Format:' : isCreditCard ? 'Select Credit Card Format:' : 'Select Bank Format:'}
                 </span>
                 <div className="flex gap-2 flex-wrap">
                   {formatsLoading ? (

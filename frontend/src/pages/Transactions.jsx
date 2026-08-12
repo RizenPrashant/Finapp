@@ -50,6 +50,7 @@ export default function Transactions({ onProfileClick }) {
   const [activeCustomFilter, setActiveCustomFilter] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportBankModal, setShowImportBankModal] = useState(false);
+  const [importType, setImportType] = useState('bank-statement');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -382,12 +383,21 @@ export default function Transactions({ onProfileClick }) {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setShowImportBankModal(true)}
-              className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition text-xs sm:text-sm whitespace-nowrap"
-            >
-              <Upload size={16} className="sm:w-[18px] sm:h-[18px]" /> Import
-            </button>
+            <div className="flex items-center rounded-xl overflow-hidden border border-emerald-600">
+              <button
+                onClick={() => { setImportType('bank-statement'); setShowImportBankModal(true); }}
+                className="flex items-center gap-2 px-3 py-2 sm:py-3 bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition text-xs sm:text-sm whitespace-nowrap"
+              >
+                <Upload size={16} /> 🏦 Bank
+              </button>
+              <div className="w-px bg-emerald-500 self-stretch" />
+              <button
+                onClick={() => { setImportType('credit-card'); setShowImportBankModal(true); }}
+                className="flex items-center gap-2 px-3 py-2 sm:py-3 bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition text-xs sm:text-sm whitespace-nowrap"
+              >
+                💳 CC
+              </button>
+            </div>
             <button
               onClick={() => setShowAddModal(true)}
               className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-3 bg-slate-900 dark:bg-blue-600 text-white rounded-xl font-semibold hover:bg-slate-700 transition text-xs sm:text-sm whitespace-nowrap"
@@ -476,7 +486,7 @@ export default function Transactions({ onProfileClick }) {
             setShowImportBankModal(false);
             fetchTransactions();
           }}
-          type="bank-statement"
+          type={importType}
         />
       )}
     </div>

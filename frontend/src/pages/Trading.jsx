@@ -14,8 +14,8 @@ export default function Trading() {
   const [holdings, setHoldings] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [compoundingHistory, setCompoundingHistory] = useState([]);
-  const [activeTab, setActiveTab] = useState('all');
-  const [viewMode, setViewMode] = useState('portfolio'); // 'portfolio' or 'trades'
+  const [activeTab, setActiveTab] = useState(() => sessionStorage.getItem('trading_activeTab') || 'all');
+  const [viewMode, setViewMode] = useState(() => sessionStorage.getItem('trading_viewMode') || 'portfolio');
   const [selectedBroker, setSelectedBroker] = useState('');
   const [selectedSegment, setSelectedSegment] = useState('');
   const [brokers, setBrokers] = useState([]);
@@ -452,7 +452,7 @@ export default function Trading() {
           {/* View Mode Toggle */}
           <div className="flex gap-1 bg-white dark:bg-gray-800 p-1 rounded-xl border border-gray-200 dark:border-gray-600">
             <button
-              onClick={() => setViewMode('portfolio')}
+              onClick={() => { setViewMode('portfolio'); sessionStorage.setItem('trading_viewMode', 'portfolio'); }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 viewMode === 'portfolio'
                   ? 'bg-slate-900 text-white'
@@ -463,7 +463,7 @@ export default function Trading() {
               Portfolio
             </button>
             <button
-              onClick={() => setViewMode('trades')}
+              onClick={() => { setViewMode('trades'); sessionStorage.setItem('trading_viewMode', 'trades'); }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 viewMode === 'trades'
                   ? 'bg-slate-900 text-white'
@@ -483,7 +483,7 @@ export default function Trading() {
               {['all', 'open', 'closed'].map((tab) => (
                 <button
                   key={tab}
-                  onClick={() => { setActiveTab(tab); setSelectedBroker(''); }}
+                  onClick={() => { setActiveTab(tab); setSelectedBroker(''); sessionStorage.setItem('trading_activeTab', tab); }}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                     activeTab === tab && !selectedBroker
                       ? 'bg-slate-900 text-white'
