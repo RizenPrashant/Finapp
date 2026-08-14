@@ -463,9 +463,14 @@ public class BankPdfParser {
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     public List<TransactionDTO> parseExcel(MultipartFile file, String bankType) {
+        return parseExcel(file, bankType, null);
+    }
+
+    public List<TransactionDTO> parseExcel(MultipartFile file, String bankType, String password) {
         List<TransactionDTO> list = new ArrayList<>();
         try (InputStream is = file.getInputStream();
-             Workbook wb = WorkbookFactory.create(is)) {
+             Workbook wb = (password != null && !password.isBlank())
+                 ? WorkbookFactory.create(is, password) : WorkbookFactory.create(is)) {
             Sheet sheet = wb.getSheetAt(0);
             boolean dataStarted = false;
             for (int i = 0; i <= sheet.getLastRowNum(); i++) {
@@ -492,9 +497,14 @@ public class BankPdfParser {
 
     /** Parse Excel using a custom ImportFormat â€” column names resolved from header row */
     public List<TransactionDTO> parseExcel(MultipartFile file, ImportFormat fmt) {
+        return parseExcel(file, fmt, null);
+    }
+
+    public List<TransactionDTO> parseExcel(MultipartFile file, ImportFormat fmt, String password) {
         List<TransactionDTO> list = new ArrayList<>();
         try (InputStream is = file.getInputStream();
-             Workbook wb = WorkbookFactory.create(is)) {
+             Workbook wb = (password != null && !password.isBlank())
+                 ? WorkbookFactory.create(is, password) : WorkbookFactory.create(is)) {
             Sheet sheet = wb.getSheetAt(0);
             int skip = fmt.getSkipRows() != null ? fmt.getSkipRows() : 1;
             // Find header row: scan until we find a row whose first non-empty cell

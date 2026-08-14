@@ -67,6 +67,10 @@ public class BrokerPdfParser {
     // ───────────────────────────── PUBLIC API ────────────────────────────────────
 
     public List<TradeDTO> parse(MultipartFile file, String brokerType) {
+        return parse(file, brokerType, null);
+    }
+
+    public List<TradeDTO> parse(MultipartFile file, String brokerType, String password) {
         String text = extractText(file);
         return switch (brokerType.toUpperCase()) {
             case "ZERODHA" -> parseZerodha(text);
@@ -78,12 +82,24 @@ public class BrokerPdfParser {
     // ─────────────────────────────── TEXT EXTRACT ────────────────────────────────
 
     private String extractText(MultipartFile file) {
-        try (PDDocument doc = Loader.loadPDF(file.getBytes())) {
-            PDFTextStripper stripper = new PDFTextStripper();
-            stripper.setSortByPosition(true);
-            return stripper.getText(doc);
+        return extractText(file, null);
+    }
+
+    private String extractText(MultipartFile file, String password) {
+        try {
+            byte[] bytes = file.getBytes();
+            PDDocument doc = (password != null && !password.isBlank())
+                ? Loader.loadPDF(bytes, password) : Loader.loadPDF(bytes);
+            try (doc) {
+                PDFTextStripper stripper = new PDFTextStripper();
+                stripper.setSortByPosition(true);
+                return stripper.getText(doc);
+            }
         } catch (Exception e) {
-            throw new RuntimeException("Could not read PDF. Make sure it is a text-based (not scanned) PDF. Error: " + e.getMessage());
+            String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            if (msg.toLowerCase().contains("password") || msg.toLowerCase().contains("encrypt"))
+                throw new RuntimeException("PDF is password protected. Please provide the correct password.");
+            throw new RuntimeException("Could not read PDF: " + msg);
         }
     }
 
@@ -523,9 +539,14 @@ public class BrokerPdfParser {
      * the format's configured column names to extract data universally.
      */
     public List<TradeDTO> parseExcel(MultipartFile file, ImportFormat fmt) {
+        return parseExcel(file, fmt, null);
+    }
+
+    public List<TradeDTO> parseExcel(MultipartFile file, ImportFormat fmt, String password) {
         List<TradeDTO> list = new ArrayList<>();
         try (InputStream is = file.getInputStream();
-             Workbook wb = WorkbookFactory.create(is)) {
+             Workbook wb = (password != null && !password.isBlank())
+                 ? WorkbookFactory.create(is, password) : WorkbookFactory.create(is)) {
             Sheet sheet = wb.getSheetAt(0);
 
             // Find header row (first row whose first non-empty cell matches a known column name from format)
@@ -645,9 +666,14 @@ public class BrokerPdfParser {
     }
 
     public List<TradeDTO> parseExcel(MultipartFile file, String brokerType) {
+        return parseExcel(file, brokerType, null);
+    }
+
+    public List<TradeDTO> parseExcel(MultipartFile file, String brokerType, String password) {
         List<TradeDTO> list = new ArrayList<>();
         try (InputStream is = file.getInputStream();
-             Workbook wb = WorkbookFactory.create(is)) {
+             Workbook wb = (password != null && !password.isBlank())
+                 ? WorkbookFactory.create(is, password) : WorkbookFactory.create(is)) {
             Sheet sheet = wb.getSheetAt(0);
             int dataStartRow = 1;
             for (int i = 0; i <= Math.min(20, sheet.getLastRowNum()); i++) {

@@ -72,8 +72,13 @@ public class CreditCardParser {
     }
 
     public List<TransactionDTO> parseExcel(MultipartFile file, ImportFormat fmt) {
+        return parseExcel(file, fmt, null);
+    }
+
+    public List<TransactionDTO> parseExcel(MultipartFile file, ImportFormat fmt, String password) {
         List<TransactionDTO> list = new ArrayList<>();
-        try (InputStream is = file.getInputStream(); Workbook wb = WorkbookFactory.create(is)) {
+        try (InputStream is = file.getInputStream(); Workbook wb = (password != null && !password.isBlank())
+                 ? WorkbookFactory.create(is, password) : WorkbookFactory.create(is)) {
             Sheet sheet = wb.getSheetAt(0);
             Map<String, Integer> colIndex = null;
             int dataStart = -1;

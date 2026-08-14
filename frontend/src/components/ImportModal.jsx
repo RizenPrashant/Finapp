@@ -169,19 +169,8 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
         formData.append('file', file);
         formData.append('format', format);
         if (selectedFormat?.id) formData.append('formatId', selectedFormat.id);
-        if (format === 'pdf' && pdfPassword) formData.append('pdfPassword', pdfPassword);
-        const brokerKey = selectedFormat ? selectedFormat.name.toUpperCase().split(' ')[0] : 'GENERIC';
-        let response;
-        if (isTrades) {
-          formData.append('brokerType', brokerKey);
-          response = await previewTradesImport(formData);
-        } else if (isCreditCard) {
-          response = await previewCCStatementImport(formData);
-        } else {
-          formData.append('bankType', brokerKey);
-          formData.append('bankName', selectedFormat?.linkedAsset?.name || selectedFormat?.name || bankName || 'Unknown');
-          response = await previewBankStatementImport(formData);
-        }
+        if (pdfPassword) formData.append('pdfPassword', pdfPassword);
+        const brokerKey
         if (response.data.success) setPreviewData(response.data);
         else setError(response.data.message || 'Preview failed');
       }
@@ -232,20 +221,8 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
         formData.append('file', file);
         formData.append('format', format);
         if (selectedFormat?.id) formData.append('formatId', selectedFormat.id);
-        if (format === 'pdf' && pdfPassword) formData.append('pdfPassword', pdfPassword);
-        const brokerKey = selectedFormat ? selectedFormat.name.toUpperCase().split(' ')[0] : 'GENERIC';
-        let response;
-        if (isTrades) {
-          formData.append('brokerType', brokerKey);
-          response = await importTrades(formData);
-        } else if (isCreditCard) {
-          formData.append('ccName', selectedFormat?.linkedAsset?.name || selectedFormat?.name || 'Credit Card');
-          response = await importCCStatement(formData);
-        } else {
-          formData.append('bankType', brokerKey);
-          formData.append('bankName', selectedFormat?.linkedAsset?.name || selectedFormat?.name || bankName || 'Unknown');
-          response = await importBankStatement(formData);
-        }
+        if (pdfPassword) formData.append('pdfPassword', pdfPassword);
+        const brokerKey
         setResult(response.data);
         if (response.data.success && response.data.importedCount > 0)
           eventEmitter.emit(EVENTS.TRANSACTIONS_IMPORTED, response.data);
@@ -319,20 +296,20 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
                   ))}
                 </div>
                 {format === 'pdf' && (
-                  <div className="space-y-2">
-                    <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-lg">
-                      ⚠️ PDF parsing uses text extraction — only built-in bank formats (ICICI, HDFC, SBI) are supported. Custom formats work with CSV/Excel only.
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">🔒 PDF Password (if protected):</span>
-                      <input
-                        type="password"
-                        value={pdfPassword}
-                        onChange={e => setPdfPassword(e.target.value)}
-                        placeholder="Leave blank if not password protected"
-                        className="flex-1 px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-400"
-                      />
-                    </div>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-lg">
+                    ⚠️ PDF parsing uses text extraction — only built-in bank formats (ICICI, HDFC, SBI) are supported. Custom formats work with CSV/Excel only.
+                  </p>
+                )}
+                {(format === 'pdf' || format === 'excel') && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">🔒 Password (if protected):</span>
+                    <input
+                      type="password"
+                      value={pdfPassword}
+                      onChange={e => setPdfPassword(e.target.value)}
+                      placeholder="Leave blank if not password protected"
+                      className="flex-1 px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
                   </div>
                 )}
               </div>

@@ -56,7 +56,7 @@ public class ImportService {
         User user = userRepository.findByEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        List<TradeDTO> trades = parseTradesFile(file, format, brokerType, formatId);
+        List<TradeDTO> trades = parseTradesFile(file, format, brokerType, formatId, null);
         List<String> errors = new ArrayList<>();
         int imported = 0;
 
@@ -96,7 +96,7 @@ public class ImportService {
     }
 
     public ImportResponseDTO previewTrades(MultipartFile file, String format, String brokerType, Long formatId) {
-        List<TradeDTO> trades = parseTradesFile(file, format, brokerType, formatId);
+        List<TradeDTO> trades = parseTradesFile(file, format, brokerType, formatId, null);
         List<Map<String, Object>> previewData = new ArrayList<>();
         for (TradeDTO trade : trades) {
             Map<String, Object> map = new HashMap<>();
@@ -117,18 +117,18 @@ public class ImportService {
                 .totalRows(trades.size()).previewData(previewData).isPreview(true).build();
     }
 
-    private List<TradeDTO> parseTradesFile(MultipartFile file, String format, String brokerType, Long formatId) {
+    private List<TradeDTO> parseTradesFile(MultipartFile file, String format, String brokerType, Long formatId, String password) {
         if (formatId != null) {
             ImportFormat fmt = importFormatRepository.findById(formatId).orElse(null);
             if (fmt != null) {
                 if ("csv".equalsIgnoreCase(format)) return brokerPdfParser.parseCSVWithFormat(file, fmt);
-                if ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format)) return brokerPdfParser.parseExcel(file, fmt);
+                if ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format)) return brokerPdfParser.parseExcel(file, fmt, password);
             }
         }
         String bt = brokerType != null ? brokerType : "GENERIC";
         if ("csv".equalsIgnoreCase(format)) return brokerPdfParser.parseCSV(file, bt);
-        if ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format)) return brokerPdfParser.parseExcel(file, bt);
-        if ("pdf".equalsIgnoreCase(format)) return brokerPdfParser.parse(file, bt);
+        if ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format)) return brokerPdfParser.parseExcel(file, bt, password);
+        if ("pdf".equalsIgnoreCase(format)) return brokerPdfParser.parse(file, bt, password);
         throw new RuntimeException("Unsupported format: " + format);
     }
 
@@ -228,7 +228,7 @@ public class ImportService {
     private List<TransactionDTO> parseCCFile(MultipartFile file, String format, Long formatId, String password) {
         ImportFormat fmt = formatId != null ? importFormatRepository.findById(formatId).orElse(null) : null;
         if (fmt == null) throw new RuntimeException("CC import format not found. Please select a format.");
-        if ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format)) return creditCardParser.parseExcel(file, fmt);
+        if ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format)) return creditCardParser.parseExcel(file, fmt, password);
         if ("csv".equalsIgnoreCase(format)) return creditCardParser.parseCSV(file, fmt);
         return creditCardParser.parsePdf(file, fmt, password);
     }
@@ -336,7 +336,7 @@ public class ImportService {
             if (fmt != null) {
                 List<TransactionDTO> txns;
                 if ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format))
-                    txns = bankPdfParser.parseExcel(file, fmt);
+                    txns = bankPdfParser.parseExcel(file, fmt, password);
                 else if ("csv".equalsIgnoreCase(format))
                     txns = bankPdfParser.parseCSVWithFormat(file, fmt);
                 else
@@ -348,7 +348,7 @@ public class ImportService {
         String bt = bankType != null ? bankType : "GENERIC";
         List<TransactionDTO> txns;
         if ("csv".equalsIgnoreCase(format)) txns = bankPdfParser.parseCSV(file, bt);
-        else if ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format)) txns = bankPdfParser.parseExcel(file, bt);
+        else if ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format)) txns = bankPdfParser.parseExcel(file, bt, password);
         else if ("pdf".equalsIgnoreCase(format)) txns = bankPdfParser.parse(file, bt, password);
         else throw new RuntimeException("Unsupported format: " + format);
         txns.forEach(t -> t.setPaymentSource(bankName));
