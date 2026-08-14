@@ -170,7 +170,18 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
         formData.append('format', format);
         if (selectedFormat?.id) formData.append('formatId', selectedFormat.id);
         if (pdfPassword) formData.append('pdfPassword', pdfPassword);
-        const brokerKey
+        const brokerKey = selectedFormat ? selectedFormat.name.toUpperCase().split(' ')[0] : 'GENERIC';
+        let response;
+        if (isTrades) {
+          formData.append('brokerType', brokerKey);
+          response = await previewTradesImport(formData);
+        } else if (isCreditCard) {
+          response = await previewCCStatementImport(formData);
+        } else {
+          formData.append('bankType', brokerKey);
+          formData.append('bankName', selectedFormat?.linkedAsset?.name || selectedFormat?.name || bankName || 'Unknown');
+          response = await previewBankStatementImport(formData);
+        }
         if (response.data.success) setPreviewData(response.data);
         else setError(response.data.message || 'Preview failed');
       }
@@ -222,7 +233,19 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
         formData.append('format', format);
         if (selectedFormat?.id) formData.append('formatId', selectedFormat.id);
         if (pdfPassword) formData.append('pdfPassword', pdfPassword);
-        const brokerKey
+        const brokerKey = selectedFormat ? selectedFormat.name.toUpperCase().split(' ')[0] : 'GENERIC';
+        let response;
+        if (isTrades) {
+          formData.append('brokerType', brokerKey);
+          response = await importTrades(formData);
+        } else if (isCreditCard) {
+          formData.append('ccName', selectedFormat?.linkedAsset?.name || selectedFormat?.name || 'Credit Card');
+          response = await importCCStatement(formData);
+        } else {
+          formData.append('bankType', brokerKey);
+          formData.append('bankName', selectedFormat?.linkedAsset?.name || selectedFormat?.name || bankName || 'Unknown');
+          response = await importBankStatement(formData);
+        }
         setResult(response.data);
         if (response.data.success && response.data.importedCount > 0)
           eventEmitter.emit(EVENTS.TRANSACTIONS_IMPORTED, response.data);
