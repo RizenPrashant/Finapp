@@ -544,9 +544,8 @@ public class BrokerPdfParser {
 
     public List<TradeDTO> parseExcel(MultipartFile file, ImportFormat fmt, String password) {
         List<TradeDTO> list = new ArrayList<>();
-        try (InputStream is = file.getInputStream();
-             Workbook wb = (password != null && !password.isBlank())
-                 ? WorkbookFactory.create(is, password) : WorkbookFactory.create(is)) {
+        try (Workbook wb = (password != null && !password.isBlank())
+                 ? openEncryptedWorkbook(file.getInputStream(), password) : WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = wb.getSheetAt(0);
 
             // Find header row (first row whose first non-empty cell matches a known column name from format)
@@ -671,9 +670,8 @@ public class BrokerPdfParser {
 
     public List<TradeDTO> parseExcel(MultipartFile file, String brokerType, String password) {
         List<TradeDTO> list = new ArrayList<>();
-        try (InputStream is = file.getInputStream();
-             Workbook wb = (password != null && !password.isBlank())
-                 ? WorkbookFactory.create(is, password) : WorkbookFactory.create(is)) {
+        try (Workbook wb = (password != null && !password.isBlank())
+                 ? openEncryptedWorkbook(file.getInputStream(), password) : WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = wb.getSheetAt(0);
             int dataStartRow = 1;
             for (int i = 0; i <= Math.min(20, sheet.getLastRowNum()); i++) {
@@ -760,4 +758,13 @@ public class BrokerPdfParser {
         }
         throw new RuntimeException("Cannot parse date: " + s);
     }
+    private Workbook openEncryptedWorkbook(java.io.InputStream is, String password) throws Exception {
+        org.apache.poi.poifs.filesystem.POIFSFileSystem fs = new org.apache.poi.poifs.filesystem.POIFSFileSystem(is);
+        org.apache.poi.poifs.crypt.EncryptionInfo info = new org.apache.poi.poifs.crypt.EncryptionInfo(fs);
+        org.apache.poi.poifs.crypt.Decryptor dec = org.apache.poi.poifs.crypt.Decryptor.getInstance(info);
+        if (!dec.verifyPassword(password))
+            throw new RuntimeException("Incorrect password for the Excel file.");
+        return WorkbookFactory.create(dec.getDataStream(fs));
+    }
+
 }

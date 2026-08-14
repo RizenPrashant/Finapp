@@ -49,8 +49,9 @@ public class ImportController {
             @RequestParam(value = "format", defaultValue = "csv") String format,
             @RequestParam(value = "brokerType", required = false) String brokerType,
             @RequestParam(value = "formatId", required = false) Long formatId,
+            @RequestParam(value = "pdfPassword", required = false) String pdfPassword,
             Authentication auth) {
-        return ResponseEntity.ok(importService.importTrades(file, format, auth.getName(), brokerType, formatId));
+        return ResponseEntity.ok(importService.importTrades(file, format, auth.getName(), brokerType, formatId, pdfPassword));
     }
 
     @PostMapping("/preview/trades")
@@ -58,8 +59,9 @@ public class ImportController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "format", defaultValue = "csv") String format,
             @RequestParam(value = "brokerType", required = false) String brokerType,
-            @RequestParam(value = "formatId", required = false) Long formatId) {
-        return ResponseEntity.ok(importService.previewTrades(file, format, brokerType, formatId));
+            @RequestParam(value = "formatId", required = false) Long formatId,
+            @RequestParam(value = "pdfPassword", required = false) String pdfPassword) {
+        return ResponseEntity.ok(importService.previewTrades(file, format, brokerType, formatId, pdfPassword));
     }
 
     @PostMapping("/trades/json")

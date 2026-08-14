@@ -52,11 +52,11 @@ public class ImportService {
 
     // ==================== TRADES IMPORT ====================
 
-    public ImportResponseDTO importTrades(MultipartFile file, String format, String username, String brokerType, Long formatId) {
+    public ImportResponseDTO importTrades(MultipartFile file, String format, String username, String brokerType, Long formatId, String password) {
         User user = userRepository.findByEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        List<TradeDTO> trades = parseTradesFile(file, format, brokerType, formatId, null);
+        List<TradeDTO> trades = parseTradesFile(file, format, brokerType, formatId, password);
         List<String> errors = new ArrayList<>();
         int imported = 0;
 
@@ -95,8 +95,8 @@ public class ImportService {
                 .failedCount(errors.size()).errors(errors).isPreview(false).build();
     }
 
-    public ImportResponseDTO previewTrades(MultipartFile file, String format, String brokerType, Long formatId) {
-        List<TradeDTO> trades = parseTradesFile(file, format, brokerType, formatId, null);
+    public ImportResponseDTO previewTrades(MultipartFile file, String format, String brokerType, Long formatId, String password) {
+        List<TradeDTO> trades = parseTradesFile(file, format, brokerType, formatId, password);
         List<Map<String, Object>> previewData = new ArrayList<>();
         for (TradeDTO trade : trades) {
             Map<String, Object> map = new HashMap<>();
