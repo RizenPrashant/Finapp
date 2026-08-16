@@ -22,7 +22,7 @@ export default function AssetCard({ asset, onEdit, onDelete, onViewTransactions,
   const typeColor = assetTypeColors[asset.type] || assetTypeColors.ASSET;
   
   const formatCurrency = (value) => {
-    return `₹${parseFloat(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+    const n = parseFloat(value ?? 0); return isNaN(n) ? '₹0.00' : '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   return (

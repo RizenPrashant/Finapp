@@ -246,7 +246,7 @@ export default function Transactions({ onProfileClick }) {
                   }`}>
                   <span>{w.icon}</span> {w.platform}
                   {cashbackMode && selectedWalletId === w.id && (
-                    <span className="ml-1 bg-white/20 px-1 rounded text-[10px]">₹{parseFloat(w.balance).toLocaleString('en-IN')}</span>
+                    <span className="ml-1 bg-white/20 px-1 rounded text-[10px]">₹{parseFloat(w.balance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   )}
                 </button>
               ))}
@@ -369,16 +369,16 @@ export default function Transactions({ onProfileClick }) {
           <div className="flex-1 grid grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
             <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-2 sm:p-3 lg:p-4 min-w-0">
               <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-1 truncate">Income</p>
-              <p className="text-sm sm:text-base lg:text-lg font-bold text-green-600 dark:text-green-400 truncate" title={`₹${monthlyIncome.toLocaleString('en-IN')}`}>₹{monthlyIncome.toLocaleString('en-IN')}</p>
+              <p className="text-sm sm:text-base lg:text-lg font-bold text-green-600 dark:text-green-400 truncate" title={`₹${monthlyIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>₹{monthlyIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
             <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-2 sm:p-3 lg:p-4 min-w-0">
               <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-1 truncate">Expenses</p>
-              <p className="text-sm sm:text-base lg:text-lg font-bold text-red-500 dark:text-red-400 truncate" title={`₹${monthlyExpense.toLocaleString('en-IN')}`}>₹{monthlyExpense.toLocaleString('en-IN')}</p>
+              <p className="text-sm sm:text-base lg:text-lg font-bold text-red-500 dark:text-red-400 truncate" title={`₹${monthlyExpense.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>₹{monthlyExpense.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-2 sm:p-3 lg:p-4 min-w-0">
               <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-1 truncate">Net</p>
               <p className={`text-sm sm:text-base lg:text-lg font-bold truncate ${monthlyIncome - monthlyExpense >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-500 dark:text-red-400'}`} title={`₹${Math.abs(monthlyIncome - monthlyExpense).toLocaleString('en-IN')}`}>
-                ₹{Math.abs(monthlyIncome - monthlyExpense).toLocaleString('en-IN')}
+                ₹{Math.abs(monthlyIncome - monthlyExpense).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
           </div>

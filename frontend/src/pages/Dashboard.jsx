@@ -323,7 +323,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
     fetchBudgets();
   };
 
-  const fmt = (val) => val != null ? `₹${parseFloat(val).toLocaleString('en-IN')}` : '₹0';
+  const fmt = (val) => { const n = parseFloat(val ?? 0); return isNaN(n) ? '₹0.00' : '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
 
   if (loading) return <div className="flex-1 flex items-center justify-center text-gray-400 dark:text-gray-500">Loading...</div>;
 
@@ -523,7 +523,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
           <StatsCard title="Total Income" value={fmt(summary?.totalIncome)} change="+5.2%" positive icon="📈" onClick={() => handleStatClick('CREDIT')} />
           <StatsCard title="Total Expenses" value={fmt(summary?.totalExpenses)} change="+8.1%" positive={false} icon="📉" onClick={() => handleStatClick('DEBIT')} />
           <StatsCard title="Savings Rate" value={`${summary?.savingsRate?.toFixed(1) ?? 0}%`} change="+2.3%" positive icon="🏦" onClick={() => handleStatClick('SAVINGS')} />
-          <StatsCard title="Cashback Balance" value={`₹${cashbackTotal.toLocaleString('en-IN')}`} change="" positive icon="🎁" onClick={() => onNavigate('Cashback')} />
+          <StatsCard title="Cashback Balance" value={`₹${cashbackTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} change="" positive icon="🎁" onClick={() => onNavigate('Cashback')} />
         </div>
 
         {/* Budget Overview */}

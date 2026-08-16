@@ -10,7 +10,7 @@ import { getDashboardSummary, getBudgets, getTransactionsByBudget, getMonthlyAna
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const PIE_COLORS = ['#EF4444','#F59E0B','#8B5CF6','#EC4899','#06B6D4','#10B981','#F97316','#6366F1'];
 
-const fmt = (v) => v != null ? `₹${parseFloat(v).toLocaleString('en-IN')}` : '₹0';
+const fmt = (v) => { const n = parseFloat(v ?? 0); return isNaN(n) ? '₹0.00' : '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
 const fmtK = (v) => v >= 1000 ? `₹${(v/1000).toFixed(0)}k` : `₹${v}`;
 
 function RupeeTooltip({ active, payload, label }) {

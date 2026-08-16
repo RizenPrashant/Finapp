@@ -77,7 +77,7 @@ export default function Tax({ onProfileClick }) {
 
   const fmt = (val) => {
     if (!val || isNaN(val)) return '₹0';
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(val));
+    const n = Number(val); return isNaN(n) ? '₹0.00' : '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   const parseInput = (val) => {
@@ -685,7 +685,7 @@ export default function Tax({ onProfileClick }) {
                   <p className="text-xs text-gray-500 mb-1">Projected FY Tax ({monthsCompleted} months)</p>
                   <p className="text-xl font-bold text-indigo-600">{fmt(projectedFinalTax)}</p>
                   <p className="text-xs text-gray-400 mt-1">
-                    Based on ₹{fmt(projectedIncome)} projected income
+                    Based on {fmt(projectedIncome)} projected income
                   </p>
                 </div>
               );

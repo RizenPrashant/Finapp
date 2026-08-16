@@ -12,7 +12,7 @@ import { isDeleteLocked } from '../pages/Settings';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-const fmt = (val) => `₹${parseFloat(val || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+const fmt = (val) => { const n = parseFloat(val ?? 0); return isNaN(n) ? '₹0.00' : '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
 const fmtPct = (val) => `${parseFloat(val || 0).toFixed(2)}%`;
 
 function AddInvestmentCompoundingModal({ onClose, onSave, currentCapital }) {

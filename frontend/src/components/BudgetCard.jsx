@@ -16,7 +16,7 @@ export default function BudgetCard({ budget, spent, onClick }) {
         </span>
       </div>
       <p className="text-lg font-bold text-slate-700 dark:text-slate-300 mb-3">
-        ₹{spentAmt.toLocaleString('en-IN')} <span className="text-sm font-normal text-gray-400 dark:text-gray-500">/ ₹{limit.toLocaleString('en-IN')}</span>
+        ₹{spentAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-sm font-normal text-gray-400 dark:text-gray-500">/ ₹{limit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
       </p>
       <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 mb-3">
         <div className="h-2 rounded-full transition-all" style={{ width: `${percent}%`, background: color }} />

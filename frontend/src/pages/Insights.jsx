@@ -73,7 +73,17 @@ export default function Insights({ onProfileClick }) {
   const [bankTxLoading, setBankTxLoading] = useState(false);
   const [showAddTxModal, setShowAddTxModal] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
-  
+
+  // Restore bank transactions on refresh
+  useEffect(() => {
+    if (!selectedBankAsset) return;
+    setBankTxLoading(true);
+    getTransactionsBySource(selectedBankAsset.name)
+      .then(res => setBankTransactions(res.data))
+      .catch(e => console.error('Error loading transactions:', e))
+      .finally(() => setBankTxLoading(false));
+  }, [selectedBankAsset?.name]);
+
   const txDeleteLocked = isDeleteLocked('transactions');
   const assetDeleteLocked = isDeleteLocked('assets');
   const investmentDeleteLocked = isDeleteLocked('investments');
@@ -174,20 +184,13 @@ export default function Insights({ onProfileClick }) {
   const [txCategoryFilter, setTxCategoryFilter] = useState([]);
   const [txTypeFilter, setTxTypeFilter] = useState('ALL');
 
-  const openSourceTransactions = async (asset) => {
-    setSelectedBankAsset(asset);
-    sessionStorage.setItem('insights_selectedBankAsset', JSON.stringify(asset));
-    setBankTxLoading(true);
+  const openSourceTransactions = (asset) => {
     setTxDateFilter({ start: '', end: '' });
     setTxCategoryFilter([]);
     setTxTypeFilter('ALL');
-    try {
-      const res = await getTransactionsBySource(asset.name);
-      setBankTransactions(res.data);
-    } catch (e) {
-      console.error('Error loading transactions:', e);
-    }
-    setBankTxLoading(false);
+    setBankTransactions([]);
+    setSelectedBankAsset(asset);
+    sessionStorage.setItem('insights_selectedBankAsset', JSON.stringify(asset));
   };
 
   const handleAddBankTx = async (data) => {
@@ -313,7 +316,7 @@ export default function Insights({ onProfileClick }) {
     setShowInvestmentModal(true);
   };
 
-  const fmt = (val) => val != null ? `₹${parseFloat(val).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '₹0';
+  const fmt = (val) => { const n = parseFloat(val ?? 0); return isNaN(n) ? '₹0.00' : '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
 
   const summaryMap = {
     ASSET: summary?.totalAssets,

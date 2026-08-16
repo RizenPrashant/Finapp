@@ -28,7 +28,7 @@ function DeleteConfirmDialog({ transaction, onConfirm, onCancel }) {
           <span className="font-semibold text-slate-700 dark:text-slate-300">{transaction.title}</span>
         </p>
         <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
-          ₹{parseFloat(transaction.amount).toLocaleString()} · {transaction.date}
+          ₹{parseFloat(transaction.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · {transaction.date}
         </p>
         <p className="text-xs text-red-400 dark:text-red-500 mb-5">This action cannot be undone.</p>
         <div className="flex gap-3">
@@ -162,11 +162,11 @@ export default function TransactionRow({ transaction: initialTransaction, onDele
         <div className="flex items-center gap-2">
           <div className="text-right">
             <p className={`font-bold ${isCredit ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
-              {isCredit ? '+' : '-'}₹{parseFloat(transaction.amount).toLocaleString()}
+              {isCredit ? '+' : '-'}₹{parseFloat(transaction.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
             {transaction.balanceAfter != null && (
               <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                Bal: ₹{parseFloat(transaction.balanceAfter).toLocaleString()}
+                Bal: ₹{parseFloat(transaction.balanceAfter).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             )}
           </div>

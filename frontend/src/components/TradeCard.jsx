@@ -5,7 +5,7 @@ export default function TradeCard({ trade, onEdit, onDelete, deleteLocked }) {
   const isOpen = trade.status === 'OPEN';
 
   const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value || 0);
+    const n = parseFloat(value ?? 0); return isNaN(n) ? '₹0.00' : '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   const formatPercentage = (value) => {
