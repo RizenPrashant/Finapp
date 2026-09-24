@@ -3,6 +3,7 @@ package com.finapp.controller;
 import com.finapp.dto.TradeAnalyticsDTO;
 import com.finapp.dto.TradeDTO;
 import com.finapp.dto.CompoundingHistoryDTO;
+import com.finapp.dto.StockHoldingsDTO;
 import com.finapp.model.Trade;
 import com.finapp.model.CompoundingHistory;
 import com.finapp.model.TradeSegment;
@@ -63,6 +64,12 @@ public class TradeController {
     public ResponseEntity<List<String>> getBrokers(Authentication authentication) {
         User user = userService.getCurrentUser(authentication);
         return ResponseEntity.ok(tradingService.getBrokers(user));
+    }
+
+    @GetMapping("/holdings")
+    public ResponseEntity<List<StockHoldingsDTO>> getStockHoldings(Authentication authentication) {
+        User user = userService.getCurrentUser(authentication);
+        return ResponseEntity.ok(tradingService.getStockHoldings(user));
     }
 
     @PostMapping("/trades")

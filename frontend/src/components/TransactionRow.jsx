@@ -1,5 +1,18 @@
 import { useState } from 'react';
-import { ArrowDownLeft, ArrowUpRight, Trash2, Pencil, AlertTriangle, Building2, CreditCard, Gift, HandCoins } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Trash2, Pencil, AlertTriangle, Building2, Gift, HandCoins, Tag } from 'lucide-react';
+import { recategorizeTransaction } from '../api';
+
+const BUDGET_CATEGORIES = [
+  'Monthly Spend', 'Monthly Total Savings', 'Monthly Total Expense',
+  'Monthly Food Expense', 'Monthly Revenue', 'Miscellaneous', 'Uncategorized'
+];
+
+const CATEGORIES = [
+  'Food', 'Shopping', 'Salary', 'Fuel', 'Transport', 'Utilities',
+  'Entertainment', 'Cash Withdrawal', 'Loan EMI', 'Insurance',
+  'Investment', 'Rent', 'Interest', 'Refund', 'Cashback Earned',
+  'Cashback Redeemed', 'Trading', 'Savings', 'Health', 'Freelance', 'Uncategorized'
+];
 
 function DeleteConfirmDialog({ transaction, onConfirm, onCancel }) {
   return (
@@ -15,20 +28,14 @@ function DeleteConfirmDialog({ transaction, onConfirm, onCancel }) {
           <span className="font-semibold text-slate-700 dark:text-slate-300">{transaction.title}</span>
         </p>
         <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
-          ₹{parseFloat(transaction.amount).toLocaleString()} · {transaction.date}
+          ₹{parseFloat(transaction.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · {transaction.date}
         </p>
         <p className="text-xs text-red-400 dark:text-red-500 mb-5">This action cannot be undone.</p>
         <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-2.5 font-semibold border border-gray-200 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-sm transition dark:text-white"
-          >
+          <button onClick={onCancel} className="flex-1 py-2.5 font-semibold border border-gray-200 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-sm transition dark:text-white">
             Cancel
           </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-2.5 font-semibold bg-red-500 text-white rounded-xl hover:bg-red-600 text-sm transition"
-          >
+          <button onClick={onConfirm} className="flex-1 py-2.5 font-semibold bg-red-500 text-white rounded-xl hover:bg-red-600 text-sm transition">
             Delete
           </button>
         </div>
@@ -37,8 +44,70 @@ function DeleteConfirmDialog({ transaction, onConfirm, onCancel }) {
   );
 }
 
-export default function TransactionRow({ transaction, onDelete, onEdit, deleteLocked }) {
+function RecategorizePopup({ transaction, onSave, onClose }) {
+  const [category, setCategory] = useState(transaction.category || 'Uncategorized');
+  const [budgetCategory, setBudgetCategory] = useState(transaction.budgetCategory || 'Uncategorized');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await recategorizeTransaction(transaction.id, category, budgetCategory);
+      onSave({ ...transaction, category, budgetCategory });
+    } finally {
+      setSaving(false);
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-indigo-100 dark:bg-indigo-900/20 rounded-xl">
+            <Tag size={18} className="text-indigo-500" />
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">Re-categorize</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[200px]">{transaction.title}</p>
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Category</label>
+          <select value={category} onChange={e => setCategory(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-400">
+            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Budget Overview Category</label>
+          <select value={budgetCategory} onChange={e => setBudgetCategory(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-400">
+            {BUDGET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <p className="text-[10px] text-gray-400 dark:text-gray-500">Budget Overview updates automatically.</p>
+        </div>
+
+        <div className="flex gap-3 pt-1">
+          <button onClick={onClose} className="flex-1 py-2 font-semibold border border-gray-200 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-sm transition dark:text-white">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-2 font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm transition disabled:opacity-50">
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function TransactionRow({ transaction: initialTransaction, onDelete, onEdit, deleteLocked, onCategoryChange }) {
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showRecategorize, setShowRecategorize] = useState(false);
+  const [transaction, setTransaction] = useState(initialTransaction);
   const isCredit = transaction.type === 'CREDIT';
 
   const handleDeleteClick = (e) => {
@@ -50,6 +119,11 @@ export default function TransactionRow({ transaction, onDelete, onEdit, deleteLo
   const handleConfirm = () => {
     setShowConfirm(false);
     onDelete(transaction.id);
+  };
+
+  const handleCategorySaved = (updated) => {
+    setTransaction(updated);
+    onCategoryChange?.(updated);
   };
 
   return (
@@ -88,15 +162,24 @@ export default function TransactionRow({ transaction, onDelete, onEdit, deleteLo
         <div className="flex items-center gap-2">
           <div className="text-right">
             <p className={`font-bold ${isCredit ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
-              {isCredit ? '+' : '-'}₹{parseFloat(transaction.amount).toLocaleString()}
+              {isCredit ? '+' : '-'}₹{parseFloat(transaction.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
             {transaction.balanceAfter != null && (
               <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                Bal: ₹{parseFloat(transaction.balanceAfter).toLocaleString()}
+                Bal: ₹{parseFloat(transaction.balanceAfter).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             )}
           </div>
-          {onEdit && (
+          {!transaction.virtual && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowRecategorize(true); }}
+              className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-all"
+              title="Re-categorize"
+            >
+              <Tag size={15} />
+            </button>
+          )}
+          {onEdit && !transaction.virtual && (
             <button
               onClick={(e) => { e.stopPropagation(); onEdit(transaction); }}
               className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
@@ -105,7 +188,7 @@ export default function TransactionRow({ transaction, onDelete, onEdit, deleteLo
               <Pencil size={15} />
             </button>
           )}
-          {onDelete && (
+          {onDelete && !transaction.virtual && (
             <button
               onClick={handleDeleteClick}
               className={`opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all ${
@@ -126,6 +209,13 @@ export default function TransactionRow({ transaction, onDelete, onEdit, deleteLo
           transaction={transaction}
           onConfirm={handleConfirm}
           onCancel={() => setShowConfirm(false)}
+        />
+      )}
+      {showRecategorize && (
+        <RecategorizePopup
+          transaction={transaction}
+          onSave={handleCategorySaved}
+          onClose={() => setShowRecategorize(false)}
         />
       )}
     </>

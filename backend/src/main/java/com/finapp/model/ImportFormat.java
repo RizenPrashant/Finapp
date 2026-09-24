@@ -88,10 +88,18 @@ public class ImportFormat {
 
     // Type indicators
     @Column(name = "debit_indicator")
-    private String debitIndicator; // e.g., "DR", "Debit"
+    private String debitIndicator; // e.g., "DR", "Dr" — value in Dr/Cr column or suffix
 
     @Column(name = "credit_indicator")
-    private String creditIndicator; // e.g., "CR", "Credit"
+    private String creditIndicator; // e.g., "CR", "Cr"
+
+    // How to determine DEBIT vs CREDIT for CC PDFs:
+    //   "SUFFIX"  — amount has CR suffix for credit, no suffix = debit (ICICI CC style)
+    //   "COLUMN"  — separate Dr/Cr column exists (HDFC CC style)
+    //   "SIGNED"  — negative amount = credit (some banks)
+    //   null/blank — use narration keywords as fallback
+    @Column(name = "type_indicator_mode")
+    private String typeIndicatorMode;
 
     // Flags
     @Column(name = "is_default")

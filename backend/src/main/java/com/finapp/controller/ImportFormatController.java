@@ -51,6 +51,12 @@ public class ImportFormatController {
         return ResponseEntity.ok(importFormatService.getBrokerFormats(user));
     }
 
+    @GetMapping("/credit-cards")
+    public ResponseEntity<List<ImportFormat>> getCreditCardFormats(Authentication authentication) {
+        User user = getUser(authentication);
+        return ResponseEntity.ok(importFormatService.getCreditCardFormats(user));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ImportFormat> getFormatById(
             @PathVariable Long id,

@@ -65,6 +65,7 @@ export const getTradesByStatus = (status) => api.get(`/trading/trades/status/${s
 export const getTradesBySegment = (segment) => api.get(`/trading/trades/segment/${segment}`);
 export const getTradesByBroker = (broker) => api.get(`/trading/trades/broker/${broker}`);
 export const getBrokers = () => api.get('/trading/brokers');
+export const getStockHoldings = () => api.get('/trading/holdings');
 export const createTrade = (data) => api.post('/trading/trades', data);
 export const updateTrade = (id, data) => api.put(`/trading/trades/${id}`, data);
 export const deleteTrade = (id) => api.delete(`/trading/trades/${id}`);
@@ -129,6 +130,11 @@ export const getFinancialYears = () => api.get('/tax/financial-years');
 export const toggleTransactionTaxInclude = (id, includeInTax) =>
     api.put(`/transactions/${id}/tax-toggle?includeInTax=${includeInTax}`);
 
+// Re-categorize a transaction (updates category + budgetCategory only)
+// Budget Overview auto-updates since it aggregates from universal transactions
+export const recategorizeTransaction = (id, category, budgetCategory) =>
+    api.patch(`/transactions/${id}/categorize`, null, { params: { category, budgetCategory } });
+
 // Profile APIs
 export const getProfile = () => api.get('/profile');
 export const updateProfile = (data) => api.put('/profile', data);
@@ -139,6 +145,7 @@ export const getImportFormats = () => api.get('/import-formats');
 export const getImportFormatsByType = (type) => api.get(`/import-formats/type/${type}`);
 export const getImportFormatsBanks = () => api.get('/import-formats/banks');
 export const getImportFormatsBrokers = () => api.get('/import-formats/brokers');
+export const getImportFormatsCreditCards = () => api.get('/import-formats/credit-cards');
 export const getImportFormatById = (id) => api.get(`/import-formats/${id}`);
 export const createImportFormat = (data) => api.post('/import-formats', data);
 export const updateImportFormat = (id, data) => api.put(`/import-formats/${id}`, data);
@@ -159,5 +166,8 @@ export const importBankStatement = (formData) => api.post('/import/bank-statemen
 });
 export const importBankStatementJson = (payload) => api.post('/import/bank-statement/json', payload);
 export const importTradesJson = (payload) => api.post('/import/trades/json', payload);
+export const previewCCStatementImport = (formData) => api.post('/import/preview/cc-statement', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+export const importCCStatement = (formData) => api.post('/import/cc-statement', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+export const importCCStatementJson = (payload) => api.post('/import/cc-statement/json', payload);
 
 export default api;

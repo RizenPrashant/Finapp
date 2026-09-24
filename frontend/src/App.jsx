@@ -25,7 +25,11 @@ import ForgotPassword from './pages/ForgotPassword';
 import { updateProfile } from './api';
 
 function MainLayout() {
-  const [activeView, setActiveView] = useState('Dashboard');
+  const [activeView, setActiveView] = useState(() => localStorage.getItem('activeView') || 'Dashboard');
+
+  useEffect(() => {
+    localStorage.setItem('activeView', activeView);
+  }, [activeView]);
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;

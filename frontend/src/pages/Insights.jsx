@@ -4,6 +4,7 @@
  * All rights reserved.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, ArrowLeft, Trash2, Edit3, TrendingUp, TrendingDown, DollarSign, PieChart, Target, ArrowUp, ArrowDown, Home, Gem, Briefcase, Building2, Landmark, Wallet, Receipt, CreditCard as CreditCardIcon, Edit2, ArrowUpCircle, ArrowDownCircle, Calendar, Tag, X } from 'lucide-react';
 import Header from '../components/Header';
 import AddAssetModal from '../components/AddAssetModal';
@@ -34,15 +35,14 @@ const investmentTypes = [
   { value: 'ALL', label: 'All', icon: PieChart },
   { value: 'PROPERTY', label: 'Property', icon: Home },
   { value: 'GOLD', label: 'Gold', icon: Gem },
-  { value: 'STOCKS', label: 'Stocks', icon: TrendingUp },
   { value: 'MUTUAL_FUND', label: 'Mutual Fund', icon: Briefcase },
   { value: 'FD', label: 'Fixed Deposit', icon: DollarSign },
-  { value: 'CRYPTOCURRENCY', label: 'Crypto', icon: Target },
 ];
 
 export default function Insights({ onProfileClick }) {
+  const navigate = useNavigate();
   const [summary, setSummary] = useState(null);
-  const [selectedType, setSelectedType] = useState(null); // null = summary view
+  const [selectedType, setSelectedType] = useState(() => sessionStorage.getItem('insights_selectedType') || null);
   
   // Assets data
   const [assets, setAssets] = useState([]);
@@ -66,12 +66,24 @@ export default function Insights({ onProfileClick }) {
   const [closingInvestment, setClosingInvestment] = useState(null);
 
   // Bank transactions drill-down
-  const [selectedBankAsset, setSelectedBankAsset] = useState(null); // asset object
+  const [selectedBankAsset, setSelectedBankAsset] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('insights_selectedBankAsset')) || null; } catch { return null; }
+  });
   const [bankTransactions, setBankTransactions] = useState([]);
   const [bankTxLoading, setBankTxLoading] = useState(false);
   const [showAddTxModal, setShowAddTxModal] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
-  
+
+  // Restore bank transactions on refresh
+  useEffect(() => {
+    if (!selectedBankAsset) return;
+    setBankTxLoading(true);
+    getTransactionsBySource(selectedBankAsset.name)
+      .then(res => setBankTransactions(res.data))
+      .catch(e => console.error('Error loading transactions:', e))
+      .finally(() => setBankTxLoading(false));
+  }, [selectedBankAsset?.name]);
+
   const txDeleteLocked = isDeleteLocked('transactions');
   const assetDeleteLocked = isDeleteLocked('assets');
   const investmentDeleteLocked = isDeleteLocked('investments');
@@ -116,6 +128,7 @@ export default function Insights({ onProfileClick }) {
 
   const handleCardClick = (type) => {
     setSelectedType(type);
+    sessionStorage.setItem('insights_selectedType', type);
   };
 
   // Asset handlers
@@ -171,19 +184,13 @@ export default function Insights({ onProfileClick }) {
   const [txCategoryFilter, setTxCategoryFilter] = useState([]);
   const [txTypeFilter, setTxTypeFilter] = useState('ALL');
 
-  const openSourceTransactions = async (asset) => {
-    setSelectedBankAsset(asset);
-    setBankTxLoading(true);
+  const openSourceTransactions = (asset) => {
     setTxDateFilter({ start: '', end: '' });
     setTxCategoryFilter([]);
     setTxTypeFilter('ALL');
-    try {
-      const res = await getTransactionsBySource(asset.name);
-      setBankTransactions(res.data);
-    } catch (e) {
-      console.error('Error loading transactions:', e);
-    }
-    setBankTxLoading(false);
+    setBankTransactions([]);
+    setSelectedBankAsset(asset);
+    sessionStorage.setItem('insights_selectedBankAsset', JSON.stringify(asset));
   };
 
   const handleAddBankTx = async (data) => {
@@ -309,7 +316,7 @@ export default function Insights({ onProfileClick }) {
     setShowInvestmentModal(true);
   };
 
-  const fmt = (val) => val != null ? `₹${parseFloat(val).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '₹0';
+  const fmt = (val) => { const n = parseFloat(val ?? 0); return isNaN(n) ? '₹0.00' : '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
 
   const summaryMap = {
     ASSET: summary?.totalAssets,
@@ -349,7 +356,7 @@ export default function Insights({ onProfileClick }) {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => setSelectedBankAsset(null)}
+                onClick={() => { setSelectedBankAsset(null); sessionStorage.removeItem('insights_selectedBankAsset'); }}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 transition"
               >
                 <ArrowLeft size={18} />
@@ -724,7 +731,7 @@ export default function Insights({ onProfileClick }) {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => setSelectedType(null)}
+                onClick={() => { setSelectedType(null); sessionStorage.removeItem('insights_selectedType'); sessionStorage.removeItem('insights_selectedBankAsset'); }}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 transition"
               >
                 <ArrowLeft size={18} />

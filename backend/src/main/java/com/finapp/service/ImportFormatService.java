@@ -47,6 +47,11 @@ public class ImportFormatService {
         return getFormatsByType("BROKER", user);
     }
 
+    // Get credit card formats
+    public List<ImportFormat> getCreditCardFormats(User user) {
+        return getFormatsByType("CREDIT_CARD", user);
+    }
+
     // Get single format by ID
     public Optional<ImportFormat> getFormatById(Long id, User user) {
         return importFormatRepository.findById(id)
@@ -244,5 +249,83 @@ public class ImportFormatService {
                 .isSystem(true)
                 .build();
         upsertSystem(zerodha);
+
+        // ── Credit Card Formats ──────────────────────────────────────────────
+
+        ImportFormat hdfcCC = ImportFormat.builder()
+                .name("HDFC Credit Card")
+                .type("CREDIT_CARD")
+                .dateColumn("Date")
+                .descriptionColumn("Description")
+                .amountColumn("Amount")
+                .debitIndicator("Dr")
+                .creditIndicator("Cr")
+                .skipRows(0)
+                .dateFormat("dd/MM/yyyy")
+                .fileType("pdf")
+                .isDefault(true)
+                .isSystem(true)
+                .build();
+        upsertSystem(hdfcCC);
+
+        ImportFormat sbiCard = ImportFormat.builder()
+                .name("SBI Card")
+                .type("CREDIT_CARD")
+                .dateColumn("Date")
+                .descriptionColumn("Description")
+                .amountColumn("Amount")
+                .skipRows(0)
+                .dateFormat("dd MMM yyyy")
+                .fileType("pdf")
+                .isDefault(true)
+                .isSystem(true)
+                .build();
+        upsertSystem(sbiCard);
+
+        ImportFormat axisCC = ImportFormat.builder()
+                .name("Axis Bank Credit Card")
+                .type("CREDIT_CARD")
+                .dateColumn("Date")
+                .descriptionColumn("Description")
+                .amountColumn("Amount")
+                .debitIndicator("Dr")
+                .creditIndicator("Cr")
+                .skipRows(0)
+                .dateFormat("dd-MM-yyyy")
+                .fileType("pdf")
+                .isDefault(true)
+                .isSystem(true)
+                .build();
+        upsertSystem(axisCC);
+
+        ImportFormat iciciCC = ImportFormat.builder()
+                .name("ICICI Credit Card")
+                .type("CREDIT_CARD")
+                .dateColumn("Date")
+                .descriptionColumn("Description")
+                .amountColumn("Amount")
+                .debitIndicator("Dr")
+                .creditIndicator("Cr")
+                .skipRows(0)
+                .dateFormat("dd/MM/yyyy")
+                .fileType("pdf")
+                .isDefault(true)
+                .isSystem(true)
+                .build();
+        upsertSystem(iciciCC);
+
+        ImportFormat amex = ImportFormat.builder()
+                .name("Amex (American Express)")
+                .type("CREDIT_CARD")
+                .dateColumn("Date")
+                .descriptionColumn("Description")
+                .amountColumn("Amount")
+                .skipRows(0)
+                .dateFormat("dd MMM yyyy")
+                .fileType("pdf")
+                .isDefault(true)
+                .isSystem(true)
+                .build();
+        upsertSystem(amex);
     }
 }

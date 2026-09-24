@@ -7,7 +7,7 @@ import {
 } from '../api';
 import { FILTER_PREFS_KEY, isDeleteLocked } from '../pages/Settings';
 
-const fmt = (val) => `₹${parseFloat(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+const fmt = (val) => { const n = parseFloat(val ?? 0); return isNaN(n) ? '₹0.00' : '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 

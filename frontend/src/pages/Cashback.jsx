@@ -349,7 +349,9 @@ function AddEntryModal({ wallets, selectedWalletId, onClose, onSave }) {
 export default function Cashback({ onProfileClick }) {
   const [wallets, setWallets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedWallet, setSelectedWallet] = useState(null);
+  const [selectedWallet, setSelectedWallet] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('cashback_selectedWallet')) || null; } catch { return null; }
+  });
   const [entries, setEntries] = useState([]);
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [showAddWallet, setShowAddWallet] = useState(false);
@@ -558,7 +560,7 @@ export default function Cashback({ onProfileClick }) {
           {/* Back + Actions */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
-              <button onClick={() => setSelectedWallet(null)}
+              <button onClick={() => { setSelectedWallet(null); sessionStorage.removeItem('cashback_selectedWallet'); }}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 transition">
                 <ArrowLeft size={18} />
               </button>
@@ -840,7 +842,7 @@ export default function Cashback({ onProfileClick }) {
               return (
                 <div key={wallet.id}
                   className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-all p-5 cursor-pointer group"
-                  onClick={() => setSelectedWallet(wallet)}>
+                  onClick={() => { setSelectedWallet(wallet); sessionStorage.setItem('cashback_selectedWallet', JSON.stringify(wallet)); }}>
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-2xl bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-2xl overflow-hidden">

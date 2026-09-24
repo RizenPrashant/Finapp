@@ -46,17 +46,17 @@ public class CashbackEntry {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "wallet_id", nullable = false)
-    @JsonIgnoreProperties({"entries", "user"})
+    @JsonIgnoreProperties({"entries", "user", "hibernateLazyInitializer", "handler"})
     private CashbackWallet wallet;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    @JsonIgnoreProperties({"cashbackWallets", "transactions", "assets", "budgets", "password"})
+    @JsonIgnoreProperties({"cashbackWallets", "transactions", "assets", "budgets", "password", "hibernateLazyInitializer", "handler"})
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transaction_id")
-    @JsonIgnoreProperties({"user", "cashbackEntries"})
+    @JsonIgnoreProperties({"user", "cashbackEntries", "hibernateLazyInitializer", "handler"})
     private Transaction transaction;
 
     public Long getTransactionId() {

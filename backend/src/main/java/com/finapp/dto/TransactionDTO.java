@@ -22,10 +22,8 @@ public class TransactionDTO {
     @NotNull(message = "Type is required")
     private TransactionType type;
 
-    @NotBlank(message = "Category is required")
     private String category;
 
-    @NotBlank(message = "Budget category is required")
     private String budgetCategory;
 
     @NotNull(message = "Date is required")

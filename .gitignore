@@ -17,3 +17,13 @@ backend/src/main/resources/application-prod.properties
 # OS
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+*.log.*.gz
+
+# Debug/test scripts
+*.class
+ReadPdf*.java
+TestPdf*.java
+read_cc_pdf.js

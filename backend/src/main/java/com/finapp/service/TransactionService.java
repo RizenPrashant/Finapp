@@ -99,8 +99,8 @@ public class TransactionService {
                 .title(dto.getTitle())
                 .amount(dto.getAmount())
                 .type(dto.getType())
-                .category(dto.getCategory())
-                .budgetCategory(dto.getBudgetCategory())
+                .category(dto.getCategory() != null ? dto.getCategory() : "Uncategorized")
+                .budgetCategory(dto.getBudgetCategory() != null ? dto.getBudgetCategory() : "Uncategorized")
                 .date(dto.getDate())
                 .description(dto.getDescription())
                 .paymentSource(dto.getPaymentSource())
@@ -215,8 +215,8 @@ public class TransactionService {
         existing.setTitle(dto.getTitle());
         existing.setAmount(dto.getAmount());
         existing.setType(dto.getType());
-        existing.setCategory(dto.getCategory());
-        existing.setBudgetCategory(dto.getBudgetCategory());
+        existing.setCategory(dto.getCategory() != null ? dto.getCategory() : existing.getCategory());
+        existing.setBudgetCategory(dto.getBudgetCategory() != null ? dto.getBudgetCategory() : existing.getBudgetCategory());
         existing.setDate(dto.getDate());
         existing.setDescription(dto.getDescription());
         existing.setPaymentSource(dto.getPaymentSource());
@@ -323,9 +323,9 @@ public class TransactionService {
         for (int m = 1; m <= 12; m++) {
             LocalDate start = YearMonth.of(year, m).atDay(1);
             LocalDate end = YearMonth.of(year, m).atEndOfMonth();
-            BigDecimal income = transactionRepository.sumByUserAndTypeAndDateBetween(user, TransactionType.CREDIT, start, end);
+            BigDecimal income  = transactionRepository.sumByUserAndTypeAndDateBetween(user, TransactionType.CREDIT, start, end);
             BigDecimal expense = transactionRepository.sumByUserAndTypeAndDateBetween(user, TransactionType.DEBIT, start, end);
-            BigDecimal savings = transactionRepository.sumByUserAndBudgetCategoryAndType(user, "Monthly Total Savings", TransactionType.DEBIT);
+            BigDecimal savings = transactionRepository.sumByUserAndBudgetCategoryAndTypeAndDateBetween(user, "Monthly Total Savings", TransactionType.DEBIT, start, end);
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("month", months[m - 1]);
             map.put("income", income);
