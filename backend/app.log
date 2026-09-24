@@ -965,3 +965,208 @@ Identify and stop the process that's listening on port 2002 or configure this ap
 2026-08-09T16:58:13.853+05:30  WARN 23536 --- [finapp-backend] [http-nio-2002-exec-10] o.a.pdfbox.pdmodel.font.PDType0Font      : No Unicode mapping for CID+122 (122) in font AllAndNone
 2026-08-09T16:58:13.853+05:30  WARN 23536 --- [finapp-backend] [http-nio-2002-exec-10] o.a.pdfbox.pdmodel.font.PDType0Font      : No Unicode mapping for CID+180 (180) in font AllAndNone
 2026-08-09T16:58:13.853+05:30  WARN 23536 --- [finapp-backend] [http-nio-2002-exec-10] o.a.pdfbox.pdmodel.font.PDType0Font      : No Unicode mapping for CID+232 (232) in font AllAndNone
+2026-09-25T01:00:01.437+05:30  INFO 10364 --- [finapp-backend] [main] com.finapp.FinappApplication             : Starting FinappApplication using Java 21.0.6 with PID 10364 (E:\Finapp\backend\target\classes started by prash in E:\Finapp\backend)
+2026-09-25T01:00:01.440+05:30  INFO 10364 --- [finapp-backend] [main] com.finapp.FinappApplication             : The following 1 profile is active: "dev"
+2026-09-25T01:00:02.453+05:30  INFO 10364 --- [finapp-backend] [main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-09-25T01:00:02.579+05:30  INFO 10364 --- [finapp-backend] [main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 116 ms. Found 15 JPA repository interfaces.
+2026-09-25T01:00:03.257+05:30  INFO 10364 --- [finapp-backend] [main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 2002 (http)
+2026-09-25T01:00:03.274+05:30  INFO 10364 --- [finapp-backend] [main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-09-25T01:00:03.276+05:30  INFO 10364 --- [finapp-backend] [main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.40]
+2026-09-25T01:00:03.353+05:30  INFO 10364 --- [finapp-backend] [main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-09-25T01:00:03.353+05:30  INFO 10364 --- [finapp-backend] [main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1836 ms
+2026-09-25T01:00:03.500+05:30  INFO 10364 --- [finapp-backend] [main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-09-25T01:00:03.557+05:30  INFO 10364 --- [finapp-backend] [main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.13.Final
+2026-09-25T01:00:03.595+05:30  INFO 10364 --- [finapp-backend] [main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-09-25T01:00:03.898+05:30  INFO 10364 --- [finapp-backend] [main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-09-25T01:00:03.933+05:30  INFO 10364 --- [finapp-backend] [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-09-25T01:00:04.109+05:30  INFO 10364 --- [finapp-backend] [main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@7a3643e3
+2026-09-25T01:00:04.112+05:30  INFO 10364 --- [finapp-backend] [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-09-25T01:00:04.165+05:30  WARN 10364 --- [finapp-backend] [main] org.hibernate.orm.deprecation            : HHH90000025: MySQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-09-25T01:00:04.186+05:30  INFO 10364 --- [finapp-backend] [main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 8.0.35
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-09-25T01:00:05.703+05:30  INFO 10364 --- [finapp-backend] [main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-09-25T01:00:05.937+05:30  INFO 10364 --- [finapp-backend] [main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-09-25T01:00:06.316+05:30  INFO 10364 --- [finapp-backend] [main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-09-25T01:00:13.774+05:30  INFO 10364 --- [finapp-backend] [main] eAuthenticationProviderManagerConfigurer : Global AuthenticationManager configured with AuthenticationProvider bean with name authenticationProvider
+2026-09-25T01:00:13.779+05:30  WARN 10364 --- [finapp-backend] [main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with an AuthenticationProvider bean. UserDetailsService beans will not be used by Spring Security for automatically configuring username/password login. Consider removing the AuthenticationProvider bean. Alternatively, consider using the UserDetailsService in a manually instantiated DaoAuthenticationProvider. If the current configuration is intentional, to turn off this warning, increase the logging level of 'org.springframework.security.config.annotation.authentication.configuration.InitializeUserDetailsBeanManagerConfigurer' to ERROR
+2026-09-25T01:00:14.126+05:30  WARN 10364 --- [finapp-backend] [main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-09-25T01:00:14.554+05:30 DEBUG 10364 --- [finapp-backend] [main] o.s.s.web.DefaultSecurityFilterChain     : Will secure any request with filters: DisableEncodeUrlFilter, WebAsyncManagerIntegrationFilter, SecurityContextHolderFilter, HeaderWriterFilter, CorsFilter, LogoutFilter, JwtAuthenticationFilter, RequestCacheAwareFilter, SecurityContextHolderAwareRequestFilter, AnonymousAuthenticationFilter, SessionManagementFilter, ExceptionTranslationFilter, AuthorizationFilter
+2026-09-25T01:00:14.810+05:30  WARN 10364 --- [finapp-backend] [main] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.context.ApplicationContextException: Failed to start bean 'webServerStartStop'
+2026-09-25T01:00:14.816+05:30  INFO 10364 --- [finapp-backend] [main] j.LocalContainerEntityManagerFactoryBean : Closing JPA EntityManagerFactory for persistence unit 'default'
+2026-09-25T01:00:14.817+05:30  INFO 10364 --- [finapp-backend] [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...
+2026-09-25T01:00:14.827+05:30  INFO 10364 --- [finapp-backend] [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown completed.
+2026-09-25T01:00:14.842+05:30  INFO 10364 --- [finapp-backend] [main] .s.b.a.l.ConditionEvaluationReportLogger : 
+
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2026-09-25T01:00:14.865+05:30 ERROR 10364 --- [finapp-backend] [main] o.s.b.d.LoggingFailureAnalysisReporter   : 
+
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Web server failed to start. Port 2002 was already in use.
+
+Action:
+
+Identify and stop the process that's listening on port 2002 or configure this application to listen on another port.
+
+2026-09-25T01:05:32.367+05:30  INFO 13104 --- [finapp-backend] [main] com.finapp.FinappApplication             : Starting FinappApplication using Java 21.0.6 with PID 13104 (E:\Finapp\backend\target\classes started by prash in E:\Finapp\backend)
+2026-09-25T01:05:32.369+05:30  INFO 13104 --- [finapp-backend] [main] com.finapp.FinappApplication             : The following 1 profile is active: "prod"
+2026-09-25T01:05:33.173+05:30  INFO 13104 --- [finapp-backend] [main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-09-25T01:05:33.301+05:30  INFO 13104 --- [finapp-backend] [main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 120 ms. Found 15 JPA repository interfaces.
+2026-09-25T01:05:33.888+05:30  INFO 13104 --- [finapp-backend] [main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 2003 (http)
+2026-09-25T01:05:33.903+05:30  INFO 13104 --- [finapp-backend] [main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-09-25T01:05:33.903+05:30  INFO 13104 --- [finapp-backend] [main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.40]
+2026-09-25T01:05:33.964+05:30  INFO 13104 --- [finapp-backend] [main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-09-25T01:05:33.965+05:30  INFO 13104 --- [finapp-backend] [main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1543 ms
+2026-09-25T01:05:34.111+05:30  INFO 13104 --- [finapp-backend] [main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-09-25T01:05:34.166+05:30  INFO 13104 --- [finapp-backend] [main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.13.Final
+2026-09-25T01:05:34.203+05:30  INFO 13104 --- [finapp-backend] [main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-09-25T01:05:34.503+05:30  INFO 13104 --- [finapp-backend] [main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-09-25T01:05:34.541+05:30  INFO 13104 --- [finapp-backend] [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-09-25T01:05:34.722+05:30  INFO 13104 --- [finapp-backend] [main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@7a3643e3
+2026-09-25T01:05:34.725+05:30  INFO 13104 --- [finapp-backend] [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-09-25T01:05:34.779+05:30  WARN 13104 --- [finapp-backend] [main] org.hibernate.orm.deprecation            : HHH90000025: MySQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-09-25T01:05:34.797+05:30  INFO 13104 --- [finapp-backend] [main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 8.0.35
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-09-25T01:05:36.195+05:30  INFO 13104 --- [finapp-backend] [main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-09-25T01:05:37.020+05:30  INFO 13104 --- [finapp-backend] [main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-09-25T01:05:37.376+05:30  INFO 13104 --- [finapp-backend] [main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-09-25T01:05:41.180+05:30  INFO 13104 --- [finapp-backend] [main] eAuthenticationProviderManagerConfigurer : Global AuthenticationManager configured with AuthenticationProvider bean with name authenticationProvider
+2026-09-25T01:05:41.181+05:30  WARN 13104 --- [finapp-backend] [main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with an AuthenticationProvider bean. UserDetailsService beans will not be used by Spring Security for automatically configuring username/password login. Consider removing the AuthenticationProvider bean. Alternatively, consider using the UserDetailsService in a manually instantiated DaoAuthenticationProvider. If the current configuration is intentional, to turn off this warning, increase the logging level of 'org.springframework.security.config.annotation.authentication.configuration.InitializeUserDetailsBeanManagerConfigurer' to ERROR
+2026-09-25T01:05:41.436+05:30  WARN 13104 --- [finapp-backend] [main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-09-25T01:05:41.771+05:30 DEBUG 13104 --- [finapp-backend] [main] o.s.s.web.DefaultSecurityFilterChain     : Will secure any request with filters: DisableEncodeUrlFilter, WebAsyncManagerIntegrationFilter, SecurityContextHolderFilter, HeaderWriterFilter, CorsFilter, LogoutFilter, JwtAuthenticationFilter, RequestCacheAwareFilter, SecurityContextHolderAwareRequestFilter, AnonymousAuthenticationFilter, SessionManagementFilter, ExceptionTranslationFilter, AuthorizationFilter
+2026-09-25T01:05:41.996+05:30  INFO 13104 --- [finapp-backend] [main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 2003 (http) with context path '/'
+2026-09-25T01:05:42.010+05:30  INFO 13104 --- [finapp-backend] [main] com.finapp.FinappApplication             : Started FinappApplication in 10.115 seconds (process running for 10.501)
+2026-09-25T01:23:45.679+05:30  INFO 13104 --- [finapp-backend] [SpringApplicationShutdownHook] o.s.b.w.e.tomcat.GracefulShutdown        : Commencing graceful shutdown. Waiting for active requests to complete
+2026-09-25T01:23:45.718+05:30  INFO 13104 --- [finapp-backend] [tomcat-shutdown] o.s.b.w.e.tomcat.GracefulShutdown        : Graceful shutdown complete
+2026-09-25T01:23:45.723+05:30  INFO 13104 --- [finapp-backend] [SpringApplicationShutdownHook] j.LocalContainerEntityManagerFactoryBean : Closing JPA EntityManagerFactory for persistence unit 'default'
+2026-09-25T01:23:45.724+05:30  INFO 13104 --- [finapp-backend] [SpringApplicationShutdownHook] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...
+2026-09-25T01:23:45.733+05:30  INFO 13104 --- [finapp-backend] [SpringApplicationShutdownHook] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown completed.
+2026-09-25T01:35:39.516+05:30  INFO 2428 --- [finapp-backend] [main] com.finapp.FinappApplication             : Starting FinappApplication using Java 21.0.6 with PID 2428 (E:\Finapp\backend\target\classes started by prash in E:\Finapp\backend)
+2026-09-25T01:35:39.518+05:30  INFO 2428 --- [finapp-backend] [main] com.finapp.FinappApplication             : The following 1 profile is active: "prod"
+2026-09-25T01:35:40.599+05:30  INFO 2428 --- [finapp-backend] [main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-09-25T01:35:40.749+05:30  INFO 2428 --- [finapp-backend] [main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 141 ms. Found 15 JPA repository interfaces.
+2026-09-25T01:35:41.491+05:30  INFO 2428 --- [finapp-backend] [main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 2003 (http)
+2026-09-25T01:35:41.506+05:30  INFO 2428 --- [finapp-backend] [main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-09-25T01:35:41.506+05:30  INFO 2428 --- [finapp-backend] [main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.40]
+2026-09-25T01:35:41.568+05:30  INFO 2428 --- [finapp-backend] [main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-09-25T01:35:41.568+05:30  INFO 2428 --- [finapp-backend] [main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1979 ms
+2026-09-25T01:35:41.761+05:30  INFO 2428 --- [finapp-backend] [main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-09-25T01:35:41.826+05:30  INFO 2428 --- [finapp-backend] [main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.13.Final
+2026-09-25T01:35:41.861+05:30  INFO 2428 --- [finapp-backend] [main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-09-25T01:35:42.208+05:30  INFO 2428 --- [finapp-backend] [main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-09-25T01:35:42.239+05:30  INFO 2428 --- [finapp-backend] [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-09-25T01:35:42.459+05:30  INFO 2428 --- [finapp-backend] [main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@7c5c20ed
+2026-09-25T01:35:42.461+05:30  INFO 2428 --- [finapp-backend] [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-09-25T01:35:42.520+05:30  WARN 2428 --- [finapp-backend] [main] org.hibernate.orm.deprecation            : HHH90000025: MySQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-09-25T01:35:42.540+05:30  INFO 2428 --- [finapp-backend] [main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 8.0.35
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-09-25T01:35:44.370+05:30  INFO 2428 --- [finapp-backend] [main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-09-25T01:35:44.645+05:30  INFO 2428 --- [finapp-backend] [main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-09-25T01:35:45.129+05:30  INFO 2428 --- [finapp-backend] [main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-09-25T01:35:50.479+05:30  INFO 2428 --- [finapp-backend] [main] eAuthenticationProviderManagerConfigurer : Global AuthenticationManager configured with AuthenticationProvider bean with name authenticationProvider
+2026-09-25T01:35:50.480+05:30  WARN 2428 --- [finapp-backend] [main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with an AuthenticationProvider bean. UserDetailsService beans will not be used by Spring Security for automatically configuring username/password login. Consider removing the AuthenticationProvider bean. Alternatively, consider using the UserDetailsService in a manually instantiated DaoAuthenticationProvider. If the current configuration is intentional, to turn off this warning, increase the logging level of 'org.springframework.security.config.annotation.authentication.configuration.InitializeUserDetailsBeanManagerConfigurer' to ERROR
+2026-09-25T01:35:50.500+05:30  WARN 2428 --- [finapp-backend] [main] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'authController' defined in file [E:\Finapp\backend\target\classes\com\finapp\controller\AuthController.class]: Unsatisfied dependency expressed through constructor parameter 5: Error creating bean with name 'userService' defined in file [E:\Finapp\backend\target\classes\com\finapp\service\UserService.class]: Unsatisfied dependency expressed through constructor parameter 3: Error creating bean with name 'emailService': Unsatisfied dependency expressed through field 'mailSender': No qualifying bean of type 'org.springframework.mail.javamail.JavaMailSender' available: expected at least 1 bean which qualifies as autowire candidate. Dependency annotations: {@org.springframework.beans.factory.annotation.Autowired(required=true)}
+2026-09-25T01:35:50.501+05:30  INFO 2428 --- [finapp-backend] [main] j.LocalContainerEntityManagerFactoryBean : Closing JPA EntityManagerFactory for persistence unit 'default'
+2026-09-25T01:35:50.504+05:30  INFO 2428 --- [finapp-backend] [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...
+2026-09-25T01:35:50.512+05:30  INFO 2428 --- [finapp-backend] [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown completed.
+2026-09-25T01:35:50.515+05:30  INFO 2428 --- [finapp-backend] [main] o.apache.catalina.core.StandardService   : Stopping service [Tomcat]
+2026-09-25T01:35:50.528+05:30  INFO 2428 --- [finapp-backend] [main] .s.b.a.l.ConditionEvaluationReportLogger : 
+
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2026-09-25T01:35:50.556+05:30 ERROR 2428 --- [finapp-backend] [main] o.s.b.d.LoggingFailureAnalysisReporter   : 
+
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Field mailSender in com.finapp.service.EmailService required a bean of type 'org.springframework.mail.javamail.JavaMailSender' that could not be found.
+
+
+Action:
+
+Consider defining a bean of type 'org.springframework.mail.javamail.JavaMailSender' in your configuration.
+
+2026-09-25T01:36:45.535+05:30  INFO 3592 --- [finapp-backend] [main] com.finapp.FinappApplication             : Starting FinappApplication using Java 21.0.6 with PID 3592 (E:\Finapp\backend\target\classes started by prash in E:\Finapp\backend)
+2026-09-25T01:36:45.536+05:30  INFO 3592 --- [finapp-backend] [main] com.finapp.FinappApplication             : The following 1 profile is active: "prod"
+2026-09-25T01:36:46.812+05:30  INFO 3592 --- [finapp-backend] [main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-09-25T01:36:46.963+05:30  INFO 3592 --- [finapp-backend] [main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 139 ms. Found 15 JPA repository interfaces.
+2026-09-25T01:36:47.739+05:30  INFO 3592 --- [finapp-backend] [main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 2003 (http)
+2026-09-25T01:36:47.758+05:30  INFO 3592 --- [finapp-backend] [main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-09-25T01:36:47.758+05:30  INFO 3592 --- [finapp-backend] [main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.40]
+2026-09-25T01:36:47.827+05:30  INFO 3592 --- [finapp-backend] [main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-09-25T01:36:47.830+05:30  INFO 3592 --- [finapp-backend] [main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 2240 ms
+2026-09-25T01:36:48.011+05:30  INFO 3592 --- [finapp-backend] [main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-09-25T01:36:48.078+05:30  INFO 3592 --- [finapp-backend] [main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.13.Final
+2026-09-25T01:36:48.121+05:30  INFO 3592 --- [finapp-backend] [main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-09-25T01:36:48.549+05:30  INFO 3592 --- [finapp-backend] [main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-09-25T01:36:48.583+05:30  INFO 3592 --- [finapp-backend] [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-09-25T01:36:48.804+05:30  INFO 3592 --- [finapp-backend] [main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@2f07930a
+2026-09-25T01:36:48.806+05:30  INFO 3592 --- [finapp-backend] [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-09-25T01:36:48.866+05:30  WARN 3592 --- [finapp-backend] [main] org.hibernate.orm.deprecation            : HHH90000025: MySQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-09-25T01:36:48.891+05:30  INFO 3592 --- [finapp-backend] [main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 8.0.35
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-09-25T01:36:51.303+05:30  INFO 3592 --- [finapp-backend] [main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-09-25T01:36:51.683+05:30  INFO 3592 --- [finapp-backend] [main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-09-25T01:36:52.289+05:30  INFO 3592 --- [finapp-backend] [main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-09-25T01:36:57.159+05:30  INFO 3592 --- [finapp-backend] [main] eAuthenticationProviderManagerConfigurer : Global AuthenticationManager configured with AuthenticationProvider bean with name authenticationProvider
+2026-09-25T01:36:57.159+05:30  WARN 3592 --- [finapp-backend] [main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with an AuthenticationProvider bean. UserDetailsService beans will not be used by Spring Security for automatically configuring username/password login. Consider removing the AuthenticationProvider bean. Alternatively, consider using the UserDetailsService in a manually instantiated DaoAuthenticationProvider. If the current configuration is intentional, to turn off this warning, increase the logging level of 'org.springframework.security.config.annotation.authentication.configuration.InitializeUserDetailsBeanManagerConfigurer' to ERROR
+2026-09-25T01:36:57.420+05:30  WARN 3592 --- [finapp-backend] [main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-09-25T01:36:57.850+05:30 DEBUG 3592 --- [finapp-backend] [main] o.s.s.web.DefaultSecurityFilterChain     : Will secure any request with filters: DisableEncodeUrlFilter, WebAsyncManagerIntegrationFilter, SecurityContextHolderFilter, HeaderWriterFilter, CorsFilter, LogoutFilter, JwtAuthenticationFilter, RequestCacheAwareFilter, SecurityContextHolderAwareRequestFilter, AnonymousAuthenticationFilter, SessionManagementFilter, ExceptionTranslationFilter, AuthorizationFilter
+2026-09-25T01:36:58.135+05:30  INFO 3592 --- [finapp-backend] [main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 2003 (http) with context path '/'
+2026-09-25T01:36:58.150+05:30  INFO 3592 --- [finapp-backend] [main] com.finapp.FinappApplication             : Started FinappApplication in 13.34 seconds (process running for 13.793)
+2026-09-25T01:39:51.457+05:30  INFO 3592 --- [finapp-backend] [http-nio-2003-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-09-25T01:39:51.457+05:30  INFO 3592 --- [finapp-backend] [http-nio-2003-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-09-25T01:39:51.458+05:30  INFO 3592 --- [finapp-backend] [http-nio-2003-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 0 ms
+2026-09-25T01:39:51.471+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-1] o.s.security.web.FilterChainProxy        : Securing POST /api/auth/login
+2026-09-25T01:39:51.481+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-1] o.s.s.w.a.AnonymousAuthenticationFilter  : Set SecurityContextHolder to anonymous SecurityContext
+2026-09-25T01:39:51.482+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-1] o.s.security.web.FilterChainProxy        : Secured POST /api/auth/login
+2026-09-25T01:39:51.787+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-1] o.s.s.a.dao.DaoAuthenticationProvider    : Failed to find user 'testaccount@test.com'
+2026-09-25T01:39:51.793+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-1] o.s.s.w.a.Http403ForbiddenEntryPoint     : Pre-authenticated entry point called. Rejecting access
+2026-09-25T01:39:51.800+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-1] o.s.security.web.FilterChainProxy        : Securing POST /error
+2026-09-25T01:39:51.800+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-1] o.s.s.w.a.AnonymousAuthenticationFilter  : Set SecurityContextHolder to anonymous SecurityContext
+2026-09-25T01:39:51.800+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-1] o.s.s.w.a.Http403ForbiddenEntryPoint     : Pre-authenticated entry point called. Rejecting access
+2026-09-25T01:39:57.255+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-2] o.s.security.web.FilterChainProxy        : Securing POST /api/auth/login
+2026-09-25T01:39:57.255+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-2] o.s.s.w.a.AnonymousAuthenticationFilter  : Set SecurityContextHolder to anonymous SecurityContext
+2026-09-25T01:39:57.255+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-2] o.s.security.web.FilterChainProxy        : Secured POST /api/auth/login
+2026-09-25T01:39:57.361+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-2] o.s.s.a.dao.DaoAuthenticationProvider    : Failed to find user 'testaccount@test.com'
+2026-09-25T01:39:57.362+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-2] o.s.s.w.a.Http403ForbiddenEntryPoint     : Pre-authenticated entry point called. Rejecting access
+2026-09-25T01:39:57.362+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-2] o.s.security.web.FilterChainProxy        : Securing POST /error
+2026-09-25T01:39:57.362+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-2] o.s.s.w.a.AnonymousAuthenticationFilter  : Set SecurityContextHolder to anonymous SecurityContext
+2026-09-25T01:39:57.363+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-2] o.s.s.w.a.Http403ForbiddenEntryPoint     : Pre-authenticated entry point called. Rejecting access
+2026-09-25T01:40:06.330+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-6] o.s.security.web.FilterChainProxy        : Securing POST /api/auth/register
+2026-09-25T01:40:06.330+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-6] o.s.s.w.a.AnonymousAuthenticationFilter  : Set SecurityContextHolder to anonymous SecurityContext
+2026-09-25T01:40:06.331+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-6] o.s.security.web.FilterChainProxy        : Secured POST /api/auth/register
+2026-09-25T01:40:11.717+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-4] o.s.security.web.FilterChainProxy        : Securing POST /api/auth/login
+2026-09-25T01:40:11.719+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-4] o.s.s.w.a.AnonymousAuthenticationFilter  : Set SecurityContextHolder to anonymous SecurityContext
+2026-09-25T01:40:11.719+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-4] o.s.security.web.FilterChainProxy        : Secured POST /api/auth/login
+2026-09-25T01:40:11.813+05:30 DEBUG 3592 --- [finapp-backend] [http-nio-2003-exec-4] o.s.s.a.dao.DaoAuthenticationProvider    : Authenticated user
