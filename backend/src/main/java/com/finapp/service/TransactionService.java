@@ -116,10 +116,9 @@ public class TransactionService {
             updateAssetBalanceOnCreate(dto, user, transaction);
         }
 
-        // If udhar transaction, create udhar record
+        // If udhar transaction, create udhar record linked to this transaction
         if (isUdhar && dto.getUdharPersonName() != null && dto.getUdharType() != null) {
             UdharRecord.UdharType udharType = UdharRecord.UdharType.valueOf(dto.getUdharType());
-
             UdharRecordDTO udharDTO = new UdharRecordDTO();
             udharDTO.setPersonName(dto.getUdharPersonName());
             udharDTO.setMobileNumber(dto.getUdharMobileNumber());
@@ -127,8 +126,12 @@ public class TransactionService {
             udharDTO.setType(udharType);
             udharDTO.setDate(dto.getDate());
             udharDTO.setNotes(dto.getDescription());
+            udharService.createRecordFromTransaction(udharDTO, transaction, user);
+        }
 
-            udharService.createRecord(udharDTO, user);
+        // If setoff udhar record id provided, mark this transaction as settlement
+        if (dto.getSetoffUdharRecordId() != null) {
+            udharService.settleUdharWithTransaction(dto.getSetoffUdharRecordId(), transaction, dto.getAmount(), user);
         }
 
         return transaction;
@@ -221,12 +224,38 @@ public class TransactionService {
         existing.setDescription(dto.getDescription());
         existing.setPaymentSource(dto.getPaymentSource());
         existing.setReferenceNumber(dto.getReferenceNumber());
+        boolean wasUdhar = existing.getIsUdhar() != null && existing.getIsUdhar();
+        boolean isNowUdhar = dto.getIsUdhar() != null && dto.getIsUdhar();
+        if (dto.getIsUdhar() != null) existing.setIsUdhar(dto.getIsUdhar());
 
         Transaction saved = transactionRepository.save(existing);
 
         // Apply new transaction effect on asset balance
         if (dto.getPaymentSource() != null) {
             updateAssetBalanceOnCreate(dto, user, saved);
+        }
+
+        // Udhar disabled — unlink from any udhar records
+        if (wasUdhar && !isNowUdhar) {
+            udharService.unlinkTransaction(saved);
+        }
+
+        // Udhar newly enabled — create udhar record linked to this transaction
+        if (!wasUdhar && isNowUdhar && dto.getUdharPersonName() != null && dto.getUdharType() != null) {
+            UdharRecord.UdharType udharType = UdharRecord.UdharType.valueOf(dto.getUdharType());
+            UdharRecordDTO udharDTO = new UdharRecordDTO();
+            udharDTO.setPersonName(dto.getUdharPersonName());
+            udharDTO.setMobileNumber(dto.getUdharMobileNumber());
+            udharDTO.setTotalAmount(dto.getAmount());
+            udharDTO.setType(udharType);
+            udharDTO.setDate(dto.getDate());
+            udharDTO.setNotes(dto.getDescription());
+            udharService.createRecordFromTransaction(udharDTO, saved, user);
+        }
+
+        // If setoff udhar record id provided, mark this transaction as settlement
+        if (dto.getSetoffUdharRecordId() != null) {
+            udharService.settleUdharWithTransaction(dto.getSetoffUdharRecordId(), saved, dto.getAmount(), user);
         }
 
         return saved;

@@ -85,6 +85,83 @@ public class UdharService {
         return record;
     }
 
+    // Creates udhar record and links to an existing transaction (no new transaction created)
+    @Transactional
+    public UdharRecord createRecordFromTransaction(UdharRecordDTO dto, Transaction transaction, User user) {
+        UdharRecord record = UdharRecord.builder()
+                .personName(dto.getPersonName())
+                .mobileNumber(dto.getMobileNumber())
+                .totalAmount(dto.getTotalAmount())
+                .settledAmount(BigDecimal.ZERO)
+                .type(dto.getType())
+                .status(UdharStatus.PENDING)
+                .date(dto.getDate())
+                .notes(dto.getNotes())
+                .user(user)
+                .build();
+
+        record = udharRecordRepository.save(record);
+
+        UdharTransactionLink link = UdharTransactionLink.builder()
+                .udharRecord(record)
+                .transaction(transaction)
+                .transactionType(UdharTransactionLink.TransactionType.ORIGINAL)
+                .amount(dto.getTotalAmount())
+                .build();
+
+        udharTransactionLinkRepository.save(link);
+        return record;
+    }
+
+    // Unlink a transaction from udhar — reverses settlement or unmarks if original
+    @Transactional
+    public void unlinkTransaction(Transaction transaction) {
+        List<UdharTransactionLink> links = udharTransactionLinkRepository.findByTransaction(transaction);
+        for (UdharTransactionLink link : links) {
+            UdharRecord record = udharRecordRepository.findById(link.getUdharRecord().getId()).orElse(null);
+            if (record == null) continue;
+
+            if (link.getTransactionType() == UdharTransactionLink.TransactionType.SETTLEMENT) {
+                // Reverse settlement amount
+                BigDecimal newSettled = record.getSettledAmount().subtract(link.getAmount());
+                if (newSettled.compareTo(BigDecimal.ZERO) < 0) newSettled = BigDecimal.ZERO;
+                record.setSettledAmount(newSettled);
+                record.setStatus(newSettled.compareTo(BigDecimal.ZERO) == 0 ? UdharStatus.PENDING : UdharStatus.PARTIAL);
+                udharRecordRepository.save(record);
+                udharTransactionLinkRepository.delete(link);
+            } else if (link.getTransactionType() == UdharTransactionLink.TransactionType.ORIGINAL) {
+                // Just unmark — delete the udhar record (links cascade), transaction stays
+                udharRecordRepository.delete(record);
+            }
+        }
+    }
+
+    // Settle udhar using an existing transaction (no new transaction created)
+    @Transactional
+    public void settleUdharWithTransaction(Long udharRecordId, Transaction transaction, BigDecimal amount, User user) {
+        UdharRecord record = getRecordById(udharRecordId, user);
+
+        BigDecimal remaining = record.getTotalAmount().subtract(record.getSettledAmount());
+        BigDecimal settleAmount = amount.min(remaining); // cap at remaining
+
+        UdharTransactionLink link = UdharTransactionLink.builder()
+                .udharRecord(record)
+                .transaction(transaction)
+                .transactionType(UdharTransactionLink.TransactionType.SETTLEMENT)
+                .amount(settleAmount)
+                .build();
+        udharTransactionLinkRepository.save(link);
+
+        BigDecimal newSettled = record.getSettledAmount().add(settleAmount);
+        record.setSettledAmount(newSettled);
+        record.setStatus(newSettled.compareTo(record.getTotalAmount()) >= 0 ? UdharStatus.SETTLED : UdharStatus.PARTIAL);
+        udharRecordRepository.save(record);
+
+        // Mark transaction as udhar
+        transaction.setIsUdhar(true);
+        transactionRepository.save(transaction);
+    }
+
     @Transactional
     public UdharRecord settleUdhar(UdharSettlementDTO dto, User user) {
         UdharRecord record = getRecordById(dto.getUdharRecordId(), user);
@@ -145,10 +222,14 @@ public class UdharService {
     public void deleteRecord(Long id, User user) {
         UdharRecord record = getRecordById(id, user);
 
-        // Delete linked transactions first (this will cascade delete links)
+        // Only unmark transactions as udhar, do NOT delete them
         List<UdharTransactionLink> links = udharTransactionLinkRepository.findByUdharRecordOrderByCreatedAtDesc(record);
         for (UdharTransactionLink link : links) {
-            transactionRepository.delete(link.getTransaction());
+            Transaction tx = link.getTransaction();
+            if (tx != null) {
+                tx.setIsUdhar(false);
+                transactionRepository.save(tx);
+            }
         }
 
         udharRecordRepository.delete(record);

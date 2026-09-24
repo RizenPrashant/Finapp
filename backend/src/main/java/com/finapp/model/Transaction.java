@@ -87,10 +87,10 @@ public class Transaction {
     private Boolean includeInTax = true; // Default to true for CREDIT transactions
 
     @OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JsonIgnoreProperties({"transaction"})
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private List<UdharTransactionLink> udharLinks;
 
     @OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JsonIgnoreProperties({"transaction"})
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private List<CashbackEntry> cashbackEntries;
 }
