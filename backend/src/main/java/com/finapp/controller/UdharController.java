@@ -6,6 +6,7 @@ import com.finapp.model.UdharRecord;
 import com.finapp.model.UdharRecord.UdharType;
 import com.finapp.model.UdharTransactionLink;
 import com.finapp.model.User;
+import com.finapp.repository.UdharRecordRepository;
 import com.finapp.repository.UserRepository;
 import com.finapp.service.UdharService;
 import jakarta.validation.Valid;
@@ -15,6 +16,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +28,7 @@ public class UdharController {
 
     private final UdharService udharService;
     private final UserRepository userRepository;
+    private final UdharRecordRepository udharRecordRepository;
 
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -33,8 +37,16 @@ public class UdharController {
     }
 
     @GetMapping("/records")
-    public List<UdharRecord> getAllRecords() {
-        return udharService.getAllRecords(getCurrentUser());
+    public List<UdharRecord> getAllRecords(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        User user = getCurrentUser();
+        if (startDate != null && endDate != null) {
+            LocalDate start = LocalDate.parse(startDate);
+            LocalDate end = LocalDate.parse(endDate);
+            return udharRecordRepository.findByUserAndDateBetweenOrderByDateDesc(user, start, end);
+        }
+        return udharService.getAllRecords(user);
     }
 
     @GetMapping("/records/type/{type}")

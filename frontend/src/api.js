@@ -110,7 +110,7 @@ export const createCashbackEntry = (data) => api.post('/cashback/entries', data)
 export const deleteCashbackEntry = (id) => api.delete(`/cashback/entries/${id}`);
 
 // Udhar APIs
-export const getUdharRecords = () => api.get('/udhar/records');
+export const getUdharRecords = (params = {}) => api.get('/udhar/records', { params });
 export const getUdharRecordsByType = (type) => api.get(`/udhar/records/type/${type}`);
 export const createUdharRecord = (data) => api.post('/udhar/records', data);
 export const deleteUdharRecord = (id) => api.delete(`/udhar/records/${id}`);

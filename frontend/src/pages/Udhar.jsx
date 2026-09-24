@@ -324,11 +324,38 @@ export default function Udhar({ onProfileClick }) {
   const [customStartDate, setCustomStartDate] = useState(now.toISOString().split('T')[0]);
   const [customEndDate, setCustomEndDate] = useState(now.toISOString().split('T')[0]);
 
+  const getDateRange = useCallback(() => {
+    const now = new Date();
+    switch (dateFilterType) {
+      case 'daily':
+        return { startDate: selectedDate, endDate: selectedDate };
+      case 'weekly': {
+        const start = new Date(selectedDate);
+        start.setDate(start.getDate() - start.getDay());
+        const end = new Date(start);
+        end.setDate(end.getDate() + 6);
+        return { startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] };
+      }
+      case 'monthly': {
+        const start = new Date(selectedYear, selectedMonth, 1);
+        const end = new Date(selectedYear, selectedMonth + 1, 0);
+        return { startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] };
+      }
+      case 'yearly':
+        return { startDate: `${selectedYear}-01-01`, endDate: `${selectedYear}-12-31` };
+      case 'custom':
+        return { startDate: customStartDate, endDate: customEndDate };
+      default:
+        return {};
+    }
+  }, [dateFilterType, selectedDate, selectedMonth, selectedYear, customStartDate, customEndDate]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      const params = getDateRange();
       const [recordsRes, summaryRes] = await Promise.all([
-        getUdharRecords(),
+        getUdharRecords(params),
         getUdharSummary()
       ]);
       setRecords(recordsRes.data);
@@ -337,7 +364,7 @@ export default function Udhar({ onProfileClick }) {
       console.error(e);
     }
     setLoading(false);
-  }, []);
+  }, [getDateRange]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -361,47 +388,12 @@ export default function Udhar({ onProfileClick }) {
     setSettlingRecord(null);
   };
 
-  // Date filter logic
-  const dateFilteredRecords = useMemo(() => {
-    if (dateFilterType === 'all') return records;
-
-    return records.filter(r => {
-      const recordDate = new Date(r.date);
-      const recordYear = recordDate.getFullYear();
-      const recordMonth = recordDate.getMonth();
-
-      switch (dateFilterType) {
-        case 'daily':
-          return r.date === selectedDate;
-        case 'weekly': {
-          const start = new Date(selectedDate);
-          start.setDate(start.getDate() - start.getDay()); // Sunday
-          const end = new Date(start);
-          end.setDate(end.getDate() + 6); // Saturday
-          return recordDate >= start && recordDate <= end;
-        }
-        case 'monthly':
-          return recordYear === selectedYear && recordMonth === selectedMonth;
-        case 'yearly':
-          return recordYear === selectedYear;
-        case 'custom': {
-          const start = new Date(customStartDate);
-          const end = new Date(customEndDate);
-          end.setHours(23, 59, 59);
-          return recordDate >= start && recordDate <= end;
-        }
-        default:
-          return true;
-      }
-    });
-  }, [records, dateFilterType, selectedDate, selectedMonth, selectedYear, customStartDate, customEndDate]);
-
-  const filteredRecords = dateFilteredRecords.filter(r => filter === 'ALL' || r.type === filter);
+  const filteredRecords = records.filter(r => filter === 'ALL' || r.type === filter);
 
   // Calculate summary from filtered records
   const filteredSummary = useMemo(() => {
-    const given = dateFilteredRecords.filter(r => r.type === 'GIVEN');
-    const taken = dateFilteredRecords.filter(r => r.type === 'TAKEN');
+    const given = records.filter(r => r.type === 'GIVEN');
+    const taken = records.filter(r => r.type === 'TAKEN');
 
     const givenTotal = given.reduce((s, r) => s + parseFloat(r.totalAmount || 0), 0);
     const givenSettled = given.reduce((s, r) => s + parseFloat(r.settledAmount || 0), 0);
@@ -417,7 +409,7 @@ export default function Udhar({ onProfileClick }) {
       takenOutstanding: takenTotal - takenSettled,
       netOutstanding: (givenTotal - givenSettled) - (takenTotal - takenSettled)
     };
-  }, [dateFilteredRecords]);
+  }, [records]);
 
   const givenRecords = records.filter(r => r.type === 'GIVEN');
   const takenRecords = records.filter(r => r.type === 'TAKEN');

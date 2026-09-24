@@ -4,8 +4,8 @@
  * All rights reserved.
  */
 import { useState, useEffect } from 'react';
-import { X, Building2, CreditCard, Gift, HandCoins, User, Phone } from 'lucide-react';
-import { getAssetsByType, getCashbackWallets } from '../api';
+import { X, Building2, CreditCard, Gift, HandCoins, User, Phone, ArrowLeftRight } from 'lucide-react';
+import { getAssetsByType, getCashbackWallets, getUdharRecords } from '../api';
 
 const categoryOptions = {
   'Monthly Food Expense': ['Groceries', 'Dining Out', 'Cafe', 'Food Delivery'],
@@ -33,23 +33,27 @@ export default function AddTransactionModal({ budgetCategory, onClose, onSave, p
     udharPersonName: '',
     udharMobileNumber: '',
     udharType: 'GIVEN',
+    setoffUdharRecordId: null,
   });
   const [loading, setLoading] = useState(false);
   const [banks, setBanks] = useState([]);
   const [creditCards, setCreditCards] = useState([]);
   const [cashbackWallets, setCashbackWallets] = useState([]);
+  const [udharRecords, setUdharRecords] = useState([]);
 
   useEffect(() => {
     const fetchSources = async () => {
       try {
-        const [assetRes, liabRes, cbRes] = await Promise.all([
+        const [assetRes, liabRes, cbRes, udharRes] = await Promise.all([
           getAssetsByType('ASSET'),
           getAssetsByType('LIABILITY'),
           getCashbackWallets(),
+          getUdharRecords(),
         ]);
         setBanks((assetRes.data || []).filter(a => a.category === 'BANK'));
         setCreditCards((liabRes.data || []).filter(a => a.category === 'CREDIT_CARD'));
         setCashbackWallets(cbRes.data || []);
+        setUdharRecords((udharRes.data || []).filter(r => r.status !== 'SETTLED'));
       } catch (e) {
         console.error('Failed to load payment sources', e);
       }
@@ -166,6 +170,32 @@ export default function AddTransactionModal({ budgetCategory, onClose, onSave, p
             <input type="date" value={form.date}
               onChange={(e) => setForm({ ...form, date: e.target.value })} className={inputCls} />
           </div>
+
+          {/* Setoff Section */}
+          {udharRecords.length > 0 && (
+            <div className="border-t border-gray-100 dark:border-gray-700 pt-4 mt-2">
+              <label className="flex items-center gap-2 mb-2">
+                <ArrowLeftRight size={16} className="text-blue-500" />
+                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Setoff against Udhar</span>
+              </label>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">Link this transaction as settlement of a pending udhar</p>
+              <select
+                value={form.setoffUdharRecordId || ''}
+                onChange={(e) => setForm({ ...form, setoffUdharRecordId: e.target.value ? parseInt(e.target.value) : null })}
+                className={inputCls}
+              >
+                <option value="">— None —</option>
+                {udharRecords.map(r => {
+                  const remaining = parseFloat(r.totalAmount) - parseFloat(r.settledAmount || 0);
+                  return (
+                    <option key={r.id} value={r.id}>
+                      {r.type === 'GIVEN' ? '📤' : '📥'} {r.personName} — ₹{remaining.toLocaleString('en-IN')} pending ({r.status})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
 
           {/* Udhar Toggle */}
           <div className="border-t border-gray-100 dark:border-gray-700 pt-4 mt-4">

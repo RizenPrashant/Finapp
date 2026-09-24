@@ -23,12 +23,12 @@ public class UdharTransactionLink {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "udhar_record_id", nullable = false)
-    @JsonIgnoreProperties({"udharTransactions", "user"})
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private UdharRecord udharRecord;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transaction_id", nullable = false)
-    @JsonIgnoreProperties({"udharLinks", "user"})
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Transaction transaction;
 
     @Enumerated(EnumType.STRING)

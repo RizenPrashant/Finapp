@@ -59,7 +59,7 @@ public class UdharRecord {
     private User user;
 
     @OneToMany(mappedBy = "udharRecord", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JsonIgnoreProperties({"udharRecord"})
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private List<UdharTransactionLink> udharTransactions;
 
     @Column(name = "created_at")

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, Building2, CreditCard, Gift } from 'lucide-react';
-import { getAssetsByType, getCashbackWallets } from '../api';
+import { X, Building2, CreditCard, Gift, HandCoins, User, Phone, ArrowLeftRight } from 'lucide-react';
+import { getAssetsByType, getCashbackWallets, getUdharRecords } from '../api';
 
 const categoryOptions = {
   'Monthly Food Expense': ['Groceries', 'Dining Out', 'Cafe', 'Food Delivery'],
@@ -21,23 +21,31 @@ export default function EditTransactionModal({ transaction, onClose, onSave }) {
     date: transaction.date,
     description: transaction.description || '',
     paymentSource: transaction.paymentSource || '',
+    isUdhar: transaction.isUdhar || false,
+    udharPersonName: transaction.udharPersonName || '',
+    udharMobileNumber: transaction.udharMobileNumber || '',
+    udharType: transaction.udharType || 'GIVEN',
+    setoffUdharRecordId: null,
   });
   const [loading, setLoading] = useState(false);
   const [banks, setBanks] = useState([]);
   const [creditCards, setCreditCards] = useState([]);
   const [cashbackWallets, setCashbackWallets] = useState([]);
+  const [udharRecords, setUdharRecords] = useState([]);
 
   useEffect(() => {
     const fetchSources = async () => {
       try {
-        const [assetRes, liabRes, cbRes] = await Promise.all([
+        const [assetRes, liabRes, cbRes, udharRes] = await Promise.all([
           getAssetsByType('ASSET'),
           getAssetsByType('LIABILITY'),
           getCashbackWallets(),
+          getUdharRecords(),
         ]);
         setBanks((assetRes.data || []).filter(a => a.category === 'BANK'));
         setCreditCards((liabRes.data || []).filter(a => a.category === 'CREDIT_CARD'));
         setCashbackWallets(cbRes.data || []);
+        setUdharRecords((udharRes.data || []).filter(r => r.status !== 'SETTLED'));
       } catch (e) {
         console.error('Failed to load payment sources', e);
       }
@@ -153,6 +161,85 @@ export default function EditTransactionModal({ transaction, onClose, onSave }) {
             <input type="date" value={form.date}
               onChange={(e) => setForm({ ...form, date: e.target.value })} className={inputCls} />
           </div>
+
+          {/* Setoff Section */}
+          {udharRecords.length > 0 && (
+            <div className="border-t border-gray-100 dark:border-gray-700 pt-4 mt-2">
+              <label className="flex items-center gap-2 mb-2">
+                <ArrowLeftRight size={16} className="text-blue-500" />
+                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Setoff against Udhar</span>
+              </label>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">Link this transaction as settlement of a pending udhar</p>
+              <select
+                value={form.setoffUdharRecordId || ''}
+                onChange={(e) => setForm({ ...form, setoffUdharRecordId: e.target.value ? parseInt(e.target.value) : null })}
+                className={inputCls}
+              >
+                <option value="">— None —</option>
+                {udharRecords.map(r => {
+                  const remaining = parseFloat(r.totalAmount) - parseFloat(r.settledAmount || 0);
+                  return (
+                    <option key={r.id} value={r.id}>
+                      {r.type === 'GIVEN' ? '📤' : '📥'} {r.personName} — ₹{remaining.toLocaleString('en-IN')} pending ({r.status})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+
+          {/* Udhar Toggle */}
+          <div className="border-t border-gray-100 dark:border-gray-700 pt-4 mt-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.isUdhar}
+                onChange={(e) => setForm({ ...form, isUdhar: e.target.checked })}
+                className="w-4 h-4 accent-orange-500"
+              />
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                <HandCoins size={16} className="text-orange-500" />
+                Mark as Udhar (Lent / Borrowed)
+              </span>
+            </label>
+          </div>
+
+          {form.isUdhar && (
+            <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 space-y-3 border border-orange-100 dark:border-orange-800">
+              <div className="flex rounded-lg overflow-hidden border border-orange-200 dark:border-orange-700">
+                {['GIVEN', 'TAKEN'].map(t => (
+                  <button key={t} type="button" onClick={() => setForm({ ...form, udharType: t })}
+                    className={`flex-1 py-2 text-xs font-semibold transition ${
+                      form.udharType === t
+                        ? t === 'GIVEN' ? 'bg-orange-500 text-white' : 'bg-blue-500 text-white'
+                        : 'bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                    }`}>
+                    {t === 'GIVEN' ? '📤 I Lent (Diya)' : '📥 I Borrowed (Liya)'}
+                  </button>
+                ))}
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Person Name *</label>
+                <div className="relative">
+                  <User size={14} className="absolute left-3 top-3 text-gray-400" />
+                  <input required={form.isUdhar} type="text" placeholder="e.g. Rahul Sharma"
+                    value={form.udharPersonName}
+                    onChange={(e) => setForm({ ...form, udharPersonName: e.target.value })}
+                    className={`${inputCls} pl-9`} />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Mobile <span className="font-normal normal-case text-gray-400">(optional)</span></label>
+                <div className="relative">
+                  <Phone size={14} className="absolute left-3 top-3 text-gray-400" />
+                  <input type="tel" placeholder="9876543210"
+                    value={form.udharMobileNumber}
+                    onChange={(e) => setForm({ ...form, udharMobileNumber: e.target.value })}
+                    className={`${inputCls} pl-9`} />
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 py-3 font-semibold border border-gray-200 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-sm transition dark:text-white">
