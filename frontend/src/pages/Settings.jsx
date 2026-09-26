@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Shield, ShieldOff, Building2, Plus, Trash2, Calendar, Filter, TrendingUp, Percent, Wallet, Tag, FileInput, KeyRound } from 'lucide-react';
+import { Shield, ShieldOff, Building2, Plus, Trash2, Calendar, Filter, TrendingUp, Percent, Wallet, Tag, FileInput, KeyRound, Lock } from 'lucide-react';
 import Header from '../components/Header';
 import { getBudgets, saveBudget, getBrokers, getCompoundingSettings, updateCompoundingSettings, getImportFormats, createImportFormat, updateImportFormat, deleteImportFormat, getAssets, changePassword } from '../api';
 
@@ -26,6 +26,31 @@ export function getDeleteLocks() {
 export function isDeleteLocked(module) {
   return getDeleteLocks()[module] ?? true;
 }
+
+export const EDIT_LOCKS_KEY = 'finapp_edit_locks';
+
+// Only modules that actually expose an edit action — compounding and udhar
+// have delete but nothing to edit.
+export const EDIT_LOCK_MODULES = [
+  { id: 'transactions', label: 'Transactions', emoji: '💸' },
+  { id: 'assets',       label: 'Assets',       emoji: '🏠' },
+  { id: 'investments',  label: 'Investments',  emoji: '📈' },
+  { id: 'trades',       label: 'Trades',       emoji: '📊' },
+  { id: 'cashback',     label: 'Cashback',     emoji: '🎁' },
+];
+
+// Unlocked by default — unlike delete, editing is routine and shouldn't
+// require a trip to Settings first.
+const DEFAULT_EDIT_LOCKS = Object.fromEntries(EDIT_LOCK_MODULES.map(m => [m.id, false]));
+
+export function getEditLocks() {
+  const saved = localStorage.getItem(EDIT_LOCKS_KEY);
+  return saved ? { ...DEFAULT_EDIT_LOCKS, ...JSON.parse(saved) } : { ...DEFAULT_EDIT_LOCKS };
+}
+
+export function isEditLocked(module) {
+  return getEditLocks()[module] ?? false;
+}
 export const BROKERS_KEY = 'finapp_custom_brokers';
 export const FILTER_PREFS_KEY = 'finapp_filter_preferences';
 export const CUSTOM_FILTERS_KEY = 'finapp_custom_transaction_filters';
@@ -46,6 +71,7 @@ export default function Settings() {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [deleteLocks, setDeleteLocks] = useState(() => getDeleteLocks());
+  const [editLocks, setEditLocks] = useState(() => getEditLocks());
   const [brokers, setBrokers] = useState([]);
   const [newBrokerName, setNewBrokerName] = useState('');
   const [filterPrefs, setFilterPrefs] = useState(() => {
@@ -269,6 +295,14 @@ export default function Settings() {
     });
   };
 
+  const toggleEditLock = (moduleId) => {
+    setEditLocks(prev => {
+      const next = { ...prev, [moduleId]: !prev[moduleId] };
+      localStorage.setItem(EDIT_LOCKS_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
   const handleChange = (index, field, value) => {
     setBudgets((prev) => prev.map((b, i) => (i === index ? { ...b, [field]: value } : b)));
   };
@@ -387,6 +421,47 @@ export default function Settings() {
                     </div>
                   );
                 })}
+              </div>
+
+              {/* Edit Protection */}
+              <div className="mt-6 pt-5 border-t border-gray-100 dark:border-gray-700">
+                <div className="flex items-center gap-2 mb-3">
+                  <Lock size={16} className="text-emerald-500" />
+                  <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Edit Protection</p>
+                </div>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
+                  Enable edit lock per module. When locked, items in that module cannot be edited. Off by default.
+                </p>
+                <div className="space-y-2">
+                  {EDIT_LOCK_MODULES.map(({ id, label, emoji }) => {
+                    const locked = editLocks[id];
+                    return (
+                      <div key={id} className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${
+                        locked ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/50' : 'bg-gray-50 dark:bg-gray-700/50 border-gray-100 dark:border-gray-600'
+                      }`}>
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg">{emoji}</span>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{label}</p>
+                            <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                              {locked ? 'Edit protected' : 'Edit allowed'}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => toggleEditLock(id)}
+                          className={`relative w-10 h-5 rounded-full transition-all duration-300 ${
+                            locked ? 'bg-amber-500 shadow-amber-200 shadow-sm' : 'bg-gray-300 dark:bg-gray-500'
+                          }`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ${
+                            locked ? 'translate-x-5' : 'translate-x-0'
+                          }`} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Change Password */}

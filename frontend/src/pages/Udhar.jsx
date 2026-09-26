@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Trash2, ArrowRightLeft, X, User, Phone, ArrowLeft, CheckCircle, Clock, AlertCircle, UserCheck, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { Plus, Trash2, ArrowRightLeft, X, User, Phone, CheckCircle, UserCheck, ChevronLeft, ChevronRight, Calendar, Link } from 'lucide-react';
 import Header from '../components/Header';
 import {
   getUdharRecords, createUdharRecord, deleteUdharRecord,
-  settleUdhar, getUdharSummary
+  settleUdhar, getUdharSummary, getTransactionsPage, linkTransactionToUdhar
 } from '../api';
 import { FILTER_PREFS_KEY, isDeleteLocked } from '../pages/Settings';
 
@@ -122,15 +122,31 @@ function AddUdharModal({ onClose, onSave, defaultType }) {
 }
 
 // Settlement Modal
-function SettlementModal({ record, onClose, onSave }) {
+function SettlementModal({ record, onClose, onSave, onLinkTransaction }) {
+  const [tab, setTab] = useState('new'); // 'new' | 'link'
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
+  const [transactions, setTransactions] = useState([]);
+  const [selectedTxId, setSelectedTxId] = useState('');
+  const [txLoading, setTxLoading] = useState(false);
 
   const remaining = parseFloat(record.totalAmount) - parseFloat(record.settledAmount || 0);
 
-  const handleSubmit = async (e) => {
+  // A setoff is nearly always a recent transaction, so pull the latest page
+  // rather than every transaction the user has ever recorded.
+  useEffect(() => {
+    if (tab === 'link') {
+      setTxLoading(true);
+      getTransactionsPage({ page: 0, size: 200 })
+        .then(r => setTransactions((r.data.content || []).filter(t => !t.isUdhar)))
+        .catch(() => setTransactions([]))
+        .finally(() => setTxLoading(false));
+    }
+  }, [tab]);
+
+  const handleNewSettlement = async (e) => {
     e.preventDefault();
     const amt = parseFloat(amount);
     if (!amt || amt <= 0 || amt > remaining) {
@@ -139,12 +155,7 @@ function SettlementModal({ record, onClose, onSave }) {
     }
     setLoading(true);
     try {
-      await onSave({
-        udharRecordId: record.id,
-        amount: amt,
-        description,
-        date
-      });
+      await onSave({ udharRecordId: record.id, amount: amt, description, date });
       onClose();
     } catch (e) {
       alert(e.response?.data?.message || e.message);
@@ -153,9 +164,24 @@ function SettlementModal({ record, onClose, onSave }) {
     }
   };
 
+  const handleLinkTransaction = async () => {
+    if (!selectedTxId) return;
+    setLoading(true);
+    try {
+      await onLinkTransaction(record.id, parseInt(selectedTxId));
+      onClose();
+    } catch (e) {
+      alert(e.response?.data?.message || e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputCls = 'w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 text-sm dark:text-white';
+
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
+      <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-black dark:hover:text-white">
           <X size={20} />
         </button>
@@ -177,28 +203,66 @@ function SettlementModal({ record, onClose, onSave }) {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Settlement Amount</label>
-            <input type="number" min="0.01" max={remaining} step="0.01" required
-              value={amount} onChange={e => setAmount(e.target.value)}
-              className="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 outline-none focus:ring-2 focus:ring-green-300 dark:focus:ring-green-600 text-sm dark:text-white" />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Description</label>
-            <input value={description} onChange={e => setDescription(e.target.value)}
-              placeholder="e.g. Cash received" className="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 outline-none text-sm dark:text-white" />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Date</label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)}
-              className="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 outline-none text-sm dark:text-white" />
-          </div>
-          <button type="submit" disabled={loading}
-            className="w-full py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition disabled:opacity-60">
-            {loading ? 'Processing...' : `Record Settlement`}
+        {/* Tabs */}
+        <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600 mb-4">
+          <button onClick={() => setTab('new')}
+            className={`flex-1 py-2 text-xs font-semibold transition ${
+              tab === 'new' ? 'bg-slate-900 text-white' : 'bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+            }`}>
+            New Settlement
           </button>
-        </form>
+          <button onClick={() => setTab('link')}
+            className={`flex-1 py-2 text-xs font-semibold transition flex items-center justify-center gap-1 ${
+              tab === 'link' ? 'bg-slate-900 text-white' : 'bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+            }`}>
+            <Link size={12} /> Link Transaction
+          </button>
+        </div>
+
+        {tab === 'new' && (
+          <form onSubmit={handleNewSettlement} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Settlement Amount</label>
+              <input type="number" min="0.01" max={remaining} step="0.01" required
+                value={amount} onChange={e => setAmount(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Description</label>
+              <input value={description} onChange={e => setDescription(e.target.value)}
+                placeholder="e.g. Cash received" className={inputCls} />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Date</label>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
+            </div>
+            <button type="submit" disabled={loading}
+              className="w-full py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition disabled:opacity-60">
+              {loading ? 'Processing...' : 'Record Settlement'}
+            </button>
+          </form>
+        )}
+
+        {tab === 'link' && (
+          <div className="space-y-4">
+            <p className="text-xs text-gray-400 dark:text-gray-500">Select an existing transaction to mark as setoff for this udhar</p>
+            {txLoading ? (
+              <p className="text-sm text-gray-400 text-center py-4">Loading transactions...</p>
+            ) : (
+              <select value={selectedTxId} onChange={e => setSelectedTxId(e.target.value)} className={inputCls}>
+                <option value="">— Select transaction —</option>
+                {transactions.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.date} · {t.title} · ₹{parseFloat(t.amount).toLocaleString('en-IN')} ({t.type})
+                  </option>
+                ))}
+              </select>
+            )}
+            <button onClick={handleLinkTransaction} disabled={!selectedTxId || loading}
+              className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-60">
+              {loading ? 'Linking...' : 'Link as Setoff'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -384,6 +448,12 @@ export default function Udhar({ onProfileClick }) {
 
   const handleSettle = async (data) => {
     await settleUdhar(data);
+    await fetchData();
+    setSettlingRecord(null);
+  };
+
+  const handleLinkTransaction = async (udharRecordId, transactionId) => {
+    await linkTransactionToUdhar(udharRecordId, transactionId);
     await fetchData();
     setSettlingRecord(null);
   };
@@ -654,6 +724,7 @@ export default function Udhar({ onProfileClick }) {
           record={settlingRecord}
           onClose={() => setSettlingRecord(null)}
           onSave={handleSettle}
+          onLinkTransaction={handleLinkTransaction}
         />
       )}
     </div>

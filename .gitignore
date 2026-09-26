@@ -4,6 +4,9 @@ backend/target/
 # Frontend build
 frontend/dist/
 frontend/node_modules/
+# Vite writes these next to the config on every build
+frontend/vite.config.js.timestamp-*.mjs
+frontend/vite.config.ts.timestamp-*.mjs
 
 # Environment / secrets
 backend/src/main/resources/application-dev.properties

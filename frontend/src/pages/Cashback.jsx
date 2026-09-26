@@ -10,7 +10,7 @@ import {
   getCashbackWallets, createCashbackWallet, updateCashbackWallet, deleteCashbackWallet,
   getCashbackEntriesByWallet, createCashbackEntry, deleteCashbackEntry
 } from '../api';
-import { FILTER_PREFS_KEY, isDeleteLocked } from '../pages/Settings';
+import { FILTER_PREFS_KEY, isDeleteLocked, isEditLocked } from '../pages/Settings';
 import { eventEmitter, EVENTS } from '../utils/events';
 
 const PLATFORM_PRESETS = [
@@ -431,6 +431,7 @@ export default function Cashback({ onProfileClick }) {
   };
 
   const cashbackLocked = isDeleteLocked('cashback');
+  const cashbackEditLocked = isEditLocked('cashback');
 
   const handleDeleteWallet = async (id) => {
     if (cashbackLocked) return;
@@ -858,8 +859,9 @@ export default function Cashback({ onProfileClick }) {
                       </div>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                      <button onClick={e => { e.stopPropagation(); setEditingWallet(wallet); setShowEditWallet(true); }}
-                        className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-500 transition">
+                      <button onClick={e => { e.stopPropagation(); if (cashbackEditLocked) return; setEditingWallet(wallet); setShowEditWallet(true); }}
+                        className={`p-1.5 rounded-lg transition ${cashbackEditLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-500'}`}
+                        title={cashbackEditLocked ? 'Edit locked. Unlock in Settings.' : 'Edit'}>
                         <Edit2 size={13} />
                       </button>
                       <button onClick={e => { e.stopPropagation(); handleDeleteWallet(wallet.id); }}

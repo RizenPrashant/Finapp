@@ -37,6 +37,10 @@ api.interceptors.response.use(
 export const getDashboardSummary = (params = {}) => api.get('/dashboard/summary', { params });
 
 export const getTransactions = (params = {}) => api.get('/transactions', { params });
+// Paged listing — date/type/category filters are applied server-side and the
+// response carries totals for the whole filtered set, not just the page.
+export const getTransactionsPage = (params = {}) => api.get('/transactions/page', { params });
+export const getTransactionFilterOptions = (params = {}) => api.get('/transactions/filter-options', { params });
 export const searchTransactions = (q, params = {}) => api.get('/transactions/search', { params: { q, ...params } });
 export const getTransactionsByBudget = (budgetCategory, params = {}) => api.get(`/transactions/budget/${encodeURIComponent(budgetCategory)}`, { params });
 export const getTransactionsBySource = (source) => api.get(`/transactions/source/${encodeURIComponent(source)}`);
@@ -58,6 +62,9 @@ export const deleteAsset = (id) => api.delete(`/assets/${id}`);
 export const getMonthlyAnalytics = (year) => api.get('/transactions/analytics/monthly', { params: { year } });
 export const getWeeklyAnalytics = (weeks = 8) => api.get('/transactions/analytics/weekly', { params: { weeks } });
 export const getCategoryAnalytics = (params = {}) => api.get('/transactions/analytics/category', { params });
+// Credit/debit totals per budget category in one query, instead of fetching
+// every transaction per budget and summing them in the browser.
+export const getBudgetSpend = (params = {}) => api.get('/transactions/analytics/budget-spend', { params });
 
 // Trading APIs
 export const getTrades = () => api.get('/trading/trades');
@@ -115,6 +122,7 @@ export const getUdharRecordsByType = (type) => api.get(`/udhar/records/type/${ty
 export const createUdharRecord = (data) => api.post('/udhar/records', data);
 export const deleteUdharRecord = (id) => api.delete(`/udhar/records/${id}`);
 export const settleUdhar = (data) => api.post('/udhar/settle', data);
+export const linkTransactionToUdhar = (udharRecordId, transactionId) => api.post(`/udhar/records/${udharRecordId}/link-transaction/${transactionId}`);
 export const getUdharTransactions = (id) => api.get(`/udhar/records/${id}/transactions`);
 export const getUdharSummary = () => api.get('/udhar/summary');
 

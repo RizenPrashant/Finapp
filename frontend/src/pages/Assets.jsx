@@ -22,7 +22,7 @@ import {
   updateAsset,
   deleteAsset 
 } from '../api';
-import { isDeleteLocked } from '../pages/Settings';
+import { isDeleteLocked, isEditLocked } from '../pages/Settings';
 import { eventEmitter, EVENTS } from '../utils/events';
 
 const investmentTypes = [
@@ -134,6 +134,8 @@ export default function Assets({ onProfileClick }) {
 
   const assetDeleteLocked = isDeleteLocked('assets');
   const investmentDeleteLocked = isDeleteLocked('investments');
+  const assetEditLocked = isEditLocked('assets');
+  const investmentEditLocked = isEditLocked('investments');
 
   const handleDeleteAsset = async (id) => {
     if (assetDeleteLocked) return;
@@ -340,6 +342,7 @@ export default function Assets({ onProfileClick }) {
                   onEdit={openEditAsset}
                   onDelete={handleDeleteAsset}
                   deleteLocked={assetDeleteLocked}
+                  editLocked={assetEditLocked}
                 />
               ))}
             </div>
@@ -500,6 +503,7 @@ export default function Assets({ onProfileClick }) {
                 onEdit={openEditInvestment}
                 onDelete={handleDeleteInvestment}
                 deleteLocked={investmentDeleteLocked}
+                editLocked={investmentEditLocked}
               />
             ))}
           </div>

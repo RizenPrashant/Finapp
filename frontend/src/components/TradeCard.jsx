@@ -1,6 +1,6 @@
 import { TrendingUp, TrendingDown, Edit2, Trash2, Calendar, DollarSign, Briefcase } from 'lucide-react';
 
-export default function TradeCard({ trade, onEdit, onDelete, deleteLocked }) {
+export default function TradeCard({ trade, onEdit, onDelete, deleteLocked, editLocked }) {
   const isProfit = (trade.profitLoss || 0) >= 0;
   const isOpen = trade.status === 'OPEN';
 
@@ -53,8 +53,9 @@ export default function TradeCard({ trade, onEdit, onDelete, deleteLocked }) {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={onEdit}
-            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+            onClick={() => !editLocked && onEdit()}
+            className={`p-2 rounded-lg transition-colors ${editLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30'}`}
+            title={editLocked ? 'Edit locked. Unlock in Settings.' : 'Edit'}
           >
             <Edit2 size={16} />
           </button>

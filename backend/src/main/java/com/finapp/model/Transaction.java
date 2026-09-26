@@ -27,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
     @Index(name = "idx_txn_user_payment_source", columnList = "user_id, payment_source"),
     @Index(name = "idx_txn_user_import_hash",    columnList = "user_id, import_hash"),
     @Index(name = "idx_txn_user_budget_cat",     columnList = "user_id, budget_category"),
+    @Index(name = "idx_txn_user_category",       columnList = "user_id, category"),
 })
 @Data
 @Builder

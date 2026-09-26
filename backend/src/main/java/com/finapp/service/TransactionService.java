@@ -28,6 +28,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,49 +43,11 @@ public class TransactionService {
     private final CashbackWalletRepository cashbackWalletRepository;
     private final CashbackEntryRepository cashbackEntryRepository;
 
-    public List<Transaction> getAll(User user) {
-        List<Transaction> transactions = transactionRepository.findByUser(user);
-        // If user has no transactions, try to assign orphan transactions first
-        if (transactions.isEmpty()) {
-            List<Transaction> orphanTransactions = transactionRepository.findByUserIsNull();
-            if (!orphanTransactions.isEmpty()) {
-                orphanTransactions.forEach(t -> t.setUser(user));
-                transactionRepository.saveAll(orphanTransactions);
-                transactions = transactionRepository.findByUser(user);
-            }
-        }
-        return transactions;
-    }
-
-    public List<Transaction> getByMonthAndYear(Integer month, Integer year, TransactionType type, User user) {
-        LocalDate start = YearMonth.of(year, month).atDay(1);
-        LocalDate end = YearMonth.of(year, month).atEndOfMonth();
-        if (type != null) return transactionRepository.findByUserAndTypeAndDateBetweenOrderByDateDesc(user, type, start, end);
-        return transactionRepository.findByUserAndDateBetweenOrderByDateDesc(user, start, end);
-    }
-
-    public List<Transaction> getByYear(Integer year, TransactionType type, User user) {
-        LocalDate start = LocalDate.of(year, 1, 1);
-        LocalDate end = LocalDate.of(year, 12, 31);
-        if (type != null) return transactionRepository.findByUserAndTypeAndDateBetweenOrderByDateDesc(user, type, start, end);
-        return transactionRepository.findByUserAndDateBetweenOrderByDateDesc(user, start, end);
-    }
-
-    public List<Transaction> getByBudgetCategory(String budgetCategory, User user) {
-        return transactionRepository.findByUserAndBudgetCategoryIgnoreCase(user, budgetCategory);
-    }
-
-    public List<Transaction> getByBudgetCategory(String budgetCategory, User user, LocalDate start, LocalDate end) {
-        return transactionRepository.findByUserAndBudgetCategoryIgnoreCaseAndDateBetween(user, budgetCategory, start, end);
-    }
-
-    public List<Transaction> getByPaymentSource(String paymentSource, User user) {
-        return transactionRepository.findByUserAndPaymentSourceIgnoreCaseOrderByDateDesc(user, paymentSource);
-    }
-
-    public List<Transaction> getByType(TransactionType type, User user) {
-        return transactionRepository.findByUserAndType(user, type);
-    }
+    // The unbounded list loaders that used to live here (getAll, getByType,
+    // getByPaymentSource, getByBudgetCategory, getByMonthAndYear, getByYear)
+    // are gone. Every listing path now goes through the capped query in
+    // TransactionController, so there is no convenient way to fetch a user's
+    // whole table by accident.
 
     @Transactional
     public Transaction create(TransactionDTO dto, User user) {
@@ -345,21 +308,34 @@ public class TransactionService {
         return transactionRepository.sumByUserAndBudgetCategoryAndTypeAndDateBetween(user, budgetCategory, type, start, end);
     }
 
+    private static BigDecimal toBigDecimal(Object value) {
+        if (value == null) return BigDecimal.ZERO;
+        if (value instanceof BigDecimal bd) return bd;
+        return new BigDecimal(value.toString());
+    }
+
     // Monthly summary for a year — returns list of {month, income, expense, savings}
     public List<Map<String, Object>> getMonthlySummary(int year, User user) {
-        List<Map<String, Object>> result = new ArrayList<>();
         String[] months = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+
+        // month -> {income, expense, savings}; one query for the whole year
+        Map<Integer, BigDecimal[]> totals = new HashMap<>();
+        for (Object[] row : transactionRepository.monthlyTotalsByUserAndYear(user, year)) {
+            totals.put(((Number) row[0]).intValue(),
+                    new BigDecimal[]{ toBigDecimal(row[1]), toBigDecimal(row[2]), toBigDecimal(row[3]) });
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        BigDecimal[] empty = { BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO };
         for (int m = 1; m <= 12; m++) {
-            LocalDate start = YearMonth.of(year, m).atDay(1);
-            LocalDate end = YearMonth.of(year, m).atEndOfMonth();
-            BigDecimal income  = transactionRepository.sumByUserAndTypeAndDateBetween(user, TransactionType.CREDIT, start, end);
-            BigDecimal expense = transactionRepository.sumByUserAndTypeAndDateBetween(user, TransactionType.DEBIT, start, end);
-            BigDecimal savings = transactionRepository.sumByUserAndBudgetCategoryAndTypeAndDateBetween(user, "Monthly Total Savings", TransactionType.DEBIT, start, end);
+            // Months with no activity are absent from the grouped result but the
+            // chart still expects all twelve points.
+            BigDecimal[] t = totals.getOrDefault(m, empty);
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("month", months[m - 1]);
-            map.put("income", income);
-            map.put("expense", expense);
-            map.put("savings", savings);
+            map.put("income", t[0]);
+            map.put("expense", t[1]);
+            map.put("savings", t[2]);
             result.add(map);
         }
         return result;
@@ -367,17 +343,28 @@ public class TransactionService {
 
     // Weekly summary — last N weeks
     public List<Map<String, Object>> getWeeklySummary(int weeks, User user) {
-        List<Map<String, Object>> result = new ArrayList<>();
         LocalDate today = LocalDate.now();
+        LocalDate firstWeekStart = today.minusWeeks(weeks - 1L).with(DayOfWeek.MONDAY);
+        LocalDate lastWeekEnd = today.with(DayOfWeek.MONDAY).plusDays(6);
+
+        // One pass over the span, bucketed by the Monday each day belongs to,
+        // instead of two aggregate queries per week.
+        Map<LocalDate, BigDecimal[]> byWeek = new HashMap<>();
+        for (Object[] row : transactionRepository.dailyTotalsByUserBetween(user, firstWeekStart, lastWeekEnd)) {
+            LocalDate weekStart = ((LocalDate) row[0]).with(DayOfWeek.MONDAY);
+            BigDecimal[] acc = byWeek.computeIfAbsent(weekStart, k -> new BigDecimal[]{ BigDecimal.ZERO, BigDecimal.ZERO });
+            acc[0] = acc[0].add(toBigDecimal(row[1]));
+            acc[1] = acc[1].add(toBigDecimal(row[2]));
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
         for (int i = weeks - 1; i >= 0; i--) {
             LocalDate weekStart = today.minusWeeks(i).with(DayOfWeek.MONDAY);
-            LocalDate weekEnd = weekStart.plusDays(6);
-            BigDecimal income = transactionRepository.sumByUserAndTypeAndDateBetween(user, TransactionType.CREDIT, weekStart, weekEnd);
-            BigDecimal expense = transactionRepository.sumByUserAndTypeAndDateBetween(user, TransactionType.DEBIT, weekStart, weekEnd);
+            BigDecimal[] acc = byWeek.getOrDefault(weekStart, new BigDecimal[]{ BigDecimal.ZERO, BigDecimal.ZERO });
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("week", "W" + weekStart.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear()));
-            map.put("income", income);
-            map.put("expense", expense);
+            map.put("income", acc[0]);
+            map.put("expense", acc[1]);
             result.add(map);
         }
         return result;
@@ -402,31 +389,18 @@ public class TransactionService {
      * - CREDIT_CARD: Total debit cannot exceed credit limit
      */
     private void validateTransactionLimit(TransactionDTO dto, User user) {
-        List<Asset> assets = assetRepository.findByUser(user);
-
-        // Find asset by payment source name
-        Asset asset = assets.stream()
-                .filter(a -> a.getName().equalsIgnoreCase(dto.getPaymentSource()))
-                .findFirst()
-                .orElse(null);
+        // Same lookup the balance-update path uses, so validation and the
+        // balance mutation can never disagree about which asset this is.
+        Asset asset = assetRepository.findByUserAndName(user, dto.getPaymentSource()).orElse(null);
 
         if (asset == null) {
             return; // No asset found, skip validation
         }
 
-        // Get all transactions for this payment source
-        List<Transaction> transactions = transactionRepository
-                .findByUserAndPaymentSourceIgnoreCaseOrderByDateDesc(user, dto.getPaymentSource());
-
-        BigDecimal currentCredit = transactions.stream()
-                .filter(t -> t.getType() == TransactionType.CREDIT)
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal currentDebit = transactions.stream()
-                .filter(t -> t.getType() == TransactionType.DEBIT)
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Sum in SQL — this runs on every DEBIT create, so it must not scale
+        // with the number of transactions on the source.
+        BigDecimal currentDebit = transactionRepository
+                .sumByUserAndPaymentSourceAndType(user, dto.getPaymentSource(), TransactionType.DEBIT);
 
         BigDecimal newDebitTotal = currentDebit.add(dto.getAmount());
 
@@ -434,6 +408,8 @@ public class TransactionService {
         if (asset.getCategory() == AssetCategory.BANK) {
             // For bank accounts: Debit cannot exceed Credit + Starting Balance
             // Starting balance is represented by the asset value
+            BigDecimal currentCredit = transactionRepository
+                    .sumByUserAndPaymentSourceAndType(user, dto.getPaymentSource(), TransactionType.CREDIT);
             BigDecimal availableFunds = currentCredit.add(asset.getValue() != null ? asset.getValue() : BigDecimal.ZERO);
 
             if (newDebitTotal.compareTo(availableFunds) > 0) {

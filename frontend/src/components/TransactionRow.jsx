@@ -2,8 +2,11 @@ import { useState } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Trash2, Pencil, AlertTriangle, Building2, Gift, HandCoins, Tag } from 'lucide-react';
 import { recategorizeTransaction } from '../api';
 
+// 'Monthly Total Expense' is intentionally absent — it's a rollup of
+// Monthly Food Expense + Monthly Spend + Miscellaneous, not a bucket
+// transactions can be assigned to directly.
 const BUDGET_CATEGORIES = [
-  'Monthly Spend', 'Monthly Total Savings', 'Monthly Total Expense',
+  'Monthly Spend', 'Monthly Total Savings',
   'Monthly Food Expense', 'Monthly Revenue', 'Miscellaneous', 'Uncategorized'
 ];
 
@@ -49,6 +52,12 @@ function RecategorizePopup({ transaction, onSave, onClose }) {
   const [budgetCategory, setBudgetCategory] = useState(transaction.budgetCategory || 'Uncategorized');
   const [saving, setSaving] = useState(false);
 
+  // Older rows may still carry a value we no longer offer — keep it visible
+  // so the select isn't blank, rather than silently misreporting.
+  const budgetOptions = BUDGET_CATEGORIES.includes(budgetCategory)
+    ? BUDGET_CATEGORIES
+    : [budgetCategory, ...BUDGET_CATEGORIES];
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -85,7 +94,7 @@ function RecategorizePopup({ transaction, onSave, onClose }) {
           <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Budget Overview Category</label>
           <select value={budgetCategory} onChange={e => setBudgetCategory(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-400">
-            {BUDGET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            {budgetOptions.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           <p className="text-[10px] text-gray-400 dark:text-gray-500">Budget Overview updates automatically.</p>
         </div>
@@ -104,7 +113,7 @@ function RecategorizePopup({ transaction, onSave, onClose }) {
   );
 }
 
-export default function TransactionRow({ transaction: initialTransaction, onDelete, onEdit, deleteLocked, onCategoryChange }) {
+export default function TransactionRow({ transaction: initialTransaction, onDelete, onEdit, deleteLocked, editLocked, onCategoryChange }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showRecategorize, setShowRecategorize] = useState(false);
   const [transaction, setTransaction] = useState(initialTransaction);
@@ -172,18 +181,26 @@ export default function TransactionRow({ transaction: initialTransaction, onDele
           </div>
           {!transaction.virtual && (
             <button
-              onClick={(e) => { e.stopPropagation(); setShowRecategorize(true); }}
-              className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-all"
-              title="Re-categorize"
+              onClick={(e) => { e.stopPropagation(); if (!editLocked) setShowRecategorize(true); }}
+              className={`opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all ${
+                editLocked
+                  ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                  : 'text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+              }`}
+              title={editLocked ? 'Edit is locked. Unlock in Settings.' : 'Re-categorize'}
             >
               <Tag size={15} />
             </button>
           )}
           {onEdit && !transaction.virtual && (
             <button
-              onClick={(e) => { e.stopPropagation(); onEdit(transaction); }}
-              className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
-              title="Edit"
+              onClick={(e) => { e.stopPropagation(); if (!editLocked) onEdit(transaction); }}
+              className={`opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all ${
+                editLocked
+                  ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                  : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+              }`}
+              title={editLocked ? 'Edit is locked. Unlock in Settings.' : 'Edit'}
             >
               <Pencil size={15} />
             </button>
