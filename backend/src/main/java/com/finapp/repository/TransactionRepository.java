@@ -134,13 +134,17 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     // One dynamic filter shared by the page, its totals and its filter options,
     // so the three can never disagree about what the user is looking at. Null
     // parameters drop out of the predicate, matching the searchByUser pattern.
+    // Plain `=` on the text columns rather than LOWER(): the schema collation is
+    // utf8mb4_unicode_ci so the comparison is already case-insensitive, and
+    // wrapping the column in a function would rule out the indexes.
     String LIST_FILTER =
         "FROM Transaction t WHERE t.user = :user " +
         "AND (:start IS NULL OR t.date >= :start) " +
         "AND (:end IS NULL OR t.date <= :end) " +
         "AND (:type IS NULL OR t.type = :type) " +
         "AND (:category IS NULL OR t.category = :category) " +
-        "AND (:budgetCategory IS NULL OR t.budgetCategory = :budgetCategory)";
+        "AND (:budgetCategory IS NULL OR t.budgetCategory = :budgetCategory) " +
+        "AND (:paymentSource IS NULL OR t.paymentSource = :paymentSource)";
 
     @Query("SELECT t " + LIST_FILTER)
     Page<Transaction> findPage(
@@ -150,6 +154,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         @Param("type") TransactionType type,
         @Param("category") String category,
         @Param("budgetCategory") String budgetCategory,
+        @Param("paymentSource") String paymentSource,
         Pageable pageable);
 
     // Totals across the whole filtered set, not just the page being shown.
@@ -161,19 +166,24 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         @Param("end") LocalDate end,
         @Param("type") TransactionType type,
         @Param("category") String category,
-        @Param("budgetCategory") String budgetCategory);
+        @Param("budgetCategory") String budgetCategory,
+        @Param("paymentSource") String paymentSource);
 
     // Filter dropdowns can no longer be built from the loaded rows once the list
-    // is paged, so ask the server what values exist in the current period.
-    @Query("SELECT DISTINCT t.category FROM Transaction t WHERE t.user = :user " +
-           "AND (:start IS NULL OR t.date >= :start) AND (:end IS NULL OR t.date <= :end) " +
-           "AND t.category IS NOT NULL ORDER BY t.category")
-    List<String> findDistinctCategories(@Param("user") User user, @Param("start") LocalDate start, @Param("end") LocalDate end);
+    // is paged, so ask the server what values exist in the current scope.
+    String OPTION_SCOPE =
+        "FROM Transaction t WHERE t.user = :user " +
+        "AND (:start IS NULL OR t.date >= :start) " +
+        "AND (:end IS NULL OR t.date <= :end) " +
+        "AND (:paymentSource IS NULL OR t.paymentSource = :paymentSource) ";
 
-    @Query("SELECT DISTINCT t.budgetCategory FROM Transaction t WHERE t.user = :user " +
-           "AND (:start IS NULL OR t.date >= :start) AND (:end IS NULL OR t.date <= :end) " +
-           "AND t.budgetCategory IS NOT NULL ORDER BY t.budgetCategory")
-    List<String> findDistinctBudgetCategories(@Param("user") User user, @Param("start") LocalDate start, @Param("end") LocalDate end);
+    @Query("SELECT DISTINCT t.category " + OPTION_SCOPE + "AND t.category IS NOT NULL ORDER BY t.category")
+    List<String> findDistinctCategories(@Param("user") User user, @Param("start") LocalDate start,
+                                        @Param("end") LocalDate end, @Param("paymentSource") String paymentSource);
+
+    @Query("SELECT DISTINCT t.budgetCategory " + OPTION_SCOPE + "AND t.budgetCategory IS NOT NULL ORDER BY t.budgetCategory")
+    List<String> findDistinctBudgetCategories(@Param("user") User user, @Param("start") LocalDate start,
+                                              @Param("end") LocalDate end, @Param("paymentSource") String paymentSource);
 
     // User-specific analytics
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user = :user AND t.type = :type")

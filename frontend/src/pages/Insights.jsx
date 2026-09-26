@@ -3,7 +3,7 @@
  * Pacific Finapp - Personal Finance Management Application
  * All rights reserved.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, ArrowLeft, Trash2, Edit3, TrendingUp, TrendingDown, DollarSign, PieChart, Target, ArrowUp, ArrowDown, Home, Gem, Briefcase, Building2, Landmark, Wallet, Receipt, CreditCard as CreditCardIcon, Edit2, ArrowUpCircle, ArrowDownCircle, Calendar, Tag, X } from 'lucide-react';
 import Header from '../components/Header';
@@ -17,7 +17,7 @@ import AssetCard from '../components/AssetCard';
 import { 
   getAssetsByType, createAsset, deleteAsset, updateAsset, getDashboardSummary,
   getInvestments, getInvestmentsByType, createInvestment, updateInvestment, deleteInvestment, getInvestmentAnalytics,
-  getTransactionsBySource, createTransaction, updateTransaction, deleteTransaction,
+  getTransactionsPage, getTransactionFilterOptions, createTransaction, updateTransaction, deleteTransaction,
   processInvestmentCompounding
 } from '../api';
 import { isDeleteLocked, isEditLocked } from './Settings';
@@ -30,6 +30,8 @@ const summaryCards = [
   { type: 'DEBT', label: 'Debt', icon: Receipt, color: 'text-orange-600', bg: 'bg-orange-50', darkBg: 'dark:bg-orange-900/20', border: 'border-orange-200', desc: 'Home Loan, Car Loan, Education' },
   { type: 'INVESTMENT', label: 'Investments', icon: TrendingUp, color: 'text-purple-600', bg: 'bg-purple-50', darkBg: 'dark:bg-purple-900/20', border: 'border-purple-200', desc: 'Stocks, Mutual Funds, Crypto' },
 ];
+
+const BANK_TX_PAGE_SIZE = 50;
 
 const investmentTypes = [
   { value: 'ALL', label: 'All', icon: PieChart },
@@ -71,18 +73,13 @@ export default function Insights({ onProfileClick }) {
   });
   const [bankTransactions, setBankTransactions] = useState([]);
   const [bankTxLoading, setBankTxLoading] = useState(false);
+  const [bankTxLoadingMore, setBankTxLoadingMore] = useState(false);
+  const [bankTxMeta, setBankTxMeta] = useState({
+    page: 0, hasNext: false, totalElements: 0, totalIncome: 0, totalExpense: 0,
+  });
+  const [bankTxCategories, setBankTxCategories] = useState([]);
   const [showAddTxModal, setShowAddTxModal] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
-
-  // Restore bank transactions on refresh
-  useEffect(() => {
-    if (!selectedBankAsset) return;
-    setBankTxLoading(true);
-    getTransactionsBySource(selectedBankAsset.name)
-      .then(res => setBankTransactions(res.data))
-      .catch(e => console.error('Error loading transactions:', e))
-      .finally(() => setBankTxLoading(false));
-  }, [selectedBankAsset?.name]);
 
   const txDeleteLocked = isDeleteLocked('transactions');
   const assetDeleteLocked = isDeleteLocked('assets');
@@ -196,6 +193,51 @@ export default function Insights({ onProfileClick }) {
     sessionStorage.setItem('insights_selectedBankAsset', JSON.stringify(asset));
   };
 
+  // The drill-down is paged: an account can hold years of statement imports,
+  // and every filter below is applied in the query rather than on loaded rows.
+  const bankCategory = txCategoryFilter[0] || '';
+  const bankTxParams = useMemo(() => {
+    if (!selectedBankAsset) return null;
+    const p = { paymentSource: selectedBankAsset.name };
+    if (txDateFilter.start) p.startDate = txDateFilter.start;
+    if (txDateFilter.end) p.endDate = txDateFilter.end;
+    if (txTypeFilter !== 'ALL') p.type = txTypeFilter;
+    if (bankCategory) p.category = bankCategory;
+    return p;
+  }, [selectedBankAsset?.name, txDateFilter.start, txDateFilter.end, txTypeFilter, bankCategory]);
+
+  const loadBankPage = useCallback(async (pageNum, append) => {
+    if (!bankTxParams) return;
+    if (append) setBankTxLoadingMore(true); else setBankTxLoading(true);
+    try {
+      const res = await getTransactionsPage({ ...bankTxParams, page: pageNum, size: BANK_TX_PAGE_SIZE });
+      const d = res.data;
+      setBankTransactions(prev => (append ? [...prev, ...d.content] : d.content));
+      setBankTxMeta({
+        page: d.page,
+        hasNext: d.hasNext,
+        totalElements: d.totalElements,
+        totalIncome: parseFloat(d.totalIncome || 0),
+        totalExpense: parseFloat(d.totalExpense || 0),
+      });
+    } catch (e) {
+      console.error('Error loading transactions:', e);
+    } finally {
+      setBankTxLoadingMore(false);
+      setBankTxLoading(false);
+    }
+  }, [bankTxParams]);
+
+  useEffect(() => { loadBankPage(0, false); }, [loadBankPage]);
+
+  // Category options for the whole account, not just the loaded page.
+  useEffect(() => {
+    if (!selectedBankAsset) return;
+    getTransactionFilterOptions({ paymentSource: selectedBankAsset.name })
+      .then(r => setBankTxCategories(r.data.categories || []))
+      .catch(() => setBankTxCategories([]));
+  }, [selectedBankAsset?.name]);
+
   // A transaction changes the asset balance server-side, so pull the fresh
   // value — the drill-down header reads it off selectedBankAsset.
   const refreshSelectedAsset = async () => {
@@ -219,8 +261,7 @@ export default function Insights({ onProfileClick }) {
     try {
       await createTransaction({ ...data, paymentSource: selectedBankAsset.name });
       eventEmitter.emit(EVENTS.TRANSACTION_CREATED, data);
-      const res = await getTransactionsBySource(selectedBankAsset.name);
-      setBankTransactions(res.data);
+      await loadBankPage(0, false);
       await refreshSelectedAsset();
       setShowAddTxModal(false);
     } catch (e) {
@@ -232,8 +273,7 @@ export default function Insights({ onProfileClick }) {
     try {
       await updateTransaction(id, data);
       eventEmitter.emit(EVENTS.TRANSACTION_UPDATED, { id, ...data });
-      const res = await getTransactionsBySource(selectedBankAsset.name);
-      setBankTransactions(res.data);
+      await loadBankPage(0, false);
       await refreshSelectedAsset();
       setEditingTx(null);
     } catch (e) {
@@ -247,7 +287,7 @@ export default function Insights({ onProfileClick }) {
     try {
       await deleteTransaction(id);
       eventEmitter.emit(EVENTS.TRANSACTION_DELETED, { id });
-      setBankTransactions(prev => prev.filter(t => t.id !== id));
+      await loadBankPage(0, false);
       await refreshSelectedAsset();
     } catch (e) {
       alert('Failed to delete: ' + (e.response?.data?.message || e.message));
@@ -354,24 +394,15 @@ export default function Insights({ onProfileClick }) {
 
   // ========== BANK TRANSACTIONS VIEW ==========
   if (selectedBankAsset) {
-    // Filter transactions based on date, category, and type
-    let filteredTransactions = bankTransactions.filter(t => {
-      // Date filter
-      if (txDateFilter.start && new Date(t.date) < new Date(txDateFilter.start)) return false;
-      if (txDateFilter.end && new Date(t.date) > new Date(txDateFilter.end)) return false;
-      // Category filter
-      if (txCategoryFilter.length > 0 && !txCategoryFilter.includes(t.category)) return false;
-      // Type filter
-      if (txTypeFilter !== 'ALL' && t.type !== txTypeFilter) return false;
-      return true;
-    });
+    // Date, category and type are all applied in the query, and the sort comes
+    // back date-descending, so the loaded rows are already the answer.
+    const sorted = bankTransactions;
 
-    const totalCredit = filteredTransactions.filter(t => t.type === 'CREDIT').reduce((s, t) => s + parseFloat(t.amount), 0);
-    const totalDebit = filteredTransactions.filter(t => t.type === 'DEBIT').reduce((s, t) => s + parseFloat(t.amount), 0);
-    const sorted = [...filteredTransactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+    // Totals span the whole filtered set, not just the pages loaded so far.
+    const totalCredit = bankTxMeta.totalIncome;
+    const totalDebit = bankTxMeta.totalExpense;
 
-    // Get unique categories for filter dropdown
-    const uniqueCategories = [...new Set(bankTransactions.map(t => t.category))].sort();
+    const uniqueCategories = bankTxCategories;
 
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -388,7 +419,7 @@ export default function Insights({ onProfileClick }) {
               </button>
               <div>
                 <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">{selectedBankAsset.name}</h2>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">{bankTransactions.length} transactions · Balance: {fmt(selectedBankAsset.value)}</p>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">{bankTxMeta.totalElements} transactions · Balance: {fmt(selectedBankAsset.value)}</p>
               </div>
             </div>
             <button
@@ -647,7 +678,7 @@ export default function Insights({ onProfileClick }) {
                   </button>
                 )}
                 <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-lg">
-                  {sorted.length} / {bankTransactions.length}
+                  {bankTxMeta.hasNext ? `${sorted.length} / ${bankTxMeta.totalElements}` : bankTxMeta.totalElements}
                 </span>
               </div>
             </div>
@@ -716,6 +747,17 @@ export default function Insights({ onProfileClick }) {
                   ))}
                 </tbody>
               </table>
+              {bankTxMeta.hasNext && (
+                <div className="p-4 border-t border-gray-100 dark:border-gray-700 text-center">
+                  <button
+                    onClick={() => loadBankPage(bankTxMeta.page + 1, true)}
+                    disabled={bankTxLoadingMore}
+                    className="px-5 py-2 rounded-xl text-sm font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition disabled:opacity-50"
+                  >
+                    {bankTxLoadingMore ? 'Loading...' : `Load more (${bankTxMeta.totalElements - sorted.length} left)`}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

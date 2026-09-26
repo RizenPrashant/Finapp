@@ -88,6 +88,7 @@ public class TransactionController {
             @RequestParam(required = false) TransactionType type,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String budgetCategory,
+            @RequestParam(required = false) String paymentSource,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         User user = getCurrentUser();
@@ -95,15 +96,16 @@ public class TransactionController {
         LocalDate end   = endDate   != null ? LocalDate.parse(endDate)   : null;
         String cat      = blankToNull(category);
         String budgetCat = blankToNull(budgetCategory);
+        String source   = blankToNull(paymentSource);
 
         Pageable pageable = PageRequest.of(
                 Math.max(0, page),
                 Math.min(Math.max(1, size), MAX_PAGE_SIZE),
                 Sort.by(Sort.Order.desc("date"), Sort.Order.desc("id")));
 
-        Page<Transaction> result = transactionRepository.findPage(user, start, end, type, cat, budgetCat, pageable);
+        Page<Transaction> result = transactionRepository.findPage(user, start, end, type, cat, budgetCat, source, pageable);
 
-        List<Object[]> totals = transactionRepository.sumTotalsForFilter(user, start, end, type, cat, budgetCat);
+        List<Object[]> totals = transactionRepository.sumTotalsForFilter(user, start, end, type, cat, budgetCat, source);
         BigDecimal income  = BigDecimal.ZERO;
         BigDecimal expense = BigDecimal.ZERO;
         if (!totals.isEmpty()) {
@@ -124,17 +126,19 @@ public class TransactionController {
                 .build();
     }
 
-    /** Distinct category / budget category values in the given period. */
+    /** Distinct category / budget category values in the given scope. */
     @GetMapping("/filter-options")
     public Map<String, List<String>> getFilterOptions(
             @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate) {
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) String paymentSource) {
         User user = getCurrentUser();
         LocalDate start = startDate != null ? LocalDate.parse(startDate) : null;
         LocalDate end   = endDate   != null ? LocalDate.parse(endDate)   : null;
+        String source   = blankToNull(paymentSource);
         return Map.of(
-                "categories", transactionRepository.findDistinctCategories(user, start, end),
-                "budgetCategories", transactionRepository.findDistinctBudgetCategories(user, start, end));
+                "categories", transactionRepository.findDistinctCategories(user, start, end, source),
+                "budgetCategories", transactionRepository.findDistinctBudgetCategories(user, start, end, source));
     }
 
     private static String blankToNull(String value) {
