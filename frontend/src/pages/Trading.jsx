@@ -5,7 +5,7 @@ import AddTradeModal from '../components/AddTradeModal';
 import ImportModal from '../components/ImportModal';
 import TradeCard from '../components/TradeCard';
 import StockHoldingCard from '../components/StockHoldingCard';
-import { FILTER_PREFS_KEY, isDeleteLocked } from '../pages/Settings';
+import { FILTER_PREFS_KEY, isDeleteLocked, isEditLocked } from '../pages/Settings';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -88,6 +88,7 @@ export default function Trading() {
   }, [fetchData]);
 
   const tradeDeleteLocked = isDeleteLocked('trades');
+  const tradeEditLocked = isEditLocked('trades');
 
   const handleDelete = async (id) => {
     if (tradeDeleteLocked) return;
@@ -594,6 +595,7 @@ export default function Trading() {
                       key={holding.stockName}
                       holding={holding}
                       onTradeClick={(trade) => {
+                        if (tradeEditLocked) return;
                         setEditingTrade({
                           id: trade.tradeId,
                           stockName: holding.stockName,
@@ -645,6 +647,7 @@ export default function Trading() {
                     }}
                     onDelete={() => handleDelete(trade.id)}
                     deleteLocked={tradeDeleteLocked}
+                    editLocked={tradeEditLocked}
                   />
                 ))}
               </div>

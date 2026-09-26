@@ -9,7 +9,7 @@ import Header from '../components/Header';
 import TransactionRow from '../components/TransactionRow';
 import EditTransactionModal from '../components/EditTransactionModal';
 import AddTransactionModal from '../components/AddTransactionModal';
-import { isDeleteLocked, FILTER_PREFS_KEY, CUSTOM_FILTERS_KEY } from '../pages/Settings';
+import { isDeleteLocked, isEditLocked, FILTER_PREFS_KEY, CUSTOM_FILTERS_KEY } from '../pages/Settings';
 import { getTransactions, searchTransactions, updateTransaction, deleteTransaction, createTransaction, getCashbackWallets, getCashbackEntriesByWallet } from '../api';
 import ImportModal from '../components/ImportModal';
 import { exportToXlsx } from '../utils/exportXlsx';
@@ -27,6 +27,7 @@ export default function Transactions({ onProfileClick }) {
   const [loading, setLoading] = useState(true);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const deleteLocked = isDeleteLocked('transactions');
+  const editLocked = isEditLocked('transactions');
 
   const now = new Date();
   const getDefaultFilter = () => {
@@ -521,6 +522,7 @@ export default function Transactions({ onProfileClick }) {
                   onDelete={handleDelete}
                   onEdit={setEditingTransaction}
                   deleteLocked={deleteLocked}
+                  editLocked={editLocked}
                 />
               ))
             )}

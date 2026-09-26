@@ -11,7 +11,7 @@ import TransactionRow from '../components/TransactionRow';
 import AddTransactionModal from '../components/AddTransactionModal';
 import EditTransactionModal from '../components/EditTransactionModal';
 import Header from '../components/Header';
-import { isDeleteLocked, FILTER_PREFS_KEY } from '../pages/Settings';
+import { isDeleteLocked, isEditLocked, FILTER_PREFS_KEY } from '../pages/Settings';
 import {
   getDashboardSummary,
   getBudgets,
@@ -37,6 +37,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
   const [loading, setLoading] = useState(true);
   const [cashbackTotal, setCashbackTotal] = useState(0);
   const deleteLocked = isDeleteLocked('transactions');
+  const editLocked = isEditLocked('transactions');
 
   // Date filters for dashboard
   const now = new Date();
@@ -402,7 +403,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
                 <p className="text-center text-gray-400 dark:text-gray-500 py-12">No transactions found.</p>
               ) : (
                 transactions.map((t) => (
-                  <TransactionRow key={t.id} transaction={t} onDelete={handleDelete} onEdit={setEditingTransaction} deleteLocked={deleteLocked} />
+                  <TransactionRow key={t.id} transaction={t} onDelete={handleDelete} onEdit={setEditingTransaction} deleteLocked={deleteLocked} editLocked={editLocked} />
                 ))
               )}
             </div>

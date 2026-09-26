@@ -113,7 +113,7 @@ function RecategorizePopup({ transaction, onSave, onClose }) {
   );
 }
 
-export default function TransactionRow({ transaction: initialTransaction, onDelete, onEdit, deleteLocked, onCategoryChange }) {
+export default function TransactionRow({ transaction: initialTransaction, onDelete, onEdit, deleteLocked, editLocked, onCategoryChange }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showRecategorize, setShowRecategorize] = useState(false);
   const [transaction, setTransaction] = useState(initialTransaction);
@@ -181,18 +181,26 @@ export default function TransactionRow({ transaction: initialTransaction, onDele
           </div>
           {!transaction.virtual && (
             <button
-              onClick={(e) => { e.stopPropagation(); setShowRecategorize(true); }}
-              className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-all"
-              title="Re-categorize"
+              onClick={(e) => { e.stopPropagation(); if (!editLocked) setShowRecategorize(true); }}
+              className={`opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all ${
+                editLocked
+                  ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                  : 'text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+              }`}
+              title={editLocked ? 'Edit is locked. Unlock in Settings.' : 'Re-categorize'}
             >
               <Tag size={15} />
             </button>
           )}
           {onEdit && !transaction.virtual && (
             <button
-              onClick={(e) => { e.stopPropagation(); onEdit(transaction); }}
-              className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
-              title="Edit"
+              onClick={(e) => { e.stopPropagation(); if (!editLocked) onEdit(transaction); }}
+              className={`opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all ${
+                editLocked
+                  ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                  : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+              }`}
+              title={editLocked ? 'Edit is locked. Unlock in Settings.' : 'Edit'}
             >
               <Pencil size={15} />
             </button>

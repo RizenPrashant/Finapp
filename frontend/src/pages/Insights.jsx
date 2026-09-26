@@ -20,7 +20,7 @@ import {
   getTransactionsBySource, createTransaction, updateTransaction, deleteTransaction,
   processInvestmentCompounding
 } from '../api';
-import { isDeleteLocked } from './Settings';
+import { isDeleteLocked, isEditLocked } from './Settings';
 import { eventEmitter, EVENTS } from '../utils/events';
 
 // Summary cards configuration
@@ -87,6 +87,9 @@ export default function Insights({ onProfileClick }) {
   const txDeleteLocked = isDeleteLocked('transactions');
   const assetDeleteLocked = isDeleteLocked('assets');
   const investmentDeleteLocked = isDeleteLocked('investments');
+  const txEditLocked = isEditLocked('transactions');
+  const assetEditLocked = isEditLocked('assets');
+  const investmentEditLocked = isEditLocked('investments');
 
   const fetchSummary = useCallback(async () => {
     const res = await getDashboardSummary();
@@ -697,8 +700,9 @@ export default function Insights({ onProfileClick }) {
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => setEditingTx(tx)}
-                            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition">
+                          <button onClick={() => !txEditLocked && setEditingTx(tx)}
+                            className={`p-1.5 rounded-lg transition ${txEditLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                            title={txEditLocked ? 'Edit locked. Unlock in Settings.' : 'Edit'}>
                             <Edit2 size={13} />
                           </button>
                           <button onClick={() => handleDeleteBankTx(tx.id)}
@@ -878,6 +882,7 @@ export default function Insights({ onProfileClick }) {
                     onDelete={handleDeleteInvestment}
                     onClose={handleCloseInvestment}
                     deleteLocked={investmentDeleteLocked}
+                    editLocked={investmentEditLocked}
                   />
                 ))}
               </div>
@@ -908,6 +913,7 @@ export default function Insights({ onProfileClick }) {
                     onDelete={handleDeleteAsset}
                     onViewTransactions={openSourceTransactions}
                     deleteLocked={assetDeleteLocked}
+                    editLocked={assetEditLocked}
                   />
                 ))}
               </div>
