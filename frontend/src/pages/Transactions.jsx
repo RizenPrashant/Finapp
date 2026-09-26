@@ -4,7 +4,7 @@
  * All rights reserved.
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Download, Gift, Plus, Search, Tag, Upload, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Filter, Gift, Plus, Search, Tag, Upload, X } from 'lucide-react';
 import Header from '../components/Header';
 import TransactionRow from '../components/TransactionRow';
 import EditTransactionModal from '../components/EditTransactionModal';
@@ -17,9 +17,13 @@ import { eventEmitter, EVENTS } from '../utils/events';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+const selectCls = 'px-3 py-1.5 text-xs font-semibold border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-500 max-w-[220px]';
+
 export default function Transactions({ onProfileClick }) {
   const [transactions, setTransactions] = useState([]);
   const [filter, setFilter] = useState('ALL');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [budgetCategoryFilter, setBudgetCategoryFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const deleteLocked = isDeleteLocked('transactions');
@@ -197,7 +201,7 @@ export default function Transactions({ onProfileClick }) {
 
   const handleExport = async () => {
     await exportToXlsx({
-      transactions,
+      transactions: visibleTransactions,
       filterType,
       month: selectedMonth,
       year: selectedYear,
@@ -215,8 +219,38 @@ export default function Transactions({ onProfileClick }) {
     else setSelectedMonth((m) => m + 1);
   };
 
-  const monthlyIncome = useMemo(() => transactions.filter(t => t.type === 'CREDIT').reduce((s, t) => s + parseFloat(t.amount), 0), [transactions]);
-  const monthlyExpense = useMemo(() => transactions.filter(t => t.type === 'DEBIT').reduce((s, t) => s + parseFloat(t.amount), 0), [transactions]);
+  // Category dropdowns are built from whichever result set is in play, so they
+  // never offer a value that would return nothing.
+  const sourceList = searchResults ?? transactions;
+
+  // Keep a stale selection visible instead of blanking the select
+  const withSelected = (values, selected) =>
+    selected !== 'ALL' && !values.includes(selected) ? [selected, ...values] : values;
+
+  const categoryOptions = useMemo(
+    () => withSelected([...new Set(sourceList.map(t => t.category).filter(Boolean))].sort(), categoryFilter),
+    [sourceList, categoryFilter]
+  );
+  const budgetCategoryOptions = useMemo(
+    () => withSelected([...new Set(sourceList.map(t => t.budgetCategory).filter(Boolean))].sort(), budgetCategoryFilter),
+    [sourceList, budgetCategoryFilter]
+  );
+
+  const categoryFiltersActive = categoryFilter !== 'ALL' || budgetCategoryFilter !== 'ALL';
+  const matchesCategoryFilters = useCallback((t) => (
+    (categoryFilter === 'ALL' || t.category === categoryFilter) &&
+    (budgetCategoryFilter === 'ALL' || t.budgetCategory === budgetCategoryFilter)
+  ), [categoryFilter, budgetCategoryFilter]);
+
+  const visibleTransactions = useMemo(() => transactions.filter(matchesCategoryFilters), [transactions, matchesCategoryFilters]);
+  const visibleSearchResults = useMemo(
+    () => (searchResults === null ? null : searchResults.filter(matchesCategoryFilters)),
+    [searchResults, matchesCategoryFilters]
+  );
+  const visibleList = visibleSearchResults ?? visibleTransactions;
+
+  const monthlyIncome = useMemo(() => visibleTransactions.filter(t => t.type === 'CREDIT').reduce((s, t) => s + parseFloat(t.amount), 0), [visibleTransactions]);
+  const monthlyExpense = useMemo(() => visibleTransactions.filter(t => t.type === 'DEBIT').reduce((s, t) => s + parseFloat(t.amount), 0), [visibleTransactions]);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -294,7 +328,7 @@ export default function Transactions({ onProfileClick }) {
             ))}
             <button
               onClick={handleExport}
-              disabled={transactions.length === 0}
+              disabled={visibleTransactions.length === 0}
               className="ml-auto flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition disabled:opacity-40"
             >
               <Download size={15} /> Export XLSX
@@ -362,6 +396,35 @@ export default function Transactions({ onProfileClick }) {
               </div>
             </div>
           )}
+
+          {/* Category Filters */}
+          <div className="flex items-center gap-2 flex-wrap pt-3 border-t border-gray-100 dark:border-gray-700">
+            <span className="flex items-center gap-1.5 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase"><Filter size={13} /> Category</span>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className={selectCls}
+            >
+              <option value="ALL">All Categories</option>
+              {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select
+              value={budgetCategoryFilter}
+              onChange={(e) => setBudgetCategoryFilter(e.target.value)}
+              className={selectCls}
+            >
+              <option value="ALL">All Budget Categories</option>
+              {budgetCategoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            {categoryFiltersActive && (
+              <button
+                onClick={() => { setCategoryFilter('ALL'); setBudgetCategoryFilter('ALL'); }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+              >
+                <X size={12} /> Clear
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Summary Strip + Add Button */}
@@ -434,8 +497,8 @@ export default function Transactions({ onProfileClick }) {
             </div>
             <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
               {searchLoading ? 'Searching...' : searchResults !== null
-                ? `${searchResults.length} results`
-                : `${transactions.length} transactions`}
+                ? `${visibleList.length} results`
+                : `${visibleList.length} transactions`}
             </span>
           </div>
           <div className="divide-y divide-gray-50 dark:divide-gray-700">
@@ -443,12 +506,15 @@ export default function Transactions({ onProfileClick }) {
               <p className="text-center text-gray-400 dark:text-gray-500 py-12">Loading...</p>
             ) : searchLoading ? (
               <p className="text-center text-gray-400 dark:text-gray-500 py-12">Searching...</p>
-            ) : (searchResults ?? transactions).length === 0 ? (
+            ) : visibleList.length === 0 ? (
               <p className="text-center text-gray-400 dark:text-gray-500 py-12">
-                {searchResults !== null ? `No results for "${searchQuery}"` : activeCustomFilter ? `No transactions match filter "${activeCustomFilter.name}".` : 'No transactions for this period.'}
+                {categoryFiltersActive && sourceList.length > 0 ? 'No transactions match the selected categories.'
+                  : searchResults !== null ? `No results for "${searchQuery}"`
+                  : activeCustomFilter ? `No transactions match filter "${activeCustomFilter.name}".`
+                  : 'No transactions for this period.'}
               </p>
             ) : (
-              (searchResults ?? transactions).map((t) => (
+              visibleList.map((t) => (
                 <TransactionRow
                   key={t.id}
                   transaction={t}
