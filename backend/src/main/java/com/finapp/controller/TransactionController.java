@@ -6,6 +6,7 @@
 package com.finapp.controller;
 
 import com.finapp.dto.TransactionDTO;
+import com.finapp.dto.TransactionPageDTO;
 import com.finapp.model.Transaction;
 import com.finapp.model.TransactionType;
 import com.finapp.model.User;
@@ -14,12 +15,16 @@ import com.finapp.repository.UserRepository;
 import com.finapp.service.TransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
@@ -65,6 +70,82 @@ public class TransactionController {
     // Search is a leading-wildcard LIKE across several columns, so it cannot use
     // an index — cap it rather than let an unbounded match scan the whole user.
     private static final int SEARCH_LIMIT = 200;
+
+    private static final int MAX_PAGE_SIZE = 500;
+
+    /**
+     * Paged listing. Date, type and category filters are all applied in the
+     * query, so a page is a page of the real result — not a slice the client
+     * still has to filter down.
+     *
+     * Sorted by date then id: date alone is not unique, and without a stable
+     * tie-breaker rows shift between pages and the reader sees duplicates.
+     */
+    @GetMapping("/page")
+    public TransactionPageDTO getPage(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) TransactionType type,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String budgetCategory,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        User user = getCurrentUser();
+        LocalDate start = startDate != null ? LocalDate.parse(startDate) : null;
+        LocalDate end   = endDate   != null ? LocalDate.parse(endDate)   : null;
+        String cat      = blankToNull(category);
+        String budgetCat = blankToNull(budgetCategory);
+
+        Pageable pageable = PageRequest.of(
+                Math.max(0, page),
+                Math.min(Math.max(1, size), MAX_PAGE_SIZE),
+                Sort.by(Sort.Order.desc("date"), Sort.Order.desc("id")));
+
+        Page<Transaction> result = transactionRepository.findPage(user, start, end, type, cat, budgetCat, pageable);
+
+        List<Object[]> totals = transactionRepository.sumTotalsForFilter(user, start, end, type, cat, budgetCat);
+        BigDecimal income  = BigDecimal.ZERO;
+        BigDecimal expense = BigDecimal.ZERO;
+        if (!totals.isEmpty()) {
+            Object[] row = totals.get(0);
+            income  = toBigDecimal(row[0]);
+            expense = toBigDecimal(row[1]);
+        }
+
+        return TransactionPageDTO.builder()
+                .content(result.getContent())
+                .page(result.getNumber())
+                .size(result.getSize())
+                .totalElements(result.getTotalElements())
+                .totalPages(result.getTotalPages())
+                .hasNext(result.hasNext())
+                .totalIncome(income)
+                .totalExpense(expense)
+                .build();
+    }
+
+    /** Distinct category / budget category values in the given period. */
+    @GetMapping("/filter-options")
+    public Map<String, List<String>> getFilterOptions(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        User user = getCurrentUser();
+        LocalDate start = startDate != null ? LocalDate.parse(startDate) : null;
+        LocalDate end   = endDate   != null ? LocalDate.parse(endDate)   : null;
+        return Map.of(
+                "categories", transactionRepository.findDistinctCategories(user, start, end),
+                "budgetCategories", transactionRepository.findDistinctBudgetCategories(user, start, end));
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
+    private static BigDecimal toBigDecimal(Object value) {
+        if (value == null) return BigDecimal.ZERO;
+        if (value instanceof BigDecimal bd) return bd;
+        return new BigDecimal(value.toString());
+    }
 
     @GetMapping("/search")
     public List<Transaction> search(

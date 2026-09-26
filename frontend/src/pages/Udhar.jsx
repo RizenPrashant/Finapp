@@ -3,7 +3,7 @@ import { Plus, Trash2, ArrowRightLeft, X, User, Phone, CheckCircle, UserCheck, C
 import Header from '../components/Header';
 import {
   getUdharRecords, createUdharRecord, deleteUdharRecord,
-  settleUdhar, getUdharSummary, getTransactions, linkTransactionToUdhar
+  settleUdhar, getUdharSummary, getTransactionsPage, linkTransactionToUdhar
 } from '../api';
 import { FILTER_PREFS_KEY, isDeleteLocked } from '../pages/Settings';
 
@@ -134,12 +134,15 @@ function SettlementModal({ record, onClose, onSave, onLinkTransaction }) {
 
   const remaining = parseFloat(record.totalAmount) - parseFloat(record.settledAmount || 0);
 
+  // A setoff is nearly always a recent transaction, so pull the latest page
+  // rather than every transaction the user has ever recorded.
   useEffect(() => {
     if (tab === 'link') {
       setTxLoading(true);
-      getTransactions().then(r => {
-        setTransactions((r.data || []).filter(t => !t.isUdhar));
-      }).finally(() => setTxLoading(false));
+      getTransactionsPage({ page: 0, size: 200 })
+        .then(r => setTransactions((r.data.content || []).filter(t => !t.isUdhar)))
+        .catch(() => setTransactions([]))
+        .finally(() => setTxLoading(false));
     }
   }, [tab]);
 

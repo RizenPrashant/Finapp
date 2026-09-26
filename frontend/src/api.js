@@ -37,6 +37,10 @@ api.interceptors.response.use(
 export const getDashboardSummary = (params = {}) => api.get('/dashboard/summary', { params });
 
 export const getTransactions = (params = {}) => api.get('/transactions', { params });
+// Paged listing — date/type/category filters are applied server-side and the
+// response carries totals for the whole filtered set, not just the page.
+export const getTransactionsPage = (params = {}) => api.get('/transactions/page', { params });
+export const getTransactionFilterOptions = (params = {}) => api.get('/transactions/filter-options', { params });
 export const searchTransactions = (q, params = {}) => api.get('/transactions/search', { params: { q, ...params } });
 export const getTransactionsByBudget = (budgetCategory, params = {}) => api.get(`/transactions/budget/${encodeURIComponent(budgetCategory)}`, { params });
 export const getTransactionsBySource = (source) => api.get(`/transactions/source/${encodeURIComponent(source)}`);

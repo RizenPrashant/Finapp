@@ -3,6 +3,7 @@ package com.finapp.repository;
 import com.finapp.model.Transaction;
 import com.finapp.model.TransactionType;
 import com.finapp.model.User;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -128,6 +129,51 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         @Param("end") LocalDate end,
         Pageable pageable
     );
+
+    // ── Paged listing ────────────────────────────────────────────────────────
+    // One dynamic filter shared by the page, its totals and its filter options,
+    // so the three can never disagree about what the user is looking at. Null
+    // parameters drop out of the predicate, matching the searchByUser pattern.
+    String LIST_FILTER =
+        "FROM Transaction t WHERE t.user = :user " +
+        "AND (:start IS NULL OR t.date >= :start) " +
+        "AND (:end IS NULL OR t.date <= :end) " +
+        "AND (:type IS NULL OR t.type = :type) " +
+        "AND (:category IS NULL OR t.category = :category) " +
+        "AND (:budgetCategory IS NULL OR t.budgetCategory = :budgetCategory)";
+
+    @Query("SELECT t " + LIST_FILTER)
+    Page<Transaction> findPage(
+        @Param("user") User user,
+        @Param("start") LocalDate start,
+        @Param("end") LocalDate end,
+        @Param("type") TransactionType type,
+        @Param("category") String category,
+        @Param("budgetCategory") String budgetCategory,
+        Pageable pageable);
+
+    // Totals across the whole filtered set, not just the page being shown.
+    @Query("SELECT COALESCE(SUM(CASE WHEN t.type = 'CREDIT' THEN t.amount ELSE 0 END), 0), " +
+           "COALESCE(SUM(CASE WHEN t.type = 'DEBIT' THEN t.amount ELSE 0 END), 0) " + LIST_FILTER)
+    List<Object[]> sumTotalsForFilter(
+        @Param("user") User user,
+        @Param("start") LocalDate start,
+        @Param("end") LocalDate end,
+        @Param("type") TransactionType type,
+        @Param("category") String category,
+        @Param("budgetCategory") String budgetCategory);
+
+    // Filter dropdowns can no longer be built from the loaded rows once the list
+    // is paged, so ask the server what values exist in the current period.
+    @Query("SELECT DISTINCT t.category FROM Transaction t WHERE t.user = :user " +
+           "AND (:start IS NULL OR t.date >= :start) AND (:end IS NULL OR t.date <= :end) " +
+           "AND t.category IS NOT NULL ORDER BY t.category")
+    List<String> findDistinctCategories(@Param("user") User user, @Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    @Query("SELECT DISTINCT t.budgetCategory FROM Transaction t WHERE t.user = :user " +
+           "AND (:start IS NULL OR t.date >= :start) AND (:end IS NULL OR t.date <= :end) " +
+           "AND t.budgetCategory IS NOT NULL ORDER BY t.budgetCategory")
+    List<String> findDistinctBudgetCategories(@Param("user") User user, @Param("start") LocalDate start, @Param("end") LocalDate end);
 
     // User-specific analytics
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user = :user AND t.type = :type")
