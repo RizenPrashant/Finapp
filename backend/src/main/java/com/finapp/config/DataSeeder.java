@@ -6,11 +6,14 @@ import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -24,43 +27,35 @@ public class DataSeeder implements CommandLineRunner {
     private final UserRepository userRepository;
     private final EntityManager entityManager;
     private final ImportFormatRepository importFormatRepository;
+    private final Environment environment;
+
+    private static final String DEFAULT_USER_EMAIL = "test@finapp.com";
 
     @Override
     @Transactional
     public void run(String... args) {
         System.out.println("=== DataSeeder: Starting... ===");
 
-        // Find or create default user (ID 0)
-        User defaultUser = userRepository.findById(0L).orElseGet(() -> {
-            // First check if user with email exists
-            if (userRepository.findByEmail("test@finapp.com").isPresent()) {
-                System.out.println("=== DataSeeder: User with email test@finapp.com already exists ===");
-                return userRepository.findByEmail("test@finapp.com").get();
-            }
+        // Import formats are reference data the statement parsers read at
+        // runtime, so they are seeded in every environment.
+        System.out.println("=== DataSeeder: Upserting import formats... ===");
+        seedImportFormats();
 
-            System.out.println("=== DataSeeder: Creating default user with ID 0... ===");
-            // Force insert with ID 0 using native query (MySQL compatible)
-            try {
-                // Enable NO_AUTO_VALUE_ON_ZERO mode for MySQL to allow ID 0
-                entityManager.createNativeQuery("SET SESSION sql_mode='NO_AUTO_VALUE_ON_ZERO'").executeUpdate();
+        // Everything below is sample data, there to make a fresh local checkout
+        // usable. A real deployment must never inherit fake transactions,
+        // trades or investments just because its tables happen to be empty.
+        if (!environment.acceptsProfiles(Profiles.of("dev"))) {
+            System.out.println("=== DataSeeder: non-dev profile, skipping sample data ===");
+            return;
+        }
 
-                entityManager.createNativeQuery(
-                    "INSERT INTO users (id, email, password, first_name, last_name, role, enabled, created_at, updated_at) " +
-                    "VALUES (0, 'test@finapp.com', '$2a$10$N9qoSnQfTw9jSgXw1AZ9bOjF5.KC8lQ8Q2q4m7Y3X9v5w8q2r4t6', 'Test', 'User', 'USER', true, NOW(), NOW()) " +
-                    "ON DUPLICATE KEY UPDATE email = 'test@finapp.com'"
-                ).executeUpdate();
-                entityManager.flush();
-                entityManager.clear();
-                System.out.println("=== DataSeeder: User created with ID 0 ===");
-            } catch (Exception e) {
-                System.out.println("=== DataSeeder: Native insert failed: " + e.getMessage());
-                e.printStackTrace();
-            }
-
-            return userRepository.findById(0L)
-                .orElseGet(() -> userRepository.findByEmail("test@finapp.com")
-                    .orElseThrow(() -> new RuntimeException("Failed to create or find default user")));
-        });
+        User defaultUser = findOrCreateDefaultUser();
+        if (defaultUser == null) {
+            // Seeding is a convenience. It must never be the reason the
+            // application refuses to start.
+            System.out.println("=== DataSeeder: no default user available, skipping sample data ===");
+            return;
+        }
 
         System.out.println("=== DataSeeder: User ID = " + defaultUser.getId() + " ===");
 
@@ -84,9 +79,43 @@ public class DataSeeder implements CommandLineRunner {
             System.out.println("=== DataSeeder: Seeding investments... ===");
             seedInvestments(defaultUser);
         }
-        System.out.println("=== DataSeeder: Upserting import formats... ===");
-        seedImportFormats();
         System.out.println("=== DataSeeder: Done! ===");
+    }
+
+    /**
+     * The sample data hangs off a fixed user with id 0, which needs a native
+     * insert because the id is generated. Returns null if that user can't be
+     * had, so the caller can skip seeding rather than abort startup.
+     */
+    private User findOrCreateDefaultUser() {
+        Optional<User> existing = userRepository.findById(0L)
+                .or(() -> userRepository.findByEmail(DEFAULT_USER_EMAIL));
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        System.out.println("=== DataSeeder: Creating default user with ID 0... ===");
+        try {
+            // MySQL treats an explicit 0 as "generate one" unless told otherwise
+            entityManager.createNativeQuery("SET SESSION sql_mode='NO_AUTO_VALUE_ON_ZERO'").executeUpdate();
+            entityManager.createNativeQuery(
+                "INSERT INTO users (id, email, password, first_name, last_name, role, created_at, updated_at) " +
+                "VALUES (0, :email, :password, 'Test', 'User', 'USER', NOW(), NOW()) " +
+                "ON DUPLICATE KEY UPDATE email = :email")
+                .setParameter("email", DEFAULT_USER_EMAIL)
+                .setParameter("password", "$2a$10$N9qoSnQfTw9jSgXw1AZ9bOjF5.KC8lQ8Q2q4m7Y3X9v5w8q2r4t6")
+                .executeUpdate();
+            entityManager.flush();
+            entityManager.clear();
+            System.out.println("=== DataSeeder: User created with ID 0 ===");
+        } catch (Exception e) {
+            System.out.println("=== DataSeeder: could not create default user: " + e.getMessage() + " ===");
+            return null;
+        }
+
+        return userRepository.findById(0L)
+                .or(() -> userRepository.findByEmail(DEFAULT_USER_EMAIL))
+                .orElse(null);
     }
 
     private void seedBudgetLimits(User user) {
