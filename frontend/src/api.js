@@ -62,6 +62,9 @@ export const deleteAsset = (id) => api.delete(`/assets/${id}`);
 export const getMonthlyAnalytics = (year) => api.get('/transactions/analytics/monthly', { params: { year } });
 export const getWeeklyAnalytics = (weeks = 8) => api.get('/transactions/analytics/weekly', { params: { weeks } });
 export const getCategoryAnalytics = (params = {}) => api.get('/transactions/analytics/category', { params });
+// Credit/debit totals per budget category in one query, instead of fetching
+// every transaction per budget and summing them in the browser.
+export const getBudgetSpend = (params = {}) => api.get('/transactions/analytics/budget-spend', { params });
 
 // Trading APIs
 export const getTrades = () => api.get('/trading/trades');

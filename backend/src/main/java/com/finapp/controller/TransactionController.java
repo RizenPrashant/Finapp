@@ -208,10 +208,17 @@ public class TransactionController {
     @GetMapping("/analytics/category")
     public List<Map<String, Object>> getCategorySummary(
             @RequestParam(required = false) Integer month,
-            @RequestParam(required = false) Integer year) {
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
         User user = getCurrentUser();
         LocalDate start, end;
-        if (month != null && year != null) {
+        // An explicit range wins. It used to be ignored entirely, so a custom
+        // range on the client silently fell through to "everything".
+        if (startDate != null && endDate != null) {
+            start = LocalDate.parse(startDate);
+            end = LocalDate.parse(endDate);
+        } else if (month != null && year != null) {
             start = YearMonth.of(year, month).atDay(1);
             end = YearMonth.of(year, month).atEndOfMonth();
         } else if (year != null) {
@@ -222,6 +229,22 @@ public class TransactionController {
             end = LocalDate.now();
         }
         return transactionService.getCategorySummary(start, end, user);
+    }
+
+    /** Credit and debit totals per budget category, for budget utilisation. */
+    @GetMapping("/analytics/budget-spend")
+    public List<Map<String, Object>> getBudgetSpend(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        User user = getCurrentUser();
+        LocalDate start = startDate != null ? LocalDate.parse(startDate) : null;
+        LocalDate end   = endDate   != null ? LocalDate.parse(endDate)   : null;
+        return transactionRepository.sumByUserGroupedByBudgetCategory(user, start, end).stream()
+                .map(row -> Map.of(
+                        "budgetCategory", row[0],
+                        "credit", toBigDecimal(row[1]),
+                        "debit", toBigDecimal(row[2])))
+                .toList();
     }
 
     @DeleteMapping("/{id}")

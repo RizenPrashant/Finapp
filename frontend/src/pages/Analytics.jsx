@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, ReferenceLine,
 } from 'recharts';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Header from '../components/Header';
-import { getDashboardSummary, getBudgets, getTransactionsByBudget, getMonthlyAnalytics, getWeeklyAnalytics, getCategoryAnalytics } from '../api';
+import { getDashboardSummary, getBudgets, getBudgetSpend, getMonthlyAnalytics, getWeeklyAnalytics, getCategoryAnalytics } from '../api';
+import { toISODate, monthRange, lastNWeeksRange } from '../utils/dates';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const PIE_COLORS = ['#EF4444','#F59E0B','#8B5CF6','#EC4899','#06B6D4','#10B981','#F97316','#6366F1'];
@@ -52,8 +53,8 @@ export default function Analytics() {
   const [filterType, setFilterType] = useState('monthly'); // monthly, yearly, weekly, custom
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
-  const [customStartDate, setCustomStartDate] = useState(now.toISOString().split('T')[0]);
-  const [customEndDate, setCustomEndDate] = useState(now.toISOString().split('T')[0]);
+  const [customStartDate, setCustomStartDate] = useState(toISODate(now));
+  const [customEndDate, setCustomEndDate] = useState(toISODate(now));
 
   const [summary, setSummary] = useState(null);
   const [budgets, setBudgets] = useState([]);
@@ -62,32 +63,41 @@ export default function Analytics() {
   const [weeklyData, setWeeklyData] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
 
+  // One range for the whole page. "weekly" is labelled Last 8 weeks in the UI
+  // and the trend chart already means exactly that, so the other panels follow
+  // it instead of quietly falling back to all time.
+  const dateRange = useMemo(() => {
+    if (filterType === 'monthly') return monthRange(selectedYear, selectedMonth);
+    if (filterType === 'yearly') return { startDate: `${selectedYear}-01-01`, endDate: `${selectedYear}-12-31` };
+    if (filterType === 'custom') return { startDate: customStartDate, endDate: customEndDate };
+    return lastNWeeksRange(8);
+  }, [filterType, selectedYear, selectedMonth, customStartDate, customEndDate]);
+
   const fetchAll = useCallback(async () => {
-    const [sumRes, budgetRes, monthlyRes, weeklyRes] = await Promise.all([
+    const [sumRes, budgetRes, monthlyRes, weeklyRes, spendRes, catRes] = await Promise.all([
       getDashboardSummary(),
       getBudgets(),
       getMonthlyAnalytics(selectedYear),
       getWeeklyAnalytics(8),
+      getBudgetSpend(dateRange),
+      getCategoryAnalytics(dateRange),
     ]);
     setSummary(sumRes.data);
     setBudgets(budgetRes.data);
     setMonthlyData(monthlyRes.data);
     setWeeklyData(weeklyRes.data);
-
-    const map = {};
-    await Promise.all(budgetRes.data.map(async (b) => {
-      const t = await getTransactionsByBudget(b.category);
-      map[b.category] = t.data.filter((tx) => tx.type === 'DEBIT').reduce((s, tx) => s + parseFloat(tx.amount), 0);
-    }));
-    setBudgetSpent(map);
-
-    // Category analytics based on filter
-    const catParams = filterType === 'monthly' ? { month: selectedMonth + 1, year: selectedYear }
-      : filterType === 'yearly' ? { year: selectedYear }
-      : filterType === 'custom' ? { startDate: customStartDate, endDate: customEndDate } : {};
-    const catRes = await getCategoryAnalytics(catParams);
     setCategoryData(catRes.data);
-  }, [selectedYear, selectedMonth, filterType, customStartDate, customEndDate]);
+
+    // Budget categories are matched case-insensitively, the way the old
+    // per-category lookup was.
+    const byCategory = {};
+    (spendRes.data || []).forEach(r => { byCategory[String(r.budgetCategory).toLowerCase()] = r; });
+    const map = {};
+    budgetRes.data.forEach(b => {
+      map[b.category] = parseFloat(byCategory[String(b.category).toLowerCase()]?.debit || 0);
+    });
+    setBudgetSpent(map);
+  }, [selectedYear, dateRange]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 

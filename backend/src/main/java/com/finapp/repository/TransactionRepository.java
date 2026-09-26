@@ -185,6 +185,21 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     List<String> findDistinctBudgetCategories(@Param("user") User user, @Param("start") LocalDate start,
                                               @Param("end") LocalDate end, @Param("paymentSource") String paymentSource);
 
+    // Budget utilisation for every category in one pass. Callers used to fetch
+    // the full transaction list per budget and sum it in the browser, which is
+    // one unbounded query per budget to produce a handful of numbers.
+    // Rows are [budgetCategory, credit, debit].
+    @Query("SELECT t.budgetCategory, " +
+           "COALESCE(SUM(CASE WHEN t.type = 'CREDIT' THEN t.amount ELSE 0 END), 0), " +
+           "COALESCE(SUM(CASE WHEN t.type = 'DEBIT'  THEN t.amount ELSE 0 END), 0) " +
+           "FROM Transaction t WHERE t.user = :user " +
+           "AND (:start IS NULL OR t.date >= :start) AND (:end IS NULL OR t.date <= :end) " +
+           "AND t.budgetCategory IS NOT NULL " +
+           "GROUP BY t.budgetCategory")
+    List<Object[]> sumByUserGroupedByBudgetCategory(@Param("user") User user,
+                                                    @Param("start") LocalDate start,
+                                                    @Param("end") LocalDate end);
+
     // User-specific analytics
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user = :user AND t.type = :type")
     BigDecimal sumByUserAndType(@Param("user") User user, @Param("type") TransactionType type);

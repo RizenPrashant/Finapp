@@ -17,6 +17,7 @@ import {
   getBudgets,
   getTransactionsByBudget,
   getTransactionsPage,
+  getBudgetSpend,
   createTransaction,
   updateTransaction,
   deleteTransaction,
@@ -101,20 +102,15 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
     setBudgets(res.data);
     const dateParams = getDateRangeParams();
     const spentMap = {};
-    const budgetTxResults = await Promise.all(
-      res.data.map(b => getTransactionsByBudget(b.category, dateParams))
-    );
-    res.data.forEach((b, i) => {
-      const txs = budgetTxResults[i].data;
-      if (b.category === 'Monthly Revenue') {
-        spentMap[b.category] = txs
-          .filter(tx => tx.type === 'CREDIT')
-          .reduce((sum, tx) => sum + parseFloat(tx.amount), 0);
-      } else {
-        spentMap[b.category] = txs
-          .filter(tx => tx.type === 'DEBIT')
-          .reduce((sum, tx) => sum + parseFloat(tx.amount), 0);
-      }
+    // One grouped aggregate rather than a full transaction list per budget.
+    const spendRes = await getBudgetSpend(dateParams);
+    const byCategory = {};
+    (spendRes.data || []).forEach(r => { byCategory[String(r.budgetCategory).toLowerCase()] = r; });
+    res.data.forEach(b => {
+      const row = byCategory[String(b.category).toLowerCase()];
+      // Revenue is money in; every other budget tracks money out.
+      const value = b.category === 'Monthly Revenue' ? row?.credit : row?.debit;
+      spentMap[b.category] = parseFloat(value || 0);
     });
     // Monthly Total Expense = sum of its 3 sub-categories
     const combinedCats = ['Monthly Food Expense', 'Monthly Spend', 'Miscellaneous'];
