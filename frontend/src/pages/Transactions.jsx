@@ -14,6 +14,7 @@ import { getTransactionsPage, getTransactionFilterOptions, searchTransactions, u
 import ImportModal from '../components/ImportModal';
 import { exportToXlsx } from '../utils/exportXlsx';
 import { eventEmitter, EVENTS } from '../utils/events';
+import { toISODate, monthRange } from '../utils/dates';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -26,11 +27,6 @@ const PAGE_SIZE = 50;
 // that walk can go so a huge range can't hang the browser silently.
 const EXPORT_PAGE_SIZE = 500;
 const EXPORT_MAX_ROWS = 5000;
-
-// Local calendar date, not UTC. `toISOString()` shifts behind UTC+ zones and
-// would hand the server the previous day.
-const toISODate = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const selectCls ='px-3 py-1.5 text-xs font-semibold border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-500 max-w-[220px]';
 
@@ -140,11 +136,7 @@ export default function Transactions({ onProfileClick }) {
   // the totals, the filter options and the search.
   const dateRange = useMemo(() => {
     if (filterType === 'daily') return { startDate: selectedDate, endDate: selectedDate };
-    if (filterType === 'monthly') {
-      const lastDay = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-      const mm = String(selectedMonth + 1).padStart(2, '0');
-      return { startDate: `${selectedYear}-${mm}-01`, endDate: `${selectedYear}-${mm}-${String(lastDay).padStart(2, '0')}` };
-    }
+    if (filterType === 'monthly') return monthRange(selectedYear, selectedMonth);
     if (filterType === 'yearly') return { startDate: `${selectedYear}-01-01`, endDate: `${selectedYear}-12-31` };
     if (filterType === 'custom') return { startDate: customStartDate, endDate: customEndDate };
     return {}; // all time — no date bounds

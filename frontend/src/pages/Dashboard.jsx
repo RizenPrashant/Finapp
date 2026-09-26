@@ -16,7 +16,7 @@ import {
   getDashboardSummary,
   getBudgets,
   getTransactionsByBudget,
-  getTransactionsByType,
+  getTransactionsPage,
   createTransaction,
   updateTransaction,
   deleteTransaction,
@@ -25,6 +25,11 @@ import {
   getTradingAnalytics,
 } from '../api';
 import { eventEmitter, EVENTS } from '../utils/events';
+import { toISODate, monthRange } from '../utils/dates';
+
+// Stat drill-downs are a modal quick-look over one period, not a browsing
+// surface — one generous page, with the count saying so if it truncates.
+const STAT_DRILLDOWN_SIZE = 500;
 
 export default function Dashboard({ onNavigate, onProfileClick }) {
   const [summary, setSummary] = useState(null);
@@ -32,6 +37,10 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
   const [budgetSpent, setBudgetSpent] = useState({});
   const [selectedBudget, setSelectedBudget] = useState(null);
   const [transactions, setTransactions] = useState([]);
+  // Total behind a stat drill-down, which is paged; null when the open list is
+  // already complete and `transactions.length` is the whole story.
+  const [transactionsTotal, setTransactionsTotal] = useState(null);
+  const [activeStat, setActiveStat] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -52,9 +61,9 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
   const [filterType, setFilterType] = useState(getDefaultFilter());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
-  const [selectedDate, setSelectedDate] = useState(now.toISOString().split('T')[0]);
-  const [customStartDate, setCustomStartDate] = useState(now.toISOString().split('T')[0]);
-  const [customEndDate, setCustomEndDate] = useState(now.toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(toISODate(now));
+  const [customStartDate, setCustomStartDate] = useState(toISODate(now));
+  const [customEndDate, setCustomEndDate] = useState(toISODate(now));
 
   // Helper to get date range params based on filter type
   const getDateRangeParams = useCallback(() => {
@@ -66,17 +75,9 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
       const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday as start
       const weekStart = new Date(d.setDate(diff));
       const weekEnd = new Date(d.setDate(weekStart.getDate() + 6));
-      return {
-        startDate: weekStart.toISOString().split('T')[0],
-        endDate: weekEnd.toISOString().split('T')[0]
-      };
+      return { startDate: toISODate(weekStart), endDate: toISODate(weekEnd) };
     } else if (filterType === 'monthly') {
-      const start = new Date(selectedYear, selectedMonth, 1);
-      const end = new Date(selectedYear, selectedMonth + 1, 0);
-      return {
-        startDate: start.toISOString().split('T')[0],
-        endDate: end.toISOString().split('T')[0]
-      };
+      return monthRange(selectedYear, selectedMonth);
     } else if (filterType === 'yearly') {
       return {
         startDate: `${selectedYear}-01-01`,
@@ -200,6 +201,8 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
 
   const handleBudgetClick = async (budget) => {
     setSelectedBudget(budget);
+    setActiveStat(null);
+    setTransactionsTotal(null);
     const dateParams = getDateRangeParams();
     if (budget.category === 'Monthly Total Expense') {
       const results = await Promise.all(
@@ -267,37 +270,60 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
     }
   };
 
+  /**
+   * Stat-card drill-downs. These used to ignore the date filter entirely and
+   * fetch every transaction ever recorded, which both loaded the whole table
+   * and contradicted the card the user had just clicked — the card totals the
+   * selected period, so the list behind it has to as well.
+   */
+  const loadStatTransactions = async (extraParams) => {
+    const res = await getTransactionsPage({
+      ...getDateRangeParams(),
+      ...extraParams,
+      page: 0,
+      size: STAT_DRILLDOWN_SIZE,
+    });
+    setTransactions(res.data.content);
+    setTransactionsTotal(res.data.totalElements);
+  };
+
   const handleStatClick = async (type) => {
+    setActiveStat(type);
     if (type === 'BALANCE') {
       setSelectedBudget({ category: 'Balance Breakdown', virtual: true, isBalance: true });
-      const [creditRes, debitRes] = await Promise.all([
-        getTransactionsByType('CREDIT'),
-        getTransactionsByType('DEBIT'),
-      ]);
-      setTransactions([...creditRes.data, ...debitRes.data].sort((a, b) => new Date(b.date) - new Date(a.date)));
+      // No type filter: credit and debit together, already date-sorted.
+      await loadStatTransactions({});
       return;
     }
     if (type === 'SAVINGS') {
       setSelectedBudget({ category: 'Savings Overview', virtual: true, isSavings: true });
-      const res = await getTransactionsByBudget('Monthly Total Savings');
-      setTransactions(res.data);
+      await loadStatTransactions({ budgetCategory: 'Monthly Total Savings' });
       return;
     }
     setSelectedBudget({ category: type === 'CREDIT' ? 'All Income' : 'All Expenses', virtual: true });
-    const res = await getTransactionsByType(type);
-    setTransactions(res.data);
+    await loadStatTransactions({ type });
+  };
+
+  /**
+   * Reload whichever drill-down is open after a mutation.
+   *
+   * Stat drill-downs carry display names like "All Income" that are not real
+   * budget categories, so refetching them by category returned nothing and
+   * blanked the list. Route each one back through the loader that opened it.
+   */
+  const refreshDrilldown = async () => {
+    if (!selectedBudget) return;
+    if (activeStat) {
+      await handleStatClick(activeStat);
+    } else {
+      await handleBudgetClick(selectedBudget);
+    }
   };
 
   const handleSaveTransaction = async (data) => {
     await createTransaction(data);
     eventEmitter.emit(EVENTS.TRANSACTION_CREATED, data);
-    if (selectedBudget?.category === REVENUE_CATEGORY) {
-      await handleBudgetClick(selectedBudget);
-    } else {
-      const dateParams = getDateRangeParams();
-      const res = await getTransactionsByBudget(selectedBudget.category, dateParams);
-      setTransactions(res.data);
-    }
+    await refreshDrilldown();
     fetchSummary();
     fetchBudgets();
   };
@@ -305,13 +331,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
   const handleEdit = async (id, data) => {
     await updateTransaction(id, data);
     eventEmitter.emit(EVENTS.TRANSACTION_UPDATED, { id, ...data });
-    if (selectedBudget?.category === REVENUE_CATEGORY) {
-      await handleBudgetClick(selectedBudget);
-    } else {
-      const dateParams = getDateRangeParams();
-      const res = await getTransactionsByBudget(selectedBudget.category, dateParams);
-      setTransactions(res.data);
-    }
+    await refreshDrilldown();
     fetchSummary();
     fetchBudgets();
   };
@@ -319,7 +339,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
   const handleDelete = async (id) => {
     await deleteTransaction(id);
     eventEmitter.emit(EVENTS.TRANSACTION_DELETED, { id });
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
+    await refreshDrilldown();
     fetchSummary();
     fetchBudgets();
   };
@@ -341,7 +361,11 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
                 </button>
                 <div>
                   <h2 className="font-bold text-slate-800 dark:text-slate-200">{selectedBudget.category}</h2>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">{transactions.length} transactions</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    {transactionsTotal !== null && transactionsTotal > transactions.length
+                      ? `Showing ${transactions.length} of ${transactionsTotal} transactions`
+                      : `${transactions.length} transactions`}
+                  </p>
                 </div>
               </div>
               {!selectedBudget.virtual && selectedBudget.category !== 'Monthly Total Expense' && (
