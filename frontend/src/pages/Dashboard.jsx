@@ -15,7 +15,6 @@ import { isDeleteLocked, isEditLocked, FILTER_PREFS_KEY } from '../pages/Setting
 import {
   getDashboardSummary,
   getBudgets,
-  getTransactionsByBudget,
   getTransactionsPage,
   getBudgetSpend,
   createTransaction,
@@ -202,17 +201,19 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
     const dateParams = getDateRangeParams();
     if (budget.category === 'Monthly Total Expense') {
       const results = await Promise.all(
-        COMBINED_EXPENSE_CATEGORIES.map(cat => getTransactionsByBudget(cat, dateParams))
+        COMBINED_EXPENSE_CATEGORIES.map(cat =>
+          getTransactionsPage({ ...dateParams, budgetCategory: cat, page: 0, size: STAT_DRILLDOWN_SIZE }))
       );
-      const all = results.flatMap(r => r.data).sort((a, b) => new Date(b.date) - new Date(a.date));
+      setTransactionsTotal(results.reduce((s, r) => s + r.data.totalElements, 0));
+      const all = results.flatMap(r => r.data.content).sort((a, b) => new Date(b.date) - new Date(a.date));
       setTransactions(all);
     } else if (budget.category === REVENUE_CATEGORY) {
       const [txRes, cashbackRes, analyticsRes] = await Promise.all([
-        getTransactionsByBudget(REVENUE_CATEGORY, dateParams),
+        getTransactionsPage({ ...dateParams, budgetCategory: REVENUE_CATEGORY, page: 0, size: STAT_DRILLDOWN_SIZE }),
         getCashbackEntries().catch(() => ({ data: [] })),
         getTradingAnalytics().catch(() => ({ data: { monthlyPnL: {} } })),
       ]);
-      const creditTxs = txRes.data.filter(tx => tx.type === 'CREDIT');
+      const creditTxs = txRes.data.content.filter(tx => tx.type === 'CREDIT');
       const { startDate, endDate } = dateParams;
 
       const inRange = (dateStr) => {
@@ -261,8 +262,9 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
         .sort((a, b) => new Date(b.date) - new Date(a.date));
       setTransactions(all);
     } else {
-      const res = await getTransactionsByBudget(budget.category, dateParams);
-      setTransactions(res.data);
+      const res = await getTransactionsPage({ ...dateParams, budgetCategory: budget.category, page: 0, size: STAT_DRILLDOWN_SIZE });
+      setTransactions(res.data.content);
+      setTransactionsTotal(res.data.totalElements);
     }
   };
 

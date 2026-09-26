@@ -45,6 +45,28 @@ public class TransactionController {
                 .orElseThrow(() -> new RuntimeException("User not found"));
     }
 
+    // Search is a leading-wildcard LIKE across several columns, so it cannot use
+    // an index — cap it rather than let an unbounded match scan the whole user.
+    private static final int SEARCH_LIMIT = 200;
+
+    private static final int MAX_PAGE_SIZE = 500;
+
+    /**
+     * Ceiling for the flat list endpoints below. They predate /page and return
+     * a bare array with no way to say "there is more", so the only safe shape
+     * is a bounded one. Callers that need the whole set use /page.
+     */
+    private static final int LEGACY_LIST_CAP = 1000;
+
+    private List<Transaction> cappedList(User user, LocalDate start, LocalDate end, TransactionType type,
+                                         String category, String budgetCategory, String paymentSource) {
+        Pageable capped = PageRequest.of(0, LEGACY_LIST_CAP,
+                Sort.by(Sort.Order.desc("date"), Sort.Order.desc("id")));
+        return transactionRepository
+                .findPage(user, start, end, type, category, budgetCategory, paymentSource, capped)
+                .getContent();
+    }
+
     @GetMapping
     public List<Transaction> getAll(
             @RequestParam(required = false) Integer month,
@@ -53,25 +75,20 @@ public class TransactionController {
             @RequestParam(required = false) String start,
             @RequestParam(required = false) String end) {
         User user = getCurrentUser();
+        LocalDate startDate = null;
+        LocalDate endDate = null;
         if (start != null && end != null) {
-            LocalDate startDate = LocalDate.parse(start);
-            LocalDate endDate = LocalDate.parse(end);
-            // type null = all transactions in range (both CREDIT and DEBIT)
-            if (type != null)
-                return transactionRepository.findByUserAndTypeAndDateBetweenOrderByDateDesc(user, type, startDate, endDate);
-            return transactionRepository.findByUserAndDateBetweenOrderByDateDesc(user, startDate, endDate);
+            startDate = LocalDate.parse(start);
+            endDate = LocalDate.parse(end);
+        } else if (month != null && year != null) {
+            startDate = YearMonth.of(year, month).atDay(1);
+            endDate = YearMonth.of(year, month).atEndOfMonth();
+        } else if (year != null) {
+            startDate = LocalDate.of(year, 1, 1);
+            endDate = LocalDate.of(year, 12, 31);
         }
-        if (month != null && year != null) return transactionService.getByMonthAndYear(month, year, type, user);
-        if (year != null) return transactionService.getByYear(year, type, user);
-        if (type != null) return transactionService.getByType(type, user);
-        return transactionService.getAll(user);
+        return cappedList(user, startDate, endDate, type, null, null, null);
     }
-
-    // Search is a leading-wildcard LIKE across several columns, so it cannot use
-    // an index — cap it rather than let an unbounded match scan the whole user.
-    private static final int SEARCH_LIMIT = 200;
-
-    private static final int MAX_PAGE_SIZE = 500;
 
     /**
      * Paged listing. Date, type and category filters are all applied in the
@@ -167,22 +184,19 @@ public class TransactionController {
             @PathVariable String budgetCategory,
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate) {
-        if (startDate != null && endDate != null) {
-            LocalDate start = LocalDate.parse(startDate);
-            LocalDate end = LocalDate.parse(endDate);
-            return transactionService.getByBudgetCategory(budgetCategory, getCurrentUser(), start, end);
-        }
-        return transactionService.getByBudgetCategory(budgetCategory, getCurrentUser());
+        LocalDate start = startDate != null ? LocalDate.parse(startDate) : null;
+        LocalDate end   = endDate   != null ? LocalDate.parse(endDate)   : null;
+        return cappedList(getCurrentUser(), start, end, null, null, budgetCategory, null);
     }
 
     @GetMapping("/type/{type}")
     public List<Transaction> getByType(@PathVariable TransactionType type) {
-        return transactionService.getByType(type, getCurrentUser());
+        return cappedList(getCurrentUser(), null, null, type, null, null, null);
     }
 
     @GetMapping("/source/{source}")
     public List<Transaction> getByPaymentSource(@PathVariable String source) {
-        return transactionService.getByPaymentSource(source, getCurrentUser());
+        return cappedList(getCurrentUser(), null, null, null, null, null, source);
     }
 
     @PostMapping

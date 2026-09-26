@@ -43,39 +43,11 @@ public class TransactionService {
     private final CashbackWalletRepository cashbackWalletRepository;
     private final CashbackEntryRepository cashbackEntryRepository;
 
-    public List<Transaction> getAll(User user) {
-        return transactionRepository.findByUser(user);
-    }
-
-    public List<Transaction> getByMonthAndYear(Integer month, Integer year, TransactionType type, User user) {
-        LocalDate start = YearMonth.of(year, month).atDay(1);
-        LocalDate end = YearMonth.of(year, month).atEndOfMonth();
-        if (type != null) return transactionRepository.findByUserAndTypeAndDateBetweenOrderByDateDesc(user, type, start, end);
-        return transactionRepository.findByUserAndDateBetweenOrderByDateDesc(user, start, end);
-    }
-
-    public List<Transaction> getByYear(Integer year, TransactionType type, User user) {
-        LocalDate start = LocalDate.of(year, 1, 1);
-        LocalDate end = LocalDate.of(year, 12, 31);
-        if (type != null) return transactionRepository.findByUserAndTypeAndDateBetweenOrderByDateDesc(user, type, start, end);
-        return transactionRepository.findByUserAndDateBetweenOrderByDateDesc(user, start, end);
-    }
-
-    public List<Transaction> getByBudgetCategory(String budgetCategory, User user) {
-        return transactionRepository.findByUserAndBudgetCategoryIgnoreCase(user, budgetCategory);
-    }
-
-    public List<Transaction> getByBudgetCategory(String budgetCategory, User user, LocalDate start, LocalDate end) {
-        return transactionRepository.findByUserAndBudgetCategoryIgnoreCaseAndDateBetween(user, budgetCategory, start, end);
-    }
-
-    public List<Transaction> getByPaymentSource(String paymentSource, User user) {
-        return transactionRepository.findByUserAndPaymentSourceIgnoreCaseOrderByDateDesc(user, paymentSource);
-    }
-
-    public List<Transaction> getByType(TransactionType type, User user) {
-        return transactionRepository.findByUserAndType(user, type);
-    }
+    // The unbounded list loaders that used to live here (getAll, getByType,
+    // getByPaymentSource, getByBudgetCategory, getByMonthAndYear, getByYear)
+    // are gone. Every listing path now goes through the capped query in
+    // TransactionController, so there is no convenient way to fetch a user's
+    // whole table by accident.
 
     @Transactional
     public Transaction create(TransactionDTO dto, User user) {
