@@ -64,7 +64,14 @@ export default function AddTransactionModal({ budgetCategory, onClose, onSave, p
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    await onSave({ ...form, amount: parseFloat(form.amount) });
+    const payload = { ...form, amount: parseFloat(form.amount) };
+    // Settling an existing udhar — don't also create a new udhar record
+    if (payload.setoffUdharRecordId) {
+      payload.udharPersonName = null;
+      payload.udharMobileNumber = null;
+      payload.udharType = null;
+    }
+    await onSave(payload);
     setLoading(false);
     onClose();
   };
@@ -171,39 +178,13 @@ export default function AddTransactionModal({ budgetCategory, onClose, onSave, p
               onChange={(e) => setForm({ ...form, date: e.target.value })} className={inputCls} />
           </div>
 
-          {/* Setoff Section */}
-          {udharRecords.length > 0 && (
-            <div className="border-t border-gray-100 dark:border-gray-700 pt-4 mt-2">
-              <label className="flex items-center gap-2 mb-2">
-                <ArrowLeftRight size={16} className="text-blue-500" />
-                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Setoff against Udhar</span>
-              </label>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">Link this transaction as settlement of a pending udhar</p>
-              <select
-                value={form.setoffUdharRecordId || ''}
-                onChange={(e) => setForm({ ...form, setoffUdharRecordId: e.target.value ? parseInt(e.target.value) : null })}
-                className={inputCls}
-              >
-                <option value="">— None —</option>
-                {udharRecords.map(r => {
-                  const remaining = parseFloat(r.totalAmount) - parseFloat(r.settledAmount || 0);
-                  return (
-                    <option key={r.id} value={r.id}>
-                      {r.type === 'GIVEN' ? '📤' : '📥'} {r.personName} — ₹{remaining.toLocaleString('en-IN')} pending ({r.status})
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-          )}
-
           {/* Udhar Toggle */}
           <div className="border-t border-gray-100 dark:border-gray-700 pt-4 mt-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={form.isUdhar}
-                onChange={(e) => setForm({ ...form, isUdhar: e.target.checked })}
+                onChange={(e) => setForm({ ...form, isUdhar: e.target.checked, setoffUdharRecordId: null })}
                 className="w-4 h-4 accent-orange-500"
               />
               <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
@@ -219,54 +200,88 @@ export default function AddTransactionModal({ budgetCategory, onClose, onSave, p
           {/* Udhar Fields - shown when enabled */}
           {form.isUdhar && (
             <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 space-y-3 border border-orange-100 dark:border-orange-800">
-              {/* GIVEN / TAKEN toggle */}
-              <div className="flex rounded-lg overflow-hidden border border-orange-200 dark:border-orange-700">
-                {['GIVEN', 'TAKEN'].map(t => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setForm({ ...form, udharType: t })}
-                    className={`flex-1 py-2 text-xs font-semibold transition ${
-                      form.udharType === t
-                        ? t === 'GIVEN' ? 'bg-orange-500 text-white' : 'bg-blue-500 text-white'
-                        : 'bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                    }`}
+              {/* Setoff against an existing pending udhar */}
+              {udharRecords.length > 0 && (
+                <div>
+                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase flex items-center gap-1.5 mb-1.5">
+                    <ArrowLeftRight size={13} className="text-blue-500" />
+                    Setoff against Udhar
+                  </label>
+                  <select
+                    value={form.setoffUdharRecordId || ''}
+                    onChange={(e) => setForm({ ...form, setoffUdharRecordId: e.target.value ? parseInt(e.target.value) : null })}
+                    className={inputCls}
                   >
-                    {t === 'GIVEN' ? '📤 I Lent (Diya)' : '📥 I Borrowed (Liya)'}
-                  </button>
-                ))}
-              </div>
-
-              {/* Person Name */}
-              <div>
-                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Person Name *</label>
-                <div className="relative">
-                  <User size={14} className="absolute left-3 top-3 text-gray-400" />
-                  <input
-                    required={form.isUdhar}
-                    type="text"
-                    placeholder="e.g. Rahul Sharma"
-                    value={form.udharPersonName}
-                    onChange={(e) => setForm({ ...form, udharPersonName: e.target.value })}
-                    className={`${inputCls} pl-9`}
-                  />
+                    <option value="">— New Udhar —</option>
+                    {udharRecords.map(r => {
+                      const remaining = parseFloat(r.totalAmount) - parseFloat(r.settledAmount || 0);
+                      return (
+                        <option key={r.id} value={r.id}>
+                          {r.type === 'GIVEN' ? '📤' : '📥'} {r.personName} — ₹{remaining.toLocaleString('en-IN')} pending ({r.status})
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    {form.setoffUdharRecordId
+                      ? 'This transaction will be recorded as a settlement of the selected udhar'
+                      : 'Keep "New Udhar" to create a fresh record for this person'}
+                  </p>
                 </div>
-              </div>
+              )}
 
-              {/* Mobile Number */}
-              <div>
-                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Mobile <span className="font-normal normal-case text-gray-400">(optional)</span></label>
-                <div className="relative">
-                  <Phone size={14} className="absolute left-3 top-3 text-gray-400" />
-                  <input
-                    type="tel"
-                    placeholder="9876543210"
-                    value={form.udharMobileNumber}
-                    onChange={(e) => setForm({ ...form, udharMobileNumber: e.target.value })}
-                    className={`${inputCls} pl-9`}
-                  />
-                </div>
-              </div>
+              {!form.setoffUdharRecordId && (
+                <>
+                  {/* GIVEN / TAKEN toggle */}
+                  <div className="flex rounded-lg overflow-hidden border border-orange-200 dark:border-orange-700">
+                    {['GIVEN', 'TAKEN'].map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setForm({ ...form, udharType: t })}
+                        className={`flex-1 py-2 text-xs font-semibold transition ${
+                          form.udharType === t
+                            ? t === 'GIVEN' ? 'bg-orange-500 text-white' : 'bg-blue-500 text-white'
+                            : 'bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                        }`}
+                      >
+                        {t === 'GIVEN' ? '📤 I Lent (Diya)' : '📥 I Borrowed (Liya)'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Person Name */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Person Name *</label>
+                    <div className="relative">
+                      <User size={14} className="absolute left-3 top-3 text-gray-400" />
+                      <input
+                        required={form.isUdhar && !form.setoffUdharRecordId}
+                        type="text"
+                        placeholder="e.g. Rahul Sharma"
+                        value={form.udharPersonName}
+                        onChange={(e) => setForm({ ...form, udharPersonName: e.target.value })}
+                        className={`${inputCls} pl-9`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Mobile Number */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Mobile <span className="font-normal normal-case text-gray-400">(optional)</span></label>
+                    <div className="relative">
+                      <Phone size={14} className="absolute left-3 top-3 text-gray-400" />
+                      <input
+                        type="tel"
+                        placeholder="9876543210"
+                        value={form.udharMobileNumber}
+                        onChange={(e) => setForm({ ...form, udharMobileNumber: e.target.value })}
+                        className={`${inputCls} pl-9`}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

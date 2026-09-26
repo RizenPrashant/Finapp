@@ -8,6 +8,7 @@ import com.finapp.model.UdharTransactionLink;
 import com.finapp.model.User;
 import com.finapp.repository.UdharRecordRepository;
 import com.finapp.repository.UserRepository;
+import com.finapp.repository.TransactionRepository;
 import com.finapp.service.UdharService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class UdharController {
     private final UdharService udharService;
     private final UserRepository userRepository;
     private final UdharRecordRepository udharRecordRepository;
+    private final TransactionRepository transactionRepository;
 
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -68,6 +70,17 @@ public class UdharController {
     @PostMapping("/settle")
     public ResponseEntity<UdharRecord> settleUdhar(@Valid @RequestBody UdharSettlementDTO dto) {
         return ResponseEntity.ok(udharService.settleUdhar(dto, getCurrentUser()));
+    }
+
+    @PostMapping("/records/{udharRecordId}/link-transaction/{transactionId}")
+    public ResponseEntity<Void> linkTransaction(
+            @PathVariable Long udharRecordId,
+            @PathVariable Long transactionId) {
+        User user = getCurrentUser();
+        com.finapp.model.Transaction transaction = transactionRepository.findByIdAndUser(transactionId, user)
+                .orElseThrow(() -> new RuntimeException("Transaction not found"));
+        udharService.settleUdharWithTransaction(udharRecordId, transaction, transaction.getAmount(), user);
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/records/{id}/transactions")

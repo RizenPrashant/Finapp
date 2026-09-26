@@ -115,6 +115,7 @@ export const getUdharRecordsByType = (type) => api.get(`/udhar/records/type/${ty
 export const createUdharRecord = (data) => api.post('/udhar/records', data);
 export const deleteUdharRecord = (id) => api.delete(`/udhar/records/${id}`);
 export const settleUdhar = (data) => api.post('/udhar/settle', data);
+export const linkTransactionToUdhar = (udharRecordId, transactionId) => api.post(`/udhar/records/${udharRecordId}/link-transaction/${transactionId}`);
 export const getUdharTransactions = (id) => api.get(`/udhar/records/${id}/transactions`);
 export const getUdharSummary = () => api.get('/udhar/summary');
 
