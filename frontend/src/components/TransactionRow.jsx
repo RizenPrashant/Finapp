@@ -2,8 +2,11 @@ import { useState } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Trash2, Pencil, AlertTriangle, Building2, Gift, HandCoins, Tag } from 'lucide-react';
 import { recategorizeTransaction } from '../api';
 
+// 'Monthly Total Expense' is intentionally absent — it's a rollup of
+// Monthly Food Expense + Monthly Spend + Miscellaneous, not a bucket
+// transactions can be assigned to directly.
 const BUDGET_CATEGORIES = [
-  'Monthly Spend', 'Monthly Total Savings', 'Monthly Total Expense',
+  'Monthly Spend', 'Monthly Total Savings',
   'Monthly Food Expense', 'Monthly Revenue', 'Miscellaneous', 'Uncategorized'
 ];
 
@@ -49,6 +52,12 @@ function RecategorizePopup({ transaction, onSave, onClose }) {
   const [budgetCategory, setBudgetCategory] = useState(transaction.budgetCategory || 'Uncategorized');
   const [saving, setSaving] = useState(false);
 
+  // Older rows may still carry a value we no longer offer — keep it visible
+  // so the select isn't blank, rather than silently misreporting.
+  const budgetOptions = BUDGET_CATEGORIES.includes(budgetCategory)
+    ? BUDGET_CATEGORIES
+    : [budgetCategory, ...BUDGET_CATEGORIES];
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -85,7 +94,7 @@ function RecategorizePopup({ transaction, onSave, onClose }) {
           <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Budget Overview Category</label>
           <select value={budgetCategory} onChange={e => setBudgetCategory(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-400">
-            {BUDGET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            {budgetOptions.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           <p className="text-[10px] text-gray-400 dark:text-gray-500">Budget Overview updates automatically.</p>
         </div>
