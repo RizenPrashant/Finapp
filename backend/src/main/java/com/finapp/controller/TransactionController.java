@@ -49,6 +49,8 @@ public class TransactionController {
     // an index — cap it rather than let an unbounded match scan the whole user.
     private static final int SEARCH_LIMIT = 200;
 
+    private static final java.util.regex.Pattern DIGIT = java.util.regex.Pattern.compile("\\d");
+
     private static final int MAX_PAGE_SIZE = 500;
 
     /**
@@ -176,7 +178,10 @@ public class TransactionController {
         User user = getCurrentUser();
         LocalDate start = startDate != null ? LocalDate.parse(startDate) : null;
         LocalDate end   = endDate   != null ? LocalDate.parse(endDate)   : null;
-        return transactionRepository.searchByUser(user, q.trim(), start, end, PageRequest.of(0, SEARCH_LIMIT));
+        String term = q.trim();
+        // Only pay for the amount comparison when the term could be an amount.
+        String amountTerm = DIGIT.matcher(term).find() ? term : null;
+        return transactionRepository.searchByUser(user, term, amountTerm, start, end, PageRequest.of(0, SEARCH_LIMIT));
     }
 
     @GetMapping("/budget/{budgetCategory}")

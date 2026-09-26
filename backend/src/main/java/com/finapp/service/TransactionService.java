@@ -343,17 +343,28 @@ public class TransactionService {
 
     // Weekly summary — last N weeks
     public List<Map<String, Object>> getWeeklySummary(int weeks, User user) {
-        List<Map<String, Object>> result = new ArrayList<>();
         LocalDate today = LocalDate.now();
+        LocalDate firstWeekStart = today.minusWeeks(weeks - 1L).with(DayOfWeek.MONDAY);
+        LocalDate lastWeekEnd = today.with(DayOfWeek.MONDAY).plusDays(6);
+
+        // One pass over the span, bucketed by the Monday each day belongs to,
+        // instead of two aggregate queries per week.
+        Map<LocalDate, BigDecimal[]> byWeek = new HashMap<>();
+        for (Object[] row : transactionRepository.dailyTotalsByUserBetween(user, firstWeekStart, lastWeekEnd)) {
+            LocalDate weekStart = ((LocalDate) row[0]).with(DayOfWeek.MONDAY);
+            BigDecimal[] acc = byWeek.computeIfAbsent(weekStart, k -> new BigDecimal[]{ BigDecimal.ZERO, BigDecimal.ZERO });
+            acc[0] = acc[0].add(toBigDecimal(row[1]));
+            acc[1] = acc[1].add(toBigDecimal(row[2]));
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
         for (int i = weeks - 1; i >= 0; i--) {
             LocalDate weekStart = today.minusWeeks(i).with(DayOfWeek.MONDAY);
-            LocalDate weekEnd = weekStart.plusDays(6);
-            BigDecimal income = transactionRepository.sumByUserAndTypeAndDateBetween(user, TransactionType.CREDIT, weekStart, weekEnd);
-            BigDecimal expense = transactionRepository.sumByUserAndTypeAndDateBetween(user, TransactionType.DEBIT, weekStart, weekEnd);
+            BigDecimal[] acc = byWeek.getOrDefault(weekStart, new BigDecimal[]{ BigDecimal.ZERO, BigDecimal.ZERO });
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("week", "W" + weekStart.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear()));
-            map.put("income", income);
-            map.put("expense", expense);
+            map.put("income", acc[0]);
+            map.put("expense", acc[1]);
             result.add(map);
         }
         return result;
