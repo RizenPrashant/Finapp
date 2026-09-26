@@ -193,12 +193,32 @@ export default function Insights({ onProfileClick }) {
     sessionStorage.setItem('insights_selectedBankAsset', JSON.stringify(asset));
   };
 
+  // A transaction changes the asset balance server-side, so pull the fresh
+  // value — the drill-down header reads it off selectedBankAsset.
+  const refreshSelectedAsset = async () => {
+    if (!selectedBankAsset) return;
+    try {
+      const assetType = selectedBankAsset.type || selectedType;
+      const res = await getAssetsByType(assetType);
+      if (assetType === selectedType) setAssets(res.data);
+      const fresh = (res.data || []).find(a => a.id === selectedBankAsset.id);
+      if (fresh) {
+        setSelectedBankAsset(fresh);
+        sessionStorage.setItem('insights_selectedBankAsset', JSON.stringify(fresh));
+      }
+      fetchSummary();
+    } catch (e) {
+      console.error('Error refreshing asset balance:', e);
+    }
+  };
+
   const handleAddBankTx = async (data) => {
     try {
       await createTransaction({ ...data, paymentSource: selectedBankAsset.name });
       eventEmitter.emit(EVENTS.TRANSACTION_CREATED, data);
       const res = await getTransactionsBySource(selectedBankAsset.name);
       setBankTransactions(res.data);
+      await refreshSelectedAsset();
       setShowAddTxModal(false);
     } catch (e) {
       alert('Failed to add transaction: ' + (e.response?.data?.message || e.message));
@@ -211,6 +231,7 @@ export default function Insights({ onProfileClick }) {
       eventEmitter.emit(EVENTS.TRANSACTION_UPDATED, { id, ...data });
       const res = await getTransactionsBySource(selectedBankAsset.name);
       setBankTransactions(res.data);
+      await refreshSelectedAsset();
       setEditingTx(null);
     } catch (e) {
       alert('Failed to update transaction: ' + (e.response?.data?.message || e.message));
@@ -224,6 +245,7 @@ export default function Insights({ onProfileClick }) {
       await deleteTransaction(id);
       eventEmitter.emit(EVENTS.TRANSACTION_DELETED, { id });
       setBankTransactions(prev => prev.filter(t => t.id !== id));
+      await refreshSelectedAsset();
     } catch (e) {
       alert('Failed to delete: ' + (e.response?.data?.message || e.message));
     }
