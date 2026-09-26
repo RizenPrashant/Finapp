@@ -28,6 +28,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -335,21 +336,34 @@ public class TransactionService {
         return transactionRepository.sumByUserAndBudgetCategoryAndTypeAndDateBetween(user, budgetCategory, type, start, end);
     }
 
+    private static BigDecimal toBigDecimal(Object value) {
+        if (value == null) return BigDecimal.ZERO;
+        if (value instanceof BigDecimal bd) return bd;
+        return new BigDecimal(value.toString());
+    }
+
     // Monthly summary for a year — returns list of {month, income, expense, savings}
     public List<Map<String, Object>> getMonthlySummary(int year, User user) {
-        List<Map<String, Object>> result = new ArrayList<>();
         String[] months = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+
+        // month -> {income, expense, savings}; one query for the whole year
+        Map<Integer, BigDecimal[]> totals = new HashMap<>();
+        for (Object[] row : transactionRepository.monthlyTotalsByUserAndYear(user, year)) {
+            totals.put(((Number) row[0]).intValue(),
+                    new BigDecimal[]{ toBigDecimal(row[1]), toBigDecimal(row[2]), toBigDecimal(row[3]) });
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        BigDecimal[] empty = { BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO };
         for (int m = 1; m <= 12; m++) {
-            LocalDate start = YearMonth.of(year, m).atDay(1);
-            LocalDate end = YearMonth.of(year, m).atEndOfMonth();
-            BigDecimal income  = transactionRepository.sumByUserAndTypeAndDateBetween(user, TransactionType.CREDIT, start, end);
-            BigDecimal expense = transactionRepository.sumByUserAndTypeAndDateBetween(user, TransactionType.DEBIT, start, end);
-            BigDecimal savings = transactionRepository.sumByUserAndBudgetCategoryAndTypeAndDateBetween(user, "Monthly Total Savings", TransactionType.DEBIT, start, end);
+            // Months with no activity are absent from the grouped result but the
+            // chart still expects all twelve points.
+            BigDecimal[] t = totals.getOrDefault(m, empty);
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("month", months[m - 1]);
-            map.put("income", income);
-            map.put("expense", expense);
-            map.put("savings", savings);
+            map.put("income", t[0]);
+            map.put("expense", t[1]);
+            map.put("savings", t[2]);
             result.add(map);
         }
         return result;

@@ -3,6 +3,7 @@ package com.finapp.repository;
 import com.finapp.model.Transaction;
 import com.finapp.model.TransactionType;
 import com.finapp.model.User;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -36,6 +37,16 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     @Query("SELECT t.category, COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user = :user AND t.type = 'DEBIT' AND t.date BETWEEN :start AND :end GROUP BY t.category ORDER BY SUM(t.amount) DESC")
     List<Object[]> sumByUserAndCategoryAndDateBetween(@Param("user") User user, @Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    // One pass over the year instead of three sums per month. Rows come back as
+    // [month, credit, debit, savings]; months with no activity are simply absent.
+    @Query("SELECT MONTH(t.date), " +
+           "COALESCE(SUM(CASE WHEN t.type = 'CREDIT' THEN t.amount ELSE 0 END), 0), " +
+           "COALESCE(SUM(CASE WHEN t.type = 'DEBIT'  THEN t.amount ELSE 0 END), 0), " +
+           "COALESCE(SUM(CASE WHEN t.type = 'DEBIT' AND LOWER(t.budgetCategory) = 'monthly total savings' THEN t.amount ELSE 0 END), 0) " +
+           "FROM Transaction t WHERE t.user = :user AND YEAR(t.date) = :year " +
+           "GROUP BY MONTH(t.date)")
+    List<Object[]> monthlyTotalsByUserAndYear(@Param("user") User user, @Param("year") int year);
 
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user = :user AND LOWER(t.budgetCategory) = LOWER(:budgetCategory) AND t.type = :type")
     BigDecimal sumByUserAndBudgetCategoryAndType(@Param("user") User user, @Param("budgetCategory") String budgetCategory, @Param("type") TransactionType type);
@@ -114,7 +125,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         @Param("user") User user,
         @Param("q") String q,
         @Param("start") LocalDate start,
-        @Param("end") LocalDate end
+        @Param("end") LocalDate end,
+        Pageable pageable
     );
 
     // User-specific analytics

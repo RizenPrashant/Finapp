@@ -14,6 +14,7 @@ import com.finapp.repository.UserRepository;
 import com.finapp.service.TransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -61,6 +62,10 @@ public class TransactionController {
         return transactionService.getAll(user);
     }
 
+    // Search is a leading-wildcard LIKE across several columns, so it cannot use
+    // an index — cap it rather than let an unbounded match scan the whole user.
+    private static final int SEARCH_LIMIT = 200;
+
     @GetMapping("/search")
     public List<Transaction> search(
             @RequestParam String q,
@@ -69,7 +74,7 @@ public class TransactionController {
         User user = getCurrentUser();
         LocalDate start = startDate != null ? LocalDate.parse(startDate) : null;
         LocalDate end   = endDate   != null ? LocalDate.parse(endDate)   : null;
-        return transactionRepository.searchByUser(user, q.trim(), start, end);
+        return transactionRepository.searchByUser(user, q.trim(), start, end, PageRequest.of(0, SEARCH_LIMIT));
     }
 
     @GetMapping("/budget/{budgetCategory}")

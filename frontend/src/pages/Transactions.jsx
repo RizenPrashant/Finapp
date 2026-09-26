@@ -17,7 +17,11 @@ import { eventEmitter, EVENTS } from '../utils/events';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-const selectCls = 'px-3 py-1.5 text-xs font-semibold border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-500 max-w-[220px]';
+// Mirrors SEARCH_LIMIT in TransactionController — a full result set means the
+// server truncated, so the count is a floor rather than a total.
+const SEARCH_RESULT_CAP = 200;
+
+const selectCls ='px-3 py-1.5 text-xs font-semibold border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-500 max-w-[220px]';
 
 export default function Transactions({ onProfileClick }) {
   const [transactions, setTransactions] = useState([]);
@@ -496,9 +500,12 @@ export default function Transactions({ onProfileClick }) {
                 </button>
               )}
             </div>
-            <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+            <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap"
+              title={searchResults !== null && searchResults.length >= SEARCH_RESULT_CAP
+                ? `Only the first ${SEARCH_RESULT_CAP} matches are shown. Narrow the search or the date range.`
+                : undefined}>
               {searchLoading ? 'Searching...' : searchResults !== null
-                ? `${visibleList.length} results`
+                ? `${visibleList.length}${searchResults.length >= SEARCH_RESULT_CAP ? '+' : ''} results`
                 : `${visibleList.length} transactions`}
             </span>
           </div>
