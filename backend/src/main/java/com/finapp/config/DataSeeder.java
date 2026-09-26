@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -28,8 +29,15 @@ public class DataSeeder implements CommandLineRunner {
     private final EntityManager entityManager;
     private final ImportFormatRepository importFormatRepository;
     private final Environment environment;
+    private final PasswordEncoder passwordEncoder;
 
     private static final String DEFAULT_USER_EMAIL = "test@finapp.com";
+
+    // Dev-only login for the seeded sample account. Hashed at runtime rather
+    // than pasted in: the literal that used to live here was 59 characters and
+    // not a valid BCrypt hash at all, so nothing could ever authenticate as
+    // this user. This block only runs under the dev profile.
+    private static final String DEFAULT_USER_PASSWORD = "test1234";
 
     @Override
     @Transactional
@@ -103,7 +111,7 @@ public class DataSeeder implements CommandLineRunner {
                 "VALUES (0, :email, :password, 'Test', 'User', 'USER', NOW(), NOW()) " +
                 "ON DUPLICATE KEY UPDATE email = :email")
                 .setParameter("email", DEFAULT_USER_EMAIL)
-                .setParameter("password", "$2a$10$N9qoSnQfTw9jSgXw1AZ9bOjF5.KC8lQ8Q2q4m7Y3X9v5w8q2r4t6")
+                .setParameter("password", passwordEncoder.encode(DEFAULT_USER_PASSWORD))
                 .executeUpdate();
             entityManager.flush();
             entityManager.clear();
