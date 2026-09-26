@@ -19,8 +19,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     // User-specific queries
     List<Transaction> findByUser(User user);
 
-    List<Transaction> findByUserIsNull();
-
     Optional<Transaction> findByIdAndUser(Long id, User user);
 
     List<Transaction> findByUserAndBudgetCategoryIgnoreCase(User user, String budgetCategory);
@@ -85,6 +83,15 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     BigDecimal sumExpensesByType(TransactionType type);
 
     List<Transaction> findByUserAndPaymentSourceIgnoreCaseOrderByDateDesc(User user, String paymentSource);
+
+    // Limit validation runs on every DEBIT create — aggregate in SQL rather than
+    // loading every transaction for the source and summing in memory.
+    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user = :user " +
+           "AND LOWER(t.paymentSource) = LOWER(:paymentSource) AND t.type = :type")
+    BigDecimal sumByUserAndPaymentSourceAndType(
+        @Param("user") User user,
+        @Param("paymentSource") String paymentSource,
+        @Param("type") TransactionType type);
 
     boolean existsByUserAndImportHash(User user, String importHash);
 

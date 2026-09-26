@@ -43,17 +43,7 @@ public class TransactionService {
     private final CashbackEntryRepository cashbackEntryRepository;
 
     public List<Transaction> getAll(User user) {
-        List<Transaction> transactions = transactionRepository.findByUser(user);
-        // If user has no transactions, try to assign orphan transactions first
-        if (transactions.isEmpty()) {
-            List<Transaction> orphanTransactions = transactionRepository.findByUserIsNull();
-            if (!orphanTransactions.isEmpty()) {
-                orphanTransactions.forEach(t -> t.setUser(user));
-                transactionRepository.saveAll(orphanTransactions);
-                transactions = transactionRepository.findByUser(user);
-            }
-        }
-        return transactions;
+        return transactionRepository.findByUser(user);
     }
 
     public List<Transaction> getByMonthAndYear(Integer month, Integer year, TransactionType type, User user) {
@@ -402,31 +392,18 @@ public class TransactionService {
      * - CREDIT_CARD: Total debit cannot exceed credit limit
      */
     private void validateTransactionLimit(TransactionDTO dto, User user) {
-        List<Asset> assets = assetRepository.findByUser(user);
-
-        // Find asset by payment source name
-        Asset asset = assets.stream()
-                .filter(a -> a.getName().equalsIgnoreCase(dto.getPaymentSource()))
-                .findFirst()
-                .orElse(null);
+        // Same lookup the balance-update path uses, so validation and the
+        // balance mutation can never disagree about which asset this is.
+        Asset asset = assetRepository.findByUserAndName(user, dto.getPaymentSource()).orElse(null);
 
         if (asset == null) {
             return; // No asset found, skip validation
         }
 
-        // Get all transactions for this payment source
-        List<Transaction> transactions = transactionRepository
-                .findByUserAndPaymentSourceIgnoreCaseOrderByDateDesc(user, dto.getPaymentSource());
-
-        BigDecimal currentCredit = transactions.stream()
-                .filter(t -> t.getType() == TransactionType.CREDIT)
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal currentDebit = transactions.stream()
-                .filter(t -> t.getType() == TransactionType.DEBIT)
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Sum in SQL — this runs on every DEBIT create, so it must not scale
+        // with the number of transactions on the source.
+        BigDecimal currentDebit = transactionRepository
+                .sumByUserAndPaymentSourceAndType(user, dto.getPaymentSource(), TransactionType.DEBIT);
 
         BigDecimal newDebitTotal = currentDebit.add(dto.getAmount());
 
@@ -434,6 +411,8 @@ public class TransactionService {
         if (asset.getCategory() == AssetCategory.BANK) {
             // For bank accounts: Debit cannot exceed Credit + Starting Balance
             // Starting balance is represented by the asset value
+            BigDecimal currentCredit = transactionRepository
+                    .sumByUserAndPaymentSourceAndType(user, dto.getPaymentSource(), TransactionType.CREDIT);
             BigDecimal availableFunds = currentCredit.add(asset.getValue() != null ? asset.getValue() : BigDecimal.ZERO);
 
             if (newDebitTotal.compareTo(availableFunds) > 0) {
