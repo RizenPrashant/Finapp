@@ -5,7 +5,7 @@ import com.finapp.model.AssetType;
 import com.finapp.model.InvestmentSubCategory;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -17,8 +17,10 @@ public class AssetDTO {
     @NotBlank(message = "Name is required")
     private String name;
 
+    // Zero is a legitimate starting value — a credit card with nothing owed on
+    // it, or an account opened empty. @Positive rejected both.
     @NotNull(message = "Value is required")
-    @Positive(message = "Value must be positive")
+    @PositiveOrZero(message = "Value cannot be negative")
     private BigDecimal value;
 
     @NotNull(message = "Type is required")

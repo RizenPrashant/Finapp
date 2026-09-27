@@ -96,14 +96,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     List<Transaction> findByUserAndPaymentSourceIgnoreCaseOrderByDateDesc(User user, String paymentSource);
 
-    // Limit validation runs on every DEBIT create — aggregate in SQL rather than
-    // loading every transaction for the source and summing in memory.
-    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user = :user " +
-           "AND LOWER(t.paymentSource) = LOWER(:paymentSource) AND t.type = :type")
-    BigDecimal sumByUserAndPaymentSourceAndType(
-        @Param("user") User user,
-        @Param("paymentSource") String paymentSource,
-        @Param("type") TransactionType type);
+    // Limit validation used to sum every credit and debit on a payment source.
+    // It now reads the asset's stored balance instead, which is both correct
+    // and O(1), so those aggregates are gone.
 
     boolean existsByUserAndImportHash(User user, String importHash);
 

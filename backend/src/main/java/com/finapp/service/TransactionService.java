@@ -53,10 +53,10 @@ public class TransactionService {
     public Transaction create(TransactionDTO dto, User user) {
         boolean isUdhar = dto.getIsUdhar() != null && dto.getIsUdhar();
 
-        // Validate limits for BANK and CREDIT_CARD
-        if (dto.getPaymentSource() != null && dto.getType() == TransactionType.DEBIT) {
-            validateTransactionLimit(dto, user);
-        }
+        // Validate limits for BANK and CREDIT_CARD. Checked for both directions:
+        // on a credit card a refund reduces what is owed, and the projected
+        // balance is what matters either way.
+        assertWithinAssetLimits(dto.getPaymentSource(), dto.getType(), dto.getAmount(), null, null, user);
 
         Transaction transaction = Transaction.builder()
                 .title(dto.getTitle())
@@ -171,6 +171,13 @@ public class TransactionService {
         String oldPaymentSource = existing.getPaymentSource();
         TransactionType oldType = existing.getType();
         BigDecimal oldAmount = existing.getAmount();
+
+        // Validate before touching anything. On the same account the edit is
+        // weighed net of its own old effect; moving to a different account it
+        // is weighed as a fresh charge there.
+        boolean sameSource = oldPaymentSource != null && oldPaymentSource.equals(dto.getPaymentSource());
+        assertWithinAssetLimits(dto.getPaymentSource(), dto.getType(), dto.getAmount(),
+                sameSource ? oldType : null, sameSource ? oldAmount : null, user);
 
         // Reverse old transaction effect on asset balance
         if (oldPaymentSource != null) {
@@ -384,53 +391,72 @@ public class TransactionService {
     }
 
     /**
-     * Validate transaction limits for BANK and CREDIT_CARD assets
-     * - BANK: Total debit cannot exceed total credit + current balance (no negative balance)
-     * - CREDIT_CARD: Total debit cannot exceed credit limit
+     * How much a transaction moves an asset's stored balance.
+     *
+     * A bank balance rises on money in; a credit card's balance is what you
+     * owe, so it rises on money out. Returns zero for asset kinds that do not
+     * track a balance this way.
      */
-    private void validateTransactionLimit(TransactionDTO dto, User user) {
+    private static BigDecimal balanceDelta(Asset asset, TransactionType type, BigDecimal amount) {
+        final boolean increases;
+        if (asset.getCategory() == AssetCategory.BANK) {
+            increases = type == TransactionType.CREDIT;
+        } else if (asset.getCategory() == AssetCategory.CREDIT_CARD) {
+            increases = type == TransactionType.DEBIT;
+        } else {
+            return BigDecimal.ZERO;
+        }
+        return increases ? amount : amount.negate();
+    }
+
+    /**
+     * Check a transaction against the asset's limits.
+     *
+     * This works off the stored balance, which is already kept current by
+     * updateAssetBalanceOnCreate / reverseAssetBalanceEffect. The previous
+     * version re-summed every credit and debit and added them to that same
+     * stored balance, double-counting history: a bank with 7000 left refused
+     * a 5000 spend claiming 4000 was available, and a credit card stayed
+     * blocked at its limit even after the bill had been paid in full.
+     *
+     * oldType/oldAmount are the values being replaced on an edit, so a
+     * transaction is never weighed against its own earlier effect. Pass null
+     * for a create.
+     */
+    private void assertWithinAssetLimits(String paymentSource, TransactionType newType, BigDecimal newAmount,
+                                         TransactionType oldType, BigDecimal oldAmount, User user) {
+        if (paymentSource == null) return;
+
         // Same lookup the balance-update path uses, so validation and the
         // balance mutation can never disagree about which asset this is.
-        Asset asset = assetRepository.findByUserAndName(user, dto.getPaymentSource()).orElse(null);
+        Asset asset = assetRepository.findByUserAndName(user, paymentSource).orElse(null);
+        if (asset == null) return; // not a tracked account, nothing to enforce
 
-        if (asset == null) {
-            return; // No asset found, skip validation
+        if (asset.getCategory() != AssetCategory.BANK && asset.getCategory() != AssetCategory.CREDIT_CARD) {
+            return;
         }
 
-        // Sum in SQL — this runs on every DEBIT create, so it must not scale
-        // with the number of transactions on the source.
-        BigDecimal currentDebit = transactionRepository
-                .sumByUserAndPaymentSourceAndType(user, dto.getPaymentSource(), TransactionType.DEBIT);
+        BigDecimal current = asset.getValue() != null ? asset.getValue() : BigDecimal.ZERO;
+        BigDecimal projected = current;
+        if (oldType != null && oldAmount != null) {
+            projected = projected.subtract(balanceDelta(asset, oldType, oldAmount));
+        }
+        projected = projected.add(balanceDelta(asset, newType, newAmount));
 
-        BigDecimal newDebitTotal = currentDebit.add(dto.getAmount());
-
-        // Validate based on asset category
         if (asset.getCategory() == AssetCategory.BANK) {
-            // For bank accounts: Debit cannot exceed Credit + Starting Balance
-            // Starting balance is represented by the asset value
-            BigDecimal currentCredit = transactionRepository
-                    .sumByUserAndPaymentSourceAndType(user, dto.getPaymentSource(), TransactionType.CREDIT);
-            BigDecimal availableFunds = currentCredit.add(asset.getValue() != null ? asset.getValue() : BigDecimal.ZERO);
-
-            if (newDebitTotal.compareTo(availableFunds) > 0) {
+            if (projected.signum() < 0) {
+                BigDecimal available = current.subtract(
+                        oldType != null && oldAmount != null ? balanceDelta(asset, oldType, oldAmount) : BigDecimal.ZERO);
                 throw new RuntimeException(
-                    String.format("Insufficient funds in %s. Available: %s, Trying to spend: %s (Current debits: %s)",
-                        asset.getName(),
-                        availableFunds.subtract(currentDebit),
-                        dto.getAmount(),
-                        currentDebit));
+                    String.format("Insufficient funds in %s. Available: %s, trying to spend: %s",
+                        asset.getName(), available, newAmount));
             }
-        } else if (asset.getCategory() == AssetCategory.CREDIT_CARD) {
-            // For credit cards: Debit cannot exceed credit limit
+        } else {
             BigDecimal creditLimit = asset.getCreditLimit() != null ? asset.getCreditLimit() : BigDecimal.ZERO;
-
-            if (newDebitTotal.compareTo(creditLimit) > 0) {
+            if (projected.compareTo(creditLimit) > 0) {
                 throw new RuntimeException(
-                    String.format("Credit limit exceeded for %s. Limit: %s, Current usage: %s, Trying to add: %s",
-                        asset.getName(),
-                        creditLimit,
-                        currentDebit,
-                        dto.getAmount()));
+                    String.format("Credit limit exceeded for %s. Limit: %s, outstanding would become: %s",
+                        asset.getName(), creditLimit, projected));
             }
         }
     }
