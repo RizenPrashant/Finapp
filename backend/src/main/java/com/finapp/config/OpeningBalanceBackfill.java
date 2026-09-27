@@ -27,6 +27,7 @@ public class OpeningBalanceBackfill implements CommandLineRunner {
 
     private final AssetRepository assetRepository;
     private final BalanceService balanceService;
+    private final jakarta.persistence.EntityManager entityManager;
 
     @Override
     @Transactional
@@ -35,16 +36,31 @@ public class OpeningBalanceBackfill implements CommandLineRunner {
         for (Asset asset : assetRepository.findAll()) {
             boolean tracked = asset.getCategory() == AssetCategory.BANK
                            || asset.getCategory() == AssetCategory.CREDIT_CARD;
-            if (!tracked || asset.getOpeningBalance() != null || asset.getUser() == null) continue;
+            if (!tracked || asset.getUser() == null) continue;
 
-            balanceService.backfillOpeningBalance(asset.getUser(), asset);
-            // Bring the balance and every row's running balance in line with
-            // the starting point that was just established.
+            boolean needsOpening = asset.getOpeningBalance() == null;
+            // Rows entered before the ledger existed have no running balance of
+            // their own. The account view shows one per row, so fill them in
+            // rather than leaving most of the column blank.
+            boolean missingRunningBalances = !needsOpening && hasRowsWithoutBalance(asset);
+            if (!needsOpening && !missingRunningBalances) continue;
+
+            if (needsOpening) balanceService.backfillOpeningBalance(asset.getUser(), asset);
             balanceService.recomputeAll(asset.getUser(), asset.getName());
             done++;
         }
         if (done > 0) {
             System.out.println("=== OpeningBalanceBackfill: rebuilt " + done + " account(s) from their ledger ===");
         }
+    }
+
+    private boolean hasRowsWithoutBalance(Asset asset) {
+        Object n = entityManager.createNativeQuery(
+                "SELECT COUNT(*) FROM transactions t " +
+                "WHERE t.user_id = :uid AND t.payment_source = :src AND t.balance_after IS NULL")
+            .setParameter("uid", asset.getUser().getId())
+            .setParameter("src", asset.getName())
+            .getSingleResult();
+        return Long.parseLong(n.toString()) > 0;
     }
 }

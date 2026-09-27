@@ -742,6 +742,7 @@ export default function Insights({ onProfileClick }) {
                     <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Category</th>
                     <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Date</th>
                     <th className="text-right px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Amount</th>
+                    <th className="text-right px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Balance</th>
                     <th className="px-5 py-3"></th>
                   </tr>
                 </thead>
@@ -764,6 +765,13 @@ export default function Insights({ onProfileClick }) {
                       </td>
                       <td className={`px-5 py-3.5 text-right font-bold ${tx.type === 'CREDIT' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                         {tx.type === 'CREDIT' ? '+' : '-'}{fmt(tx.amount)}
+                      </td>
+                      {/* Running balance after this row. Absent until the
+                          account has been rebuilt from its ledger. */}
+                      <td className="px-5 py-3.5 text-right font-medium text-slate-600 dark:text-slate-300 tabular-nums">
+                        {tx.balanceAfter != null
+                          ? fmt(tx.balanceAfter)
+                          : <span className="text-gray-300 dark:text-gray-600">—</span>}
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-end gap-1">
