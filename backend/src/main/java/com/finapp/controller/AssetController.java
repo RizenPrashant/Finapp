@@ -23,6 +23,8 @@ public class AssetController {
 
     private final AssetService assetService;
     private final UserRepository userRepository;
+    private final com.finapp.service.BalanceService balanceService;
+    private final com.finapp.repository.AssetRepository assetRepository;
 
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -43,6 +45,23 @@ public class AssetController {
     @GetMapping("/category/{category}")
     public List<Asset> getByCategory(@PathVariable AssetCategory category) {
         return assetService.getByCategory(category, getCurrentUser());
+    }
+
+    /**
+     * Rebuild this account's balance from its opening balance and the full
+     * transaction history.
+     *
+     * A stored balance is only as good as every write that touched it, so
+     * there has to be a way to reconcile it rather than trusting it forever.
+     */
+    @PostMapping("/{id}/recalculate")
+    public Asset recalculate(@PathVariable Long id) {
+        User user = getCurrentUser();
+        Asset asset = assetRepository.findByIdAndUser(id, user)
+                .orElseThrow(() -> new RuntimeException("Asset not found: " + id));
+        balanceService.backfillOpeningBalance(user, asset);
+        balanceService.recomputeAll(user, asset.getName());
+        return assetRepository.findByIdAndUser(id, user).orElseThrow();
     }
 
     @PostMapping

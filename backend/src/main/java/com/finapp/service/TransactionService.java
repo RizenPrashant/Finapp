@@ -42,6 +42,7 @@ public class TransactionService {
     private final AssetRepository assetRepository;
     private final CashbackWalletRepository cashbackWalletRepository;
     private final CashbackEntryRepository cashbackEntryRepository;
+    private final BalanceService balanceService;
 
     // The unbounded list loaders that used to live here (getAll, getByType,
     // getByPaymentSource, getByBudgetCategory, getByMonthAndYear, getByYear)
@@ -73,10 +74,15 @@ public class TransactionService {
                 .build();
 
         transaction = transactionRepository.save(transaction);
+        transactionRepository.flush(); // recompute reads through SQL
 
         // Update asset/cashback balance based on payment source
         if (dto.getPaymentSource() != null) {
             updateAssetBalanceOnCreate(dto, user, transaction);
+            // Rebuild the running balance from this date on. A back-dated entry
+            // shifts every later row, so the window starts at the new row's own
+            // date rather than at today.
+            balanceService.recompute(user, dto.getPaymentSource(), dto.getDate());
         }
 
         // If udhar transaction, create udhar record linked to this transaction
@@ -107,28 +113,11 @@ public class TransactionService {
      * - CASHBACK_WALLET: Credit (earned) increases, Debit (redeemed) decreases
      */
     private void updateAssetBalanceOnCreate(TransactionDTO dto, User user, Transaction transaction) {
-        // Try to find as regular asset (BANK or CREDIT_CARD)
+        // BANK and CREDIT_CARD balances are owned by BalanceService, which
+        // rebuilds them from the ledger. Nudging asset.value here as well would
+        // double-apply the change and drift from the per-row running balance.
         Asset asset = assetRepository.findByUserAndName(user, dto.getPaymentSource()).orElse(null);
         if (asset != null) {
-            BigDecimal currentValue = asset.getValue() != null ? asset.getValue() : BigDecimal.ZERO;
-            BigDecimal newValue;
-
-            if (asset.getCategory() == AssetCategory.BANK) {
-                // Bank: Credit (+), Debit (-)
-                newValue = dto.getType() == TransactionType.CREDIT
-                    ? currentValue.add(dto.getAmount())
-                    : currentValue.subtract(dto.getAmount());
-            } else if (asset.getCategory() == AssetCategory.CREDIT_CARD) {
-                // Credit Card: Debit (+, you owe more), Credit (-, you pay off)
-                newValue = dto.getType() == TransactionType.DEBIT
-                    ? currentValue.add(dto.getAmount())
-                    : currentValue.subtract(dto.getAmount());
-            } else {
-                return; // Other asset types don't auto-update
-            }
-
-            asset.setValue(newValue);
-            assetRepository.save(asset);
             return;
         }
 
@@ -171,6 +160,7 @@ public class TransactionService {
         String oldPaymentSource = existing.getPaymentSource();
         TransactionType oldType = existing.getType();
         BigDecimal oldAmount = existing.getAmount();
+        LocalDate oldDate = existing.getDate();
 
         // Validate before touching anything. On the same account the edit is
         // weighed net of its own old effect; moving to a different account it
@@ -199,10 +189,20 @@ public class TransactionService {
         if (dto.getIsUdhar() != null) existing.setIsUdhar(dto.getIsUdhar());
 
         Transaction saved = transactionRepository.save(existing);
+        transactionRepository.flush(); // recompute reads through SQL
 
         // Apply new transaction effect on asset balance
         if (dto.getPaymentSource() != null) {
             updateAssetBalanceOnCreate(dto, user, saved);
+        }
+
+        // Rebuild running balances. Moving the date backwards invalidates rows
+        // between the old and new dates too, so start from whichever is
+        // earlier; a move between accounts has to rebuild both sides.
+        LocalDate from = earliest(oldDate, dto.getDate());
+        if (oldPaymentSource != null) balanceService.recompute(user, oldPaymentSource, from);
+        if (dto.getPaymentSource() != null && !dto.getPaymentSource().equals(oldPaymentSource)) {
+            balanceService.recompute(user, dto.getPaymentSource(), from);
         }
 
         // Udhar disabled — unlink from any udhar records
@@ -235,28 +235,10 @@ public class TransactionService {
      * Reverse the effect of a transaction on asset balance (for update/delete)
      */
     private void reverseAssetBalanceEffect(String paymentSource, TransactionType type, BigDecimal amount, User user) {
-        // Try to find as regular asset
+        // As above: BANK and CREDIT_CARD are rebuilt from the ledger, so there
+        // is nothing to unwind by hand here.
         Asset asset = assetRepository.findByUserAndName(user, paymentSource).orElse(null);
         if (asset != null) {
-            BigDecimal currentValue = asset.getValue() != null ? asset.getValue() : BigDecimal.ZERO;
-            BigDecimal newValue;
-
-            if (asset.getCategory() == AssetCategory.BANK) {
-                // Reverse: Credit was +, now -; Debit was -, now +
-                newValue = type == TransactionType.CREDIT
-                    ? currentValue.subtract(amount)
-                    : currentValue.add(amount);
-            } else if (asset.getCategory() == AssetCategory.CREDIT_CARD) {
-                // Reverse: Debit was +, now -; Credit was -, now +
-                newValue = type == TransactionType.DEBIT
-                    ? currentValue.subtract(amount)
-                    : currentValue.add(amount);
-            } else {
-                return;
-            }
-
-            asset.setValue(newValue);
-            assetRepository.save(asset);
             return;
         }
 
@@ -279,12 +261,27 @@ public class TransactionService {
         Transaction transaction = transactionRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new RuntimeException("Transaction not found: " + id));
 
+        String source = transaction.getPaymentSource();
+        LocalDate date = transaction.getDate();
+
         // Reverse transaction effect on asset balance before deleting
-        if (transaction.getPaymentSource() != null) {
-            reverseAssetBalanceEffect(transaction.getPaymentSource(), transaction.getType(), transaction.getAmount(), user);
+        if (source != null) {
+            reverseAssetBalanceEffect(source, transaction.getType(), transaction.getAmount(), user);
         }
 
         transactionRepository.delete(transaction);
+        transactionRepository.flush(); // the recompute reads through SQL, so the row must be gone first
+
+        if (source != null) {
+            balanceService.recompute(user, source, date);
+        }
+    }
+
+    /** The earlier of two dates, tolerating nulls. */
+    private static LocalDate earliest(LocalDate a, LocalDate b) {
+        if (a == null) return b;
+        if (b == null) return a;
+        return a.isBefore(b) ? a : b;
     }
 
     public BigDecimal sumByType(TransactionType type) {

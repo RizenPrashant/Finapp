@@ -35,4 +35,8 @@ public class AssetDTO {
     private String description;
     private Boolean hasTransactions;
     private BigDecimal creditLimit; // For credit cards, overdraft limits
+
+    // Optional. Defaults to `value` on create, since a brand-new account's
+    // balance is its opening balance.
+    private BigDecimal openingBalance;
 }

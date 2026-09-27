@@ -40,6 +40,10 @@ public class AssetService {
         Asset asset = Asset.builder()
                 .name(dto.getName())
                 .value(dto.getValue())
+                // A new account has no transactions yet, so the value entered
+                // is by definition the opening balance. Everything the ledger
+                // computes later is measured from here.
+                .openingBalance(dto.getOpeningBalance() != null ? dto.getOpeningBalance() : dto.getValue())
                 .type(dto.getType())
                 .category(dto.getCategory())
                 .subCategory(dto.getSubCategory())

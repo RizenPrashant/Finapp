@@ -53,6 +53,16 @@ public class Asset {
     @Column(name = "credit_limit", precision = 15, scale = 2)
     private BigDecimal creditLimit; // For CREDIT_CARD: max allowed limit
 
+    /**
+     * Balance before any transaction is counted — the account's state on day
+     * zero. `value` is then openingBalance plus every transaction's effect,
+     * which is what makes the balance reproducible: import ten years of
+     * history and a recompute still lands on the right number, because the
+     * starting point never moves.
+     */
+    @Column(name = "opening_balance", precision = 15, scale = 2)
+    private BigDecimal openingBalance;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @JsonIgnoreProperties({"transactions", "assets", "budgets", "password"})
