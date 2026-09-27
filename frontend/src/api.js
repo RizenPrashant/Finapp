@@ -58,6 +58,8 @@ export const getAssetsByType = (type) => api.get(`/assets/type/${type}`);
 export const createAsset = (data) => api.post('/assets', data);
 export const updateAsset = (id, data) => api.put(`/assets/${id}`, data);
 export const deleteAsset = (id) => api.delete(`/assets/${id}`);
+// Rebuild a bank/card balance from its opening balance and full history.
+export const recalculateAssetBalance = (id) => api.post(`/assets/${id}/recalculate`);
 
 export const getMonthlyAnalytics = (year) => api.get('/transactions/analytics/monthly', { params: { year } });
 export const getWeeklyAnalytics = (weeks = 8) => api.get('/transactions/analytics/weekly', { params: { weeks } });

@@ -5,7 +5,7 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ArrowLeft, Trash2, Edit3, TrendingUp, TrendingDown, DollarSign, PieChart, Target, ArrowUp, ArrowDown, Home, Gem, Briefcase, Building2, Landmark, Wallet, Receipt, CreditCard as CreditCardIcon, Edit2, ArrowUpCircle, ArrowDownCircle, Calendar, Tag, X } from 'lucide-react';
+import { Plus, ArrowLeft, Trash2, Edit3, RefreshCw, TrendingUp, TrendingDown, DollarSign, PieChart, Target, ArrowUp, ArrowDown, Home, Gem, Briefcase, Building2, Landmark, Wallet, Receipt, CreditCard as CreditCardIcon, Edit2, ArrowUpCircle, ArrowDownCircle, Calendar, Tag, X } from 'lucide-react';
 import Header from '../components/Header';
 import AddAssetModal from '../components/AddAssetModal';
 import AddInvestmentModal from '../components/AddInvestmentModal';
@@ -17,7 +17,8 @@ import AssetCard from '../components/AssetCard';
 import { 
   getAssetsByType, createAsset, deleteAsset, updateAsset, getDashboardSummary,
   getInvestments, getInvestmentsByType, createInvestment, updateInvestment, deleteInvestment, getInvestmentAnalytics,
-  getTransactionsPage, getTransactionFilterOptions, createTransaction, updateTransaction, deleteTransaction,
+  getTransactionsPage, getTransactionFilterOptions, recalculateAssetBalance,
+  createTransaction, updateTransaction, deleteTransaction,
   processInvestmentCompounding
 } from '../api';
 import { isDeleteLocked, isEditLocked } from './Settings';
@@ -238,6 +239,24 @@ export default function Insights({ onProfileClick }) {
       .catch(() => setBankTxCategories([]));
   }, [selectedBankAsset?.name]);
 
+  const [recalculating, setRecalculating] = useState(false);
+
+  // Rebuild the balance from the opening balance and the full history, then
+  // pull both the asset and the rows back down since every balanceAfter on
+  // the account may have moved.
+  const handleRecalculate = async () => {
+    if (!selectedBankAsset) return;
+    setRecalculating(true);
+    try {
+      await recalculateAssetBalance(selectedBankAsset.id);
+      await Promise.all([refreshSelectedAsset(), loadBankPage(0, false)]);
+    } catch (e) {
+      alert('Recalculate failed: ' + (e.response?.data?.message || e.message));
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   // A transaction changes the asset balance server-side, so pull the fresh
   // value — the drill-down header reads it off selectedBankAsset.
   const refreshSelectedAsset = async () => {
@@ -444,10 +463,27 @@ export default function Insights({ onProfileClick }) {
               <div className={`grid gap-4 mb-4 ${isCreditCard ? 'grid-cols-2 md:grid-cols-5' : 'grid-cols-2 md:grid-cols-4'}`}>
                 {/* Account Balance */}
                 <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                    {isCreditCard ? 'Outstanding Balance' : 'Account Balance'}
-                  </p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      {isCreditCard ? 'Outstanding Balance' : 'Account Balance'}
+                    </p>
+                    {/* A stored balance is only as good as the writes behind it,
+                        so give the reader a way to rebuild it from the ledger. */}
+                    <button
+                      onClick={handleRecalculate}
+                      disabled={recalculating}
+                      title="Rebuild this balance from the opening balance and every transaction"
+                      className="p-1 -mt-0.5 -mr-1 rounded-lg text-gray-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-40"
+                    >
+                      <RefreshCw size={13} className={recalculating ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
                   <p className="text-xl font-bold text-slate-800 dark:text-slate-200">{fmt(selectedBankAsset.value)}</p>
+                  {selectedBankAsset.openingBalance != null && (
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+                      opened at {fmt(selectedBankAsset.openingBalance)}
+                    </p>
+                  )}
                 </div>
 
                 {/* Total Credit */}

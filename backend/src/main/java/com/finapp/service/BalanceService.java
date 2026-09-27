@@ -125,14 +125,37 @@ public class BalanceService {
     }
 
     /**
-     * Derive an opening balance for an account that predates this column.
+     * Work out where an account started.
      *
-     * Its stored value is already the live balance, so working backwards from
-     * it keeps the number the user currently sees exactly where it is.
+     * Imported rows carry the balance the bank itself printed after each
+     * transaction, which is the most trustworthy figure available — so when
+     * any exist, anchor on the earliest one and subtract its own effect.
+     *
+     * Falling back to asset_value instead would anchor on a number that may
+     * already have drifted: it was maintained by adjusting it on every write,
+     * with nothing to check it against. On real data two accounts had drifted
+     * from their statements by 7,550 and 0.61, and deriving the opening
+     * balance from them would have preserved the error rather than fixing it.
+     *
+     * With no imported balances there is nothing better to go on, so the
+     * stored value is used and the displayed number stays put.
      */
-    @Transactional
-    public void backfillOpeningBalance(User user, Asset asset) {
-        if (!tracksBalance(asset) || asset.getOpeningBalance() != null) return;
+    public BigDecimal deriveOpeningBalance(User user, Asset asset) {
+        Object[] first = (Object[]) entityManager.createNativeQuery(
+                "SELECT t.balance_after, t.type, t.amount FROM transactions t " +
+                "WHERE t.user_id = :uid AND t.payment_source = :src AND t.balance_after IS NOT NULL " +
+                "ORDER BY t.date, t.id LIMIT 1")
+            .setParameter("uid", user.getId())
+            .setParameter("src", asset.getName())
+            .getResultStream().findFirst().orElse(null);
+
+        if (first != null) {
+            BigDecimal balanceAfterFirst = new BigDecimal(first[0].toString());
+            BigDecimal amount = new BigDecimal(first[2].toString());
+            boolean isCredit = "CREDIT".equals(first[1].toString());
+            boolean increases = creditIncreases(asset.getCategory()) == isCredit;
+            return balanceAfterFirst.subtract(increases ? amount : amount.negate());
+        }
 
         String sign = creditIncreases(asset.getCategory())
                 ? "CASE WHEN t.type = 'CREDIT' THEN t.amount ELSE -t.amount END"
@@ -146,7 +169,14 @@ public class BalanceService {
             .getSingleResult();
 
         BigDecimal current = asset.getValue() != null ? asset.getValue() : BigDecimal.ZERO;
-        asset.setOpeningBalance(current.subtract(new BigDecimal(net.toString())));
+        return current.subtract(new BigDecimal(net.toString()));
+    }
+
+    /** Give an account that predates the column an opening balance. */
+    @Transactional
+    public void backfillOpeningBalance(User user, Asset asset) {
+        if (!tracksBalance(asset) || asset.getOpeningBalance() != null) return;
+        asset.setOpeningBalance(deriveOpeningBalance(user, asset));
         assetRepository.save(asset);
     }
 }
