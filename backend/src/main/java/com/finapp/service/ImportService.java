@@ -143,7 +143,7 @@ public class ImportService {
             Asset a = new Asset();
             a.setUser(user); a.setName(ccName);
             a.setType(AssetType.LIABILITY); a.setCategory(AssetCategory.CREDIT_CARD);
-            a.setValue(BigDecimal.ZERO);
+            a.setValue(BigDecimal.ZERO); a.setOpeningBalance(BigDecimal.ZERO);
             return assetRepository.save(a);
         });
 
@@ -244,7 +244,7 @@ public class ImportService {
             Asset asset = new Asset();
             asset.setUser(user); asset.setName(bankName);
             asset.setType(AssetType.ASSET); asset.setCategory(AssetCategory.BANK);
-            asset.setValue(BigDecimal.ZERO);
+            asset.setValue(BigDecimal.ZERO); asset.setOpeningBalance(BigDecimal.ZERO);
             return assetRepository.save(asset);
         });
 
@@ -384,7 +384,7 @@ public class ImportService {
             Asset a = new Asset();
             a.setUser(user); a.setName(bankName);
             a.setType("CREDIT_CARD".equalsIgnoreCase(accountType) ? AssetType.LIABILITY : AssetType.ASSET);
-            a.setCategory(assetCategory); a.setValue(BigDecimal.ZERO);
+            a.setCategory(assetCategory); a.setValue(BigDecimal.ZERO); a.setOpeningBalance(BigDecimal.ZERO);
             return assetRepository.save(a);
         });
 

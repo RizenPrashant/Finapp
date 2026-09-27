@@ -59,7 +59,15 @@ public class BalanceService {
         Asset asset = assetRepository.findByUserAndName(user, paymentSource).orElse(null);
         if (!tracksBalance(asset)) return;
 
-        BigDecimal opening = asset.getOpeningBalance() != null ? asset.getOpeningBalance() : BigDecimal.ZERO;
+        // An account can reach here without an opening balance — the importer
+        // creates assets on the fly and does not set one. Falling back to zero
+        // would silently treat the account as having started empty and rewrite
+        // every balance on it, so derive the real starting point instead.
+        if (asset.getOpeningBalance() == null) {
+            asset.setOpeningBalance(deriveOpeningBalance(user, asset));
+            assetRepository.save(asset);
+        }
+        BigDecimal opening = asset.getOpeningBalance();
         String sign = creditIncreases(asset.getCategory())
                 ? "CASE WHEN t.type = 'CREDIT' THEN t.amount ELSE -t.amount END"
                 : "CASE WHEN t.type = 'DEBIT'  THEN t.amount ELSE -t.amount END";

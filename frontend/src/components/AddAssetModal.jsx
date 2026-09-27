@@ -140,8 +140,9 @@ export default function AddAssetModal({ assetType, onClose, onSave, editingAsset
             <input
               required
               type="number"
-              min="1"
-              placeholder="0"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
               value={form.value}
               onChange={(e) => setForm({ ...form, value: e.target.value })}
               className="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 text-sm dark:text-white"
@@ -217,7 +218,8 @@ export default function AddAssetModal({ assetType, onClose, onSave, editingAsset
                 <input
                   type="number"
                   required
-                  min="1"
+                  min="0"
+                  step="0.01"
                   placeholder="50000"
                   value={form.creditLimit}
                   onChange={(e) => setForm({ ...form, creditLimit: e.target.value })}
