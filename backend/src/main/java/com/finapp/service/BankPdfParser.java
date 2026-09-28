@@ -1,5 +1,7 @@
 package com.finapp.service;
 
+import java.util.Locale;
+
 import com.finapp.dto.TransactionDTO;
 import com.finapp.model.ImportFormat;
 import com.finapp.model.TransactionType;
@@ -262,20 +264,20 @@ public class BankPdfParser {
     private LocalDate parseDateMulti(String s) {
         s = s.trim().replace(',', '.'); // Handle dd,MM,yyyy format (commas to dots)
         DateTimeFormatter[] fmts = {
-            DateTimeFormatter.ofPattern("dd-MM-yyyy"),
-            DateTimeFormatter.ofPattern("dd-MM-yy"),
-            DateTimeFormatter.ofPattern("dd-MMM-yyyy"),
-            DateTimeFormatter.ofPattern("dd-MMM-yy"),
-            DateTimeFormatter.ofPattern("dd MMM yyyy"),
-            DateTimeFormatter.ofPattern("dd MMM yy"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd"),
-            DateTimeFormatter.ofPattern("dd.MM.yyyy"), // ICICI Excel format
-            DateTimeFormatter.ofPattern("dd.MM.yy"),
-            DateTimeFormatter.ofPattern("dd/MM/yyyy"),
-            DateTimeFormatter.ofPattern("dd/MM/yy"),
-            DateTimeFormatter.ofPattern("d/M/yyyy"),
-            DateTimeFormatter.ofPattern("d-M-yyyy"),
-            DateTimeFormatter.ofPattern("MM/dd/yyyy"),
+            DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd-MM-yy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd-MMM-yy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd MMM yy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.ENGLISH), // ICICI Excel format
+            DateTimeFormatter.ofPattern("dd.MM.yy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd/MM/yy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("d/M/yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("d-M-yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("MM/dd/yyyy", Locale.ENGLISH),
         };
         for (DateTimeFormatter f : fmts) {
             try { return LocalDate.parse(s, f); } catch (Exception ignored) {}
@@ -335,7 +337,7 @@ public class BankPdfParser {
                     if (hdr[j] != null && !hdr[j].isBlank()) colIndex.put(hdr[j].trim().toLowerCase(), j);
             }
             DateTimeFormatter dateFmt = fmt.getDateFormat() != null
-                ? DateTimeFormatter.ofPattern(fmt.getDateFormat()) : null;
+                ? DateTimeFormatter.ofPattern(fmt.getDateFormat(), Locale.ENGLISH) : null;
             for (int i = dataStart; i < allRows.size(); i++) {
                 String[] r = allRows.get(i);
                 try {
@@ -533,7 +535,8 @@ public class BankPdfParser {
             log.warn("isHeaderRow match failed — using first non-empty row as fallback header: {}", colIndex.keySet());
         }
             DateTimeFormatter dateFmt = fmt.getDateFormat() != null
-                ? DateTimeFormatter.ofPattern(fmt.getDateFormat()) : null;
+                ? DateTimeFormatter.ofPattern(fmt.getDateFormat(), Locale.ENGLISH) : null;
+            int skipped = 0;
             for (int i = dataStartRow; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
@@ -544,8 +547,15 @@ public class BankPdfParser {
                         && dto.getAmount().compareTo(BigDecimal.ZERO) != 0) {
                         list.add(dto);
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception e) {
+                    // Dropping these silently once hid a locale bug that ate
+                    // every September row of a statement. A data row we cannot
+                    // read is worth saying out loud.
+                    skipped++;
+                    log.warn("Excel row {} could not be parsed: {}", i + 1, e.toString());
+                }
             }
+            log.info("Excel parse: {} transaction(s) read, {} row(s) skipped", list.size(), skipped);
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {

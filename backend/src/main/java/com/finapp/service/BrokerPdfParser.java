@@ -1,5 +1,7 @@
 package com.finapp.service;
 
+import java.util.Locale;
+
 import com.finapp.dto.TradeDTO;
 import com.finapp.model.ImportFormat;
 import com.finapp.model.Trade;
@@ -271,7 +273,7 @@ public class BrokerPdfParser {
     // ─────────────────────────────── HELPERS ─────────────────────────────────────
 
     private LocalDate parseDate(String s, String pattern) {
-        return LocalDate.parse(s.trim(), DateTimeFormatter.ofPattern(pattern));
+        return LocalDate.parse(s.trim(), DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH));
     }
 
     private String clean(String s) {
@@ -748,10 +750,10 @@ public class BrokerPdfParser {
     private LocalDate parseDateMulti(String s) {
         s = s.trim().replace("/", "-").replace(".", "-");
         DateTimeFormatter[] fmts = {
-            DateTimeFormatter.ofPattern("dd-MM-yyyy"),
-            DateTimeFormatter.ofPattern("dd-MM-yy"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd"),
-            DateTimeFormatter.ofPattern("dd-MMM-yyyy"),
+            DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd-MM-yy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH),
         };
         for (DateTimeFormatter f : fmts) {
             try { return LocalDate.parse(s, f); } catch (Exception ignored) {}

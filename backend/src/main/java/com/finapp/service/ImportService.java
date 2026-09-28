@@ -1,5 +1,7 @@
 package com.finapp.service;
 
+import java.util.Locale;
+
 import com.finapp.dto.ImportResponseDTO;
 import com.finapp.dto.TradeDTO;
 import com.finapp.dto.TransactionDTO;
@@ -492,8 +494,8 @@ public class ImportService {
     private LocalDate parseDate(String dateStr) {
         if (dateStr == null || dateStr.isEmpty()) return null;
         DateTimeFormatter[] formatters = {
-            DateTimeFormatter.ofPattern("dd-MM-yyyy"), DateTimeFormatter.ofPattern("dd/MM/yyyy"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd"), DateTimeFormatter.ofPattern("MM-dd-yyyy"),
+            DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.ENGLISH), DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ENGLISH), DateTimeFormatter.ofPattern("MM-dd-yyyy", Locale.ENGLISH),
         };
         for (DateTimeFormatter f : formatters) { try { return LocalDate.parse(dateStr, f); } catch (Exception ignored) {} }
         throw new RuntimeException("Invalid date format: " + dateStr);

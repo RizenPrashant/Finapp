@@ -1,5 +1,7 @@
 package com.finapp.service;
 
+import java.util.Locale;
+
 import com.finapp.dto.TransactionDTO;
 import com.finapp.model.ImportFormat;
 import com.finapp.model.TransactionType;
@@ -53,7 +55,7 @@ public class CreditCardParser {
             Map<String, Integer> colIndex = buildColIndex(headerRow);
 
             DateTimeFormatter dateFmt = fmt.getDateFormat() != null
-                ? DateTimeFormatter.ofPattern(fmt.getDateFormat()) : null;
+                ? DateTimeFormatter.ofPattern(fmt.getDateFormat(), Locale.ENGLISH) : null;
             String mode  = mode(fmt);
             String crInd = crInd(fmt);
             String drInd = drInd(fmt);
@@ -92,7 +94,7 @@ public class CreditCardParser {
             if (colIndex == null) throw new RuntimeException("Could not find header row matching CC format columns");
 
             DateTimeFormatter dateFmt = fmt.getDateFormat() != null
-                ? DateTimeFormatter.ofPattern(fmt.getDateFormat()) : null;
+                ? DateTimeFormatter.ofPattern(fmt.getDateFormat(), Locale.ENGLISH) : null;
             String mode  = mode(fmt);
             String crInd = crInd(fmt);
             String drInd = drInd(fmt);
@@ -127,7 +129,7 @@ public class CreditCardParser {
         String crInd = crInd(fmt);
         String drInd = drInd(fmt);
         DateTimeFormatter dateFmt = fmt.getDateFormat() != null && !fmt.getDateFormat().isBlank()
-            ? DateTimeFormatter.ofPattern(fmt.getDateFormat()) : null;
+            ? DateTimeFormatter.ofPattern(fmt.getDateFormat(), Locale.ENGLISH) : null;
 
         String[] rawLines = text.split("\\r?\\n");
 
@@ -336,12 +338,12 @@ public class CreditCardParser {
     private LocalDate parseDateMulti(String s) {
         s = s.trim().replace(',', '.');
         DateTimeFormatter[] fmts = {
-            DateTimeFormatter.ofPattern("dd-MM-yyyy"), DateTimeFormatter.ofPattern("dd-MM-yy"),
-            DateTimeFormatter.ofPattern("dd-MMM-yyyy"), DateTimeFormatter.ofPattern("dd-MMM-yy"),
-            DateTimeFormatter.ofPattern("dd MMM yyyy"), DateTimeFormatter.ofPattern("dd MMM yy"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd"), DateTimeFormatter.ofPattern("dd.MM.yyyy"),
-            DateTimeFormatter.ofPattern("dd.MM.yy"), DateTimeFormatter.ofPattern("dd/MM/yyyy"),
-            DateTimeFormatter.ofPattern("dd/MM/yy"), DateTimeFormatter.ofPattern("d/M/yyyy"),
+            DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.ENGLISH), DateTimeFormatter.ofPattern("dd-MM-yy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH), DateTimeFormatter.ofPattern("dd-MMM-yy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH), DateTimeFormatter.ofPattern("dd MMM yy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ENGLISH), DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd.MM.yy", Locale.ENGLISH), DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd/MM/yy", Locale.ENGLISH), DateTimeFormatter.ofPattern("d/M/yyyy", Locale.ENGLISH),
         };
         for (DateTimeFormatter f : fmts) { try { return LocalDate.parse(s, f); } catch (Exception ignored) {} }
         throw new RuntimeException("Cannot parse date: " + s);
