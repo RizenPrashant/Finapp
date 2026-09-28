@@ -47,6 +47,7 @@ public class ImportService {
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
     private final AssetRepository assetRepository;
+    private final BalanceService balanceService;
     private final ImportFormatRepository importFormatRepository;
     private final BankPdfParser bankPdfParser;
     private final CreditCardParser creditCardParser;
@@ -141,13 +142,13 @@ public class ImportService {
         User user = userRepository.findByEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        Asset ccAsset = assetRepository.findByUserAndName(user, ccName).orElseGet(() -> {
-            Asset a = new Asset();
-            a.setUser(user); a.setName(ccName);
-            a.setType(AssetType.LIABILITY); a.setCategory(AssetCategory.CREDIT_CARD);
-            a.setValue(BigDecimal.ZERO); a.setOpeningBalance(BigDecimal.ZERO);
-            return assetRepository.save(a);
-        });
+        // An import no longer conjures the account it names. Auto-creating one
+        // meant a typo in the bank name silently produced a second account, and
+        // the invented account started from zero, so its balance came out short
+        // by whatever the statement's own opening balance was.
+        Asset ccAsset = assetRepository.findByUserAndName(user, ccName)
+                .orElseThrow(() -> new RuntimeException(
+                    "No credit card named \"" + ccName + "\". Add it first with its current outstanding balance, then import."));
 
         List<TransactionDTO> transactions;
         try { transactions = parseCCFile(file, format, formatId, password); }
@@ -156,7 +157,7 @@ public class ImportService {
                     .errors(List.of(e.getMessage())).totalRows(0).importedCount(0).failedCount(0).isPreview(false).build();
         }
 
-        Set<String> existingHashes = transactionRepository.findAllImportHashesByUser(user);
+        Set<String> existingHashes = transactionRepository.findImportHashesByUserAndSource(user, ccName);
         LocalDate existingLatest = transactionRepository.findMaxDateByUserAndPaymentSource(user, ccName).orElse(LocalDate.MIN);
         LocalDate importMax = transactions.stream().map(TransactionDTO::getDate).filter(d -> d != null).max(LocalDate::compareTo).orElse(LocalDate.MIN);
 
@@ -196,10 +197,10 @@ public class ImportService {
             } catch (Exception e) { errors.add("Row " + (i + 1) + ": " + e.getMessage()); }
         }
 
-        if (!batch.isEmpty()) transactionRepository.saveAll(batch);
+        if (!batch.isEmpty()) { transactionRepository.saveAll(batch); transactionRepository.flush(); }
         int imported = batch.size();
         if (imported > 0 && !importMax.isBefore(existingLatest) && latestBalance != null) {
-            ccAsset.setValue(latestBalance); assetRepository.save(ccAsset);
+            balanceService.reanchorFromStatement(user, ccName);
         }
 
         String msg = "Imported " + imported + " transactions" + (dupes > 0 ? ", " + dupes + " duplicates skipped" : "");
@@ -242,13 +243,13 @@ public class ImportService {
         User user = userRepository.findByEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        Asset bankAsset = assetRepository.findByUserAndName(user, bankName).orElseGet(() -> {
-            Asset asset = new Asset();
-            asset.setUser(user); asset.setName(bankName);
-            asset.setType(AssetType.ASSET); asset.setCategory(AssetCategory.BANK);
-            asset.setValue(BigDecimal.ZERO); asset.setOpeningBalance(BigDecimal.ZERO);
-            return assetRepository.save(asset);
-        });
+        // An import no longer conjures the account it names. Auto-creating one
+        // meant a typo in the bank name silently produced a second account, and
+        // the invented account started from zero, so its balance came out short
+        // by whatever the statement's own opening balance was.
+        Asset bankAsset = assetRepository.findByUserAndName(user, bankName)
+                .orElseThrow(() -> new RuntimeException(
+                    "No account named \"" + bankName + "\". Add it first with its current balance, then import."));
 
         List<TransactionDTO> transactions;
         try { transactions = parseBankStatementFile(file, format, bankName, bankType, formatId, password); }
@@ -257,7 +258,7 @@ public class ImportService {
                     .errors(List.of(e.getMessage())).totalRows(0).importedCount(0).failedCount(0).isPreview(false).build();
         }
 
-        Set<String> existingHashes = transactionRepository.findAllImportHashesByUser(user);
+        Set<String> existingHashes = transactionRepository.findImportHashesByUserAndSource(user, bankName);
         LocalDate existingLatestDate = transactionRepository.findMaxDateByUserAndPaymentSource(user, bankName).orElse(LocalDate.MIN);
         LocalDate importMaxDate = transactions.stream().map(TransactionDTO::getDate).filter(d -> d != null).max(LocalDate::compareTo).orElse(LocalDate.MIN);
 
@@ -300,10 +301,10 @@ public class ImportService {
             } catch (Exception e) { errors.add("Row " + (i + 1) + ": " + e.getMessage()); }
         }
 
-        if (!batch.isEmpty()) transactionRepository.saveAll(batch);
+        if (!batch.isEmpty()) { transactionRepository.saveAll(batch); transactionRepository.flush(); }
         int imported = batch.size();
         if (imported > 0 && !importMaxDate.isBefore(existingLatestDate) && latestDateBalance != null) {
-            bankAsset.setValue(latestDateBalance); assetRepository.save(bankAsset);
+            balanceService.reanchorFromStatement(user, bankName);
         }
 
         String msg = "Imported " + imported + " transactions" + (dupes > 0 ? ", " + dupes + " duplicates skipped" : "");
@@ -382,15 +383,15 @@ public class ImportService {
 
         AssetCategory assetCategory = "CREDIT_CARD".equalsIgnoreCase(accountType) ? AssetCategory.CREDIT_CARD : AssetCategory.BANK;
 
-        Asset asset = assetRepository.findByUserAndName(user, bankName).orElseGet(() -> {
-            Asset a = new Asset();
-            a.setUser(user); a.setName(bankName);
-            a.setType("CREDIT_CARD".equalsIgnoreCase(accountType) ? AssetType.LIABILITY : AssetType.ASSET);
-            a.setCategory(assetCategory); a.setValue(BigDecimal.ZERO); a.setOpeningBalance(BigDecimal.ZERO);
-            return assetRepository.save(a);
-        });
+        // An import no longer conjures the account it names. Auto-creating one
+        // meant a typo in the bank name silently produced a second account, and
+        // the invented account started from zero, so its balance came out short
+        // by whatever the statement's own opening balance was.
+        Asset asset = assetRepository.findByUserAndName(user, bankName)
+                .orElseThrow(() -> new RuntimeException(
+                    "No account named \"" + bankName + "\". Add it first with its current balance, then import."));
 
-        Set<String> existingHashes = transactionRepository.findAllImportHashesByUser(user);
+        Set<String> existingHashes = transactionRepository.findImportHashesByUserAndSource(user, bankName);
         LocalDate existingLatest = transactionRepository.findMaxDateByUserAndPaymentSource(user, bankName).orElse(LocalDate.MIN);
         LocalDate importMax = transactions.stream().map(dto -> dto.getDate() != null ? dto.getDate() : LocalDate.now()).max(LocalDate::compareTo).orElse(LocalDate.MIN);
 
@@ -435,10 +436,10 @@ public class ImportService {
             } catch (Exception e) { errors.add("Row " + (i + 1) + ": " + e.getMessage()); }
         }
 
-        if (!batch.isEmpty()) transactionRepository.saveAll(batch);
+        if (!batch.isEmpty()) { transactionRepository.saveAll(batch); transactionRepository.flush(); }
         int imported = batch.size();
         if (imported > 0 && !importMax.isBefore(existingLatest) && latestBalance != null) {
-            asset.setValue(latestBalance); assetRepository.save(asset);
+            balanceService.reanchorFromStatement(user, bankName);
         }
 
         String msg = "Imported " + imported + " transactions" + (dupes > 0 ? ", " + dupes + " duplicates skipped" : "");

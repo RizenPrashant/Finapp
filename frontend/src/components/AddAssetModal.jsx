@@ -136,7 +136,7 @@ export default function AddAssetModal({ assetType, onClose, onSave, editingAsset
           </div>
 
           <div>
-            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Value (₹)</label>
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Current Balance (₹)</label>
             <input
               required
               type="number"
@@ -147,6 +147,10 @@ export default function AddAssetModal({ assetType, onClose, onSave, editingAsset
               onChange={(e) => setForm({ ...form, value: e.target.value })}
               className="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 bg-gray-50 dark:bg-gray-700 outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 text-sm dark:text-white"
             />
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1.5">
+              What the account actually holds right now. Importing a statement later
+              re-derives this from the statement, so it will not be double counted.
+            </p>
           </div>
 
           {/* Category Selection */}

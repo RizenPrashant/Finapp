@@ -102,8 +102,13 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     boolean existsByUserAndImportHash(User user, String importHash);
 
-    @Query("SELECT t.importHash FROM Transaction t WHERE t.user = :user AND t.importHash IS NOT NULL")
-    java.util.Set<String> findAllImportHashesByUser(@Param("user") User user);
+    // Scoped to one account on purpose. A user's two banks can genuinely
+    // hold the same date, amount and description, and comparing hashes across
+    // all of them made the second account's rows vanish as "duplicates".
+    @Query("SELECT t.importHash FROM Transaction t WHERE t.user = :user " +
+           "AND t.paymentSource = :paymentSource AND t.importHash IS NOT NULL")
+    java.util.Set<String> findImportHashesByUserAndSource(@Param("user") User user,
+                                                          @Param("paymentSource") String paymentSource);
 
     @Query("SELECT MAX(t.date) FROM Transaction t WHERE t.user = :user AND LOWER(t.paymentSource) = LOWER(:paymentSource)")
     Optional<LocalDate> findMaxDateByUserAndPaymentSource(@Param("user") User user, @Param("paymentSource") String paymentSource);

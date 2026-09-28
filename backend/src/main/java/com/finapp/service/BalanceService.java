@@ -108,6 +108,31 @@ public class BalanceService {
         syncAssetValue(user, asset, opening);
     }
 
+    /**
+     * Settle an account's starting point after an import, then rebuild it.
+     *
+     * The balance entered when the account was added is the balance as of that
+     * moment — it already contains everything the statement is about to
+     * describe. Adding the statement's transactions on top of it would count
+     * that history twice. So once rows carrying the bank's own running balance
+     * arrive, re-derive the opening from them: the statement knows where the
+     * account stood before its first line, and the entered figure was only ever
+     * a stand-in until something better showed up.
+     *
+     * When the rows carry no balances there is nothing better, and
+     * deriveOpeningBalance works backwards from the stored value instead,
+     * which leaves the figure the user entered exactly where it is.
+     */
+    @Transactional
+    public void reanchorFromStatement(User user, String paymentSource) {
+        if (paymentSource == null || paymentSource.isBlank()) return;
+        Asset asset = assetRepository.findByUserAndName(user, paymentSource).orElse(null);
+        if (!tracksBalance(asset)) return;
+        asset.setOpeningBalance(deriveOpeningBalance(user, asset));
+        assetRepository.save(asset);
+        recompute(user, paymentSource, null);
+    }
+
     /** Rebuild the whole account from its opening balance. The repair path. */
     @Transactional
     public void recomputeAll(User user, String paymentSource) {
