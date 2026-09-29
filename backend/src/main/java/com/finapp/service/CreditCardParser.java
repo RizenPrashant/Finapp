@@ -273,7 +273,14 @@ public class CreditCardParser {
                 dto.setAmount(amt.abs()); dto.setType(txType);
                 dto.setBudgetCategory(guessCategory(narr));
                 list.add(dto);
-                log.debug("[CC_PDF] Parsed: {} | {} | {} | {}", date, narr, amt, txType);
+                // At info, and capped: knowing which rows a statement yielded is
+                // how a wrong count gets diagnosed, and every card so far has
+                // needed it. Statements run to tens of rows, not thousands.
+                if (list.size() <= 40) {
+                    log.info("[CC_PDF] Took: {} | {} | {} | {}", date, txType, amt, narr);
+                } else if (list.size() == 41) {
+                    log.info("[CC_PDF] ... further rows not listed");
+                }
             } catch (Exception e) { log.debug("[CC_PDF] Error: {}", e.getMessage()); }
         }
         log.info("[CC_PDF] Total parsed: {} ({} EMI instalment row(s) skipped)", list.size(), emiRows);
