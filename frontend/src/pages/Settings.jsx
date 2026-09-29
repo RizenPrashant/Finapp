@@ -863,6 +863,7 @@ export default function Settings() {
                                       <option value="PREFIX">PREFIX — marker before the amount (+ 470.00)</option>
                                       <option value="COLUMN">COLUMN — separate Dr/Cr column</option>
                                       <option value="SIGNED">SIGNED — negative = credit</option>
+                                      <option value="COLOUR">COLOUR — credits printed in green (PDF only)</option>
                                       <option value="">KEYWORD — guess from the description</option>
                                     </select>
                                   </div>
@@ -1111,6 +1112,7 @@ export default function Settings() {
                             <option value="PREFIX">PREFIX — marker before the amount (e.g. + 3362.00)</option>
                             <option value="COLUMN">COLUMN — separate Dr/Cr column (e.g. 470.00 Dr)</option>
                             <option value="SIGNED">SIGNED — negative = credit (e.g. -470.00)</option>
+                            <option value="COLOUR">COLOUR — credits printed in green (PDF only)</option>
                             <option value="">KEYWORD — guess from the description</option>
                           </select>
                         </div>

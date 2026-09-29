@@ -9,7 +9,15 @@ import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.contentstream.operator.color.SetNonStrokingColor;
+import org.apache.pdfbox.contentstream.operator.color.SetNonStrokingColorN;
+import org.apache.pdfbox.contentstream.operator.color.SetNonStrokingColorSpace;
+import org.apache.pdfbox.contentstream.operator.color.SetNonStrokingDeviceCMYKColor;
+import org.apache.pdfbox.contentstream.operator.color.SetNonStrokingDeviceGrayColor;
+import org.apache.pdfbox.contentstream.operator.color.SetNonStrokingDeviceRGBColor;
+import org.apache.pdfbox.pdmodel.graphics.color.PDColor;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.pdfbox.text.TextPosition;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,12 +25,16 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -138,7 +150,8 @@ public class CreditCardParser {
     }
 
     public List<TransactionDTO> parsePdf(MultipartFile file, ImportFormat fmt, String password) {
-        String text = extractText(file, password);
+        ExtractedText extracted = extractText(file, password);
+        String text = extracted.text();
         if (text == null || text.length() < 200) {
             log.warn("[CC_PDF] Extracted text too short ({}). PDF may be image-based/scanned.", text != null ? text.length() : 0);
             return new ArrayList<>();
@@ -168,7 +181,7 @@ public class CreditCardParser {
         }
 
         // Step 2: Collect transaction entries using column positions
-        List<String[]> txRaw = new ArrayList<>(); // [dateStr, desc, amtStr, indicator]
+        List<String[]> txRaw = new ArrayList<>(); // [dateStr, desc, amtStr, indicator, "GREEN"|""]
         List<String> unmatched = new ArrayList<>();
         final int DATE_COL_END = 12;
 
@@ -200,7 +213,8 @@ public class CreditCardParser {
                     desc = rest.substring(0, am.start()).trim();
                     desc = desc.replaceAll("\\s+\\d+\\s*$", "").trim(); // strip trailing reward points
                 }
-                txRaw.add(new String[]{dateStr, desc, amtStr, indicator});
+                txRaw.add(new String[]{dateStr, desc, amtStr, indicator,
+                                       extracted.greenLines().contains(i) ? "GREEN" : ""});
 
             } else {
                 // Recorded only, never acted on: a line carrying a money amount
@@ -230,12 +244,23 @@ public class CreditCardParser {
         // "some rows are missing" into something answerable without the file.
         for (String u : unmatched) log.info("[CC_PDF] Line with an amount but no usable date: {}", u);
 
+        // Colour is only worth reading when it actually separates the rows. On
+        // a statement where every row is green, or none is, it says nothing —
+        // and trusting it there would turn a whole statement into credits.
+        long greenRows = txRaw.stream().filter(e -> "GREEN".equals(e[4])).count();
+        boolean colourTellsTypes = greenRows > 0 && greenRows < txRaw.size();
+        if (greenRows > 0) {
+            log.info("[CC_PDF] {} of {} rows are printed in green; using colour to tell credits: {}",
+                     greenRows, txRaw.size(), colourTellsTypes);
+        }
+
         // Step 3: Parse into DTOs
         List<TransactionDTO> list = new ArrayList<>();
         int emiRows = 0;
         for (String[] entry : txRaw) {
             try {
                 String dateStr = entry[0], narr = entry[1], amtStr = entry[2], indic = entry[3];
+                Boolean colourSaysCredit = colourTellsTypes ? "GREEN".equals(entry[4]) : null;
                 // Every discard below is logged at info. A line the scanner
                 // collected but then threw away is exactly the row a user
                 // reports as missing, and at debug it was invisible.
@@ -280,7 +305,7 @@ public class CreditCardParser {
                 }
 
                 TransactionType txType = resolveType(mode, indic, markerBeforeAmount(narr),
-                                                     narr, amt, crInd, drInd);
+                                                     narr, amt, crInd, drInd, colourSaysCredit);
                 TransactionDTO dto = new TransactionDTO();
                 dto.setDate(date); dto.setTitle(narr); dto.setDescription(narr);
                 dto.setAmount(amt.abs()); dto.setType(txType);
@@ -358,7 +383,14 @@ public class CreditCardParser {
      * then does the wording of the narration get a say.
      */
     private TransactionType resolveType(String mode, String suffix, String prefix, String narr,
-                                        BigDecimal amt, String crInd, String drInd) {
+                                        BigDecimal amt, String crInd, String drInd,
+                                        Boolean colourSaysCredit) {
+        // The format says the colour is what marks a credit, so it settles the
+        // question outright — RBL prints no Dr/Cr letter and no sign at all.
+        if ("COLOUR".equals(mode) && colourSaysCredit != null) {
+            return colourSaysCredit ? TransactionType.CREDIT : TransactionType.DEBIT;
+        }
+
         String declared = "PREFIX".equals(mode) ? prefix : suffix;
         if (declared != null && !declared.isBlank()) {
             if (declared.equalsIgnoreCase(crInd)) return TransactionType.CREDIT;
@@ -382,18 +414,135 @@ public class CreditCardParser {
         if ("+".equals(prefix)) return TransactionType.CREDIT;
         if ("-".equals(prefix)) return TransactionType.DEBIT;
 
+        // Nothing on the line declares its type. Colour is weak evidence, but
+        // it is evidence the statement actually put there, whereas reading the
+        // merchant's name is guesswork — that is how "CREDIT SUISSE ADVISORY
+        // FEE" once came through as money in. So try colour first, and only
+        // fall back to the narration when the statement is not using it.
+        if (colourSaysCredit != null) {
+            return colourSaysCredit ? TransactionType.CREDIT : TransactionType.DEBIT;
+        }
         return isCreditNarration(narr) ? TransactionType.CREDIT : TransactionType.DEBIT;
     }
 
-    private String extractText(MultipartFile file, String password) {
+    /** The statement's text, plus the line numbers it printed in green. */
+    private record ExtractedText(String text, Set<Integer> greenLines) {}
+
+    /**
+     * Reads a statement's text while remembering which lines were coloured.
+     *
+     * RBL marks a credit by printing the row green and leaves every debit
+     * black. There is no Dr/Cr letter and no sign anywhere on the line, so a
+     * plain text extraction throws the only signal away and every row reads
+     * as a debit — which is how a ₹100 refund came through as a spend.
+     *
+     * PDFBox exposes the colour during page processing but hands over the
+     * text later, so the colour of each glyph is recorded as it is seen and
+     * looked up again when its line is written. The line number is taken from
+     * the newlines already in the output rather than by counting write calls,
+     * so it cannot drift out of step with the text the parser goes on to read.
+     */
+    private static class ColourAwareStripper extends PDFTextStripper {
+        private final StringWriter out = new StringWriter();
+        private final Map<TextPosition, Boolean> glyphIsGreen = new IdentityHashMap<>();
+        private final Set<Integer> greenLines = new HashSet<>();
+        private boolean lineHasGreen = false;
+        private int scanned = 0, newlines = 0;
+
+        ColourAwareStripper() throws java.io.IOException {
+            setSortByPosition(true);
+            // PDFTextStripper is built on a cut-down stream engine that only
+            // registers the operators it needs to place text, so the colour
+            // operators are never executed and every glyph reports black.
+            // Without these six the whole scheme silently reads nothing.
+            addOperator(new SetNonStrokingColorSpace(this));
+            addOperator(new SetNonStrokingDeviceRGBColor(this));
+            addOperator(new SetNonStrokingDeviceGrayColor(this));
+            addOperator(new SetNonStrokingDeviceCMYKColor(this));
+            addOperator(new SetNonStrokingColor(this));
+            addOperator(new SetNonStrokingColorN(this));
+        }
+
+        String extract(PDDocument doc) throws java.io.IOException {
+            writeText(doc, out);
+            return out.toString();
+        }
+
+        @Override
+        protected void processTextPosition(TextPosition text) {
+            if (!text.getUnicode().isBlank()) {
+                glyphIsGreen.put(text, isCreditGreen(getGraphicsState().getNonStrokingColor()));
+            }
+            super.processTextPosition(text);
+        }
+
+        @Override
+        protected void writeString(String text, List<TextPosition> positions) throws java.io.IOException {
+            for (TextPosition p : positions) {
+                if (Boolean.TRUE.equals(glyphIsGreen.get(p))) { lineHasGreen = true; break; }
+            }
+            super.writeString(text, positions);
+        }
+
+        @Override
+        protected void writeLineSeparator() throws java.io.IOException {
+            closeLine();
+            super.writeLineSeparator();
+        }
+
+        /**
+         * Separators are written between lines, never after the last one, so
+         * without this the bottom line of every page loses its colour — which
+         * is exactly where a statement's final credit tends to sit.
+         */
+        @Override
+        protected void writePageEnd() throws java.io.IOException {
+            closeLine();
+            super.writePageEnd();
+        }
+
+        private void closeLine() {
+            if (lineHasGreen) greenLines.add(lineBeingClosed());
+            lineHasGreen = false;
+        }
+
+        /** Which line is about to be terminated: how many newlines precede it. */
+        private int lineBeingClosed() {
+            StringBuffer b = out.getBuffer();
+            for (int i = scanned; i < b.length(); i++) if (b.charAt(i) == '\n') newlines++;
+            scanned = b.length();
+            return newlines;
+        }
+    }
+
+    /**
+     * Green enough to be a deliberate marking rather than body text.
+     *
+     * Statements print in black, and near-blacks and greys have their three
+     * channels close together. Requiring green to lead the other two by a
+     * wide margin keeps a dark grey or a navy heading from reading as a
+     * credit.
+     */
+    private static boolean isCreditGreen(PDColor colour) {
+        if (colour == null) return false;
+        try {
+            int rgb = colour.toRGB();
+            int r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
+            return g > 90 && g - r > 40 && g - b > 40;
+        } catch (Exception e) {
+            return false; // A pattern or separation colour space; not a flat colour.
+        }
+    }
+
+    private ExtractedText extractText(MultipartFile file, String password) {
         try {
             byte[] bytes = file.getInputStream().readAllBytes();
             PDDocument doc = (password != null && !password.isBlank())
                 ? Loader.loadPDF(bytes, password) : Loader.loadPDF(bytes);
             try (doc) {
-                PDFTextStripper s = new PDFTextStripper();
-                s.setSortByPosition(true);
-                return s.getText(doc);
+                ColourAwareStripper s = new ColourAwareStripper();
+                String text = s.extract(doc);
+                return new ExtractedText(text, s.greenLines);
             }
         } catch (Exception e) {
             String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
