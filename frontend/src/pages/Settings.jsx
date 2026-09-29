@@ -859,10 +859,11 @@ export default function Settings() {
                                     <label className="text-xs text-gray-400 block mb-1">Dr/Cr detection mode</label>
                                     <select value={editingFormat.typeIndicatorMode||'SUFFIX'} onChange={e => setEditingFormat({...editingFormat, typeIndicatorMode: e.target.value})}
                                       className="w-full px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
-                                      <option value="SUFFIX">SUFFIX — amount ends with CR</option>
+                                      <option value="SUFFIX">SUFFIX — marker after the amount (470.00 Cr)</option>
+                                      <option value="PREFIX">PREFIX — marker before the amount (+ 470.00)</option>
                                       <option value="COLUMN">COLUMN — separate Dr/Cr column</option>
                                       <option value="SIGNED">SIGNED — negative = credit</option>
-                                      <option value="">KEYWORD — guess from description</option>
+                                      <option value="">KEYWORD — guess from the description</option>
                                     </select>
                                   </div>
                                 </div>
@@ -1106,10 +1107,11 @@ export default function Settings() {
                           <label className="text-xs text-gray-400 block mb-1">Dr/Cr detection mode</label>
                           <select value={newFormat.typeIndicatorMode||'SUFFIX'} onChange={e => setNewFormat({...newFormat, typeIndicatorMode: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-orange-400">
-                            <option value="SUFFIX">SUFFIX — amount ends with CR (e.g. 8365.75 CR)</option>
+                            <option value="SUFFIX">SUFFIX — marker after the amount (e.g. 8365.75 CR)</option>
+                            <option value="PREFIX">PREFIX — marker before the amount (e.g. + 3362.00)</option>
                             <option value="COLUMN">COLUMN — separate Dr/Cr column (e.g. 470.00 Dr)</option>
                             <option value="SIGNED">SIGNED — negative = credit (e.g. -470.00)</option>
-                            <option value="">KEYWORD — guess from description</option>
+                            <option value="">KEYWORD — guess from the description</option>
                           </select>
                         </div>
                       </div>

@@ -266,14 +266,8 @@ public class CreditCardParser {
                 BigDecimal amt = parseMoney(amtStr);
                 if (amt.compareTo(BigDecimal.ZERO) == 0) continue;
 
-                // A plus sitting just before the amount marks money coming in.
-                // HDFC writes its card payment that way and nothing else on the
-                // statement carries one, while the narration ("BPPY CC PAYMENT")
-                // matches none of the credit keywords, so without this the one
-                // payment on the statement would be filed as a purchase.
-                TransactionType txType = signalsMoneyIn(narr)
-                        ? TransactionType.CREDIT
-                        : resolveType(mode, indic, narr, amt, crInd, drInd);
+                TransactionType txType = resolveType(mode, indic, markerBeforeAmount(narr),
+                                                     narr, amt, crInd, drInd);
                 TransactionDTO dto = new TransactionDTO();
                 dto.setDate(date); dto.setTitle(narr); dto.setDescription(narr);
                 dto.setAmount(amt.abs()); dto.setType(txType);
@@ -326,23 +320,37 @@ public class CreditCardParser {
         return dto;
     }
 
-    private TransactionType resolveType(String mode, String indic, String narr, BigDecimal amt,
-                                        String crInd, String drInd) {
-        // When the line carries its own marker, believe it. Guessing from the
-        // wording is only a fallback, and it read a refund printed "... 5,166.30 C"
-        // as a purchase because the narration looked like one. C/CR and D/DR are
-        // near universal, so they are honoured alongside whatever the format names.
-        if (indic != null && !indic.isBlank()) {
-            String i = indic.trim().toUpperCase();
-            if (i.equals(crInd.toUpperCase()) || i.equals("C") || i.equals("CR")) return TransactionType.CREDIT;
-            if (i.equals(drInd.toUpperCase()) || i.equals("D") || i.equals("DR")) return TransactionType.DEBIT;
-            // Anything else (SBI prints M on EMI instalments) falls through.
+    /**
+     * Which way a transaction goes.
+     *
+     * What the format declares is tried first, in the place it says to look:
+     * PREFIX before the amount, SUFFIX or COLUMN after it, SIGNED on the
+     * number itself. Only if that yields nothing do the conventional markers
+     * apply — C/CR and D/DR after the amount, + and - before it — and only
+     * then does the wording of the narration get a say.
+     */
+    private TransactionType resolveType(String mode, String suffix, String prefix, String narr,
+                                        BigDecimal amt, String crInd, String drInd) {
+        String declared = "PREFIX".equals(mode) ? prefix : suffix;
+        if (declared != null && !declared.isBlank()) {
+            if (declared.equalsIgnoreCase(crInd)) return TransactionType.CREDIT;
+            if (declared.equalsIgnoreCase(drInd)) return TransactionType.DEBIT;
         }
-        return switch (mode) {
-            case "SUFFIX", "COLUMN" -> indic.equalsIgnoreCase(crInd) ? TransactionType.CREDIT : TransactionType.DEBIT;
-            case "SIGNED" -> amt.compareTo(BigDecimal.ZERO) < 0 ? TransactionType.CREDIT : TransactionType.DEBIT;
-            default -> isCreditNarration(narr) ? TransactionType.CREDIT : TransactionType.DEBIT;
-        };
+
+        if ("SIGNED".equals(mode)) {
+            return amt.compareTo(BigDecimal.ZERO) < 0 ? TransactionType.CREDIT : TransactionType.DEBIT;
+        }
+
+        // Conventional markers, honoured whatever the format says, because they
+        // mean the same thing on every statement that uses them.
+        if (suffix != null) {
+            if (suffix.equalsIgnoreCase("C") || suffix.equalsIgnoreCase("CR")) return TransactionType.CREDIT;
+            if (suffix.equalsIgnoreCase("D") || suffix.equalsIgnoreCase("DR")) return TransactionType.DEBIT;
+        }
+        if ("+".equals(prefix)) return TransactionType.CREDIT;
+        if ("-".equals(prefix)) return TransactionType.DEBIT;
+
+        return isCreditNarration(narr) ? TransactionType.CREDIT : TransactionType.DEBIT;
     }
 
     private String extractText(MultipartFile file, String password) {
@@ -440,22 +448,19 @@ public class CreditCardParser {
     }
 
     /**
-     * Whether the text running up to the amount ends in a plus.
+     * The marker sitting immediately before the amount, or "" if there is none.
      *
-     * Only the tail is considered: a plus earlier in a merchant name says
-     * nothing about direction. Currency marks are skipped over, because the
-     * rupee sign often survives text extraction as a stray letter.
+     * Only the very tail is read: a plus or a "Cr" earlier in a merchant name
+     * says nothing about direction. A currency mark may trail the marker — the
+     * rupee sign often survives text extraction as a stray letter — so a short
+     * run of letters after it is stepped over rather than mistaken for one.
      */
-    private boolean signalsMoneyIn(String narr) {
-        if (narr == null) return false;
-        int plus = narr.lastIndexOf('+');
-        if (plus < 0) return false;
-        // What follows the plus decides whether it marked the amount or merely
-        // sat inside a merchant name. A currency mark may trail it — the rupee
-        // sign often survives extraction as a stray letter — but nothing more.
-        String after = narr.substring(plus + 1).replace(" ", "");
-        return after.length() <= 2 && after.chars().noneMatch(Character::isDigit);
+    private String markerBeforeAmount(String narr) {
+        if (narr == null) return "";
+        Matcher m = Pattern.compile("([+-]|[A-Za-z]{2,3})[ ]*[A-Za-z]?[ ]*$").matcher(narr.trim());
+        return m.find() ? m.group(1) : "";
     }
+
 
     private boolean isCreditNarration(String narr) {
         String n = narr.toUpperCase();
