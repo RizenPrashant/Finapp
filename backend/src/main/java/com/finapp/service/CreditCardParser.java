@@ -20,6 +20,7 @@ import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +56,7 @@ public class CreditCardParser {
             Map<String, Integer> colIndex = buildColIndex(headerRow);
 
             DateTimeFormatter dateFmt = fmt.getDateFormat() != null
-                ? DateTimeFormatter.ofPattern(fmt.getDateFormat(), Locale.ENGLISH) : null;
+                ? loose(fmt.getDateFormat()) : null;
             String mode  = mode(fmt);
             String crInd = crInd(fmt);
             String drInd = drInd(fmt);
@@ -94,7 +95,7 @@ public class CreditCardParser {
             if (colIndex == null) throw new RuntimeException("Could not find header row matching CC format columns");
 
             DateTimeFormatter dateFmt = fmt.getDateFormat() != null
-                ? DateTimeFormatter.ofPattern(fmt.getDateFormat(), Locale.ENGLISH) : null;
+                ? loose(fmt.getDateFormat()) : null;
             String mode  = mode(fmt);
             String crInd = crInd(fmt);
             String drInd = drInd(fmt);
@@ -148,7 +149,7 @@ public class CreditCardParser {
         String crInd = crInd(fmt);
         String drInd = drInd(fmt);
         DateTimeFormatter dateFmt = fmt.getDateFormat() != null && !fmt.getDateFormat().isBlank()
-            ? DateTimeFormatter.ofPattern(fmt.getDateFormat(), Locale.ENGLISH) : null;
+            ? loose(fmt.getDateFormat()) : null;
 
         String[] rawLines = text.split("\\r?\\n");
 
@@ -235,7 +236,13 @@ public class CreditCardParser {
         for (String[] entry : txRaw) {
             try {
                 String dateStr = entry[0], narr = entry[1], amtStr = entry[2], indic = entry[3];
-                if (amtStr.isBlank()) { log.debug("[CC_PDF] No amount for: {}", narr); continue; }
+                // Every discard below is logged at info. A line the scanner
+                // collected but then threw away is exactly the row a user
+                // reports as missing, and at debug it was invisible.
+                if (amtStr.isBlank()) {
+                    log.info("[CC_PDF] Dropped, no amount on the line: {} | {}", dateStr, brief(narr));
+                    continue;
+                }
 
                 // An EMI instalment booking, which SBI marks M. The card's own
                 // account summary leaves these out of both the purchases and the
@@ -259,12 +266,18 @@ public class CreditCardParser {
                 }
                 if (parsedDate == null) {
                     try { parsedDate = parseDateMulti(dateStr); }
-                    catch (Exception e) { log.debug("[CC_PDF] Bad date '{}': {}", dateStr, e.getMessage()); continue; }
+                    catch (Exception e) {
+                        log.info("[CC_PDF] Dropped, unreadable date '{}': {} | {}", dateStr, brief(narr), amtStr);
+                        continue;
+                    }
                 }
                 date = parsedDate;
 
                 BigDecimal amt = parseMoney(amtStr);
-                if (amt.compareTo(BigDecimal.ZERO) == 0) continue;
+                if (amt.compareTo(BigDecimal.ZERO) == 0) {
+                    log.info("[CC_PDF] Dropped, amount reads as zero: {} | {} | {}", dateStr, brief(narr), amtStr);
+                    continue;
+                }
 
                 TransactionType txType = resolveType(mode, indic, markerBeforeAmount(narr),
                                                      narr, amt, crInd, drInd);
@@ -281,7 +294,10 @@ public class CreditCardParser {
                 } else if (list.size() == 41) {
                     log.info("[CC_PDF] ... further rows not listed");
                 }
-            } catch (Exception e) { log.debug("[CC_PDF] Error: {}", e.getMessage()); }
+            } catch (Exception e) {
+                log.info("[CC_PDF] Dropped, {} on: {} | {} | {}",
+                         e.getClass().getSimpleName(), entry[0], brief(entry[1]), entry[2]);
+            }
         }
 
         int outOfPeriod = dropRowsOutsideTheStatementPeriod(list);
@@ -439,17 +455,50 @@ public class CreditCardParser {
                s.matches("\\d{1,2}[-\\s][A-Za-z]{3}[-\\s]\\d{2,4}");
     }
 
+    private static final DateTimeFormatter[] DATE_FORMATS = {
+        loose("d-M-yyyy"),     loose("d-M-yy"),
+        loose("d-MMM-yyyy"),   loose("d-MMM-yy"),
+        loose("d MMM yyyy"),   loose("d MMM yy"),
+        loose("d-MMMM-yyyy"),  loose("d MMMM yyyy"),
+        loose("yyyy-M-d"),
+        loose("d.M.yyyy"),     loose("d.M.yy"),
+        loose("d/M/yyyy"),     loose("d/M/yy"),
+    };
+
+    /**
+     * A description cut short for the log. PDFBox hands back a whole page
+     * footer as one "line", and a single discard was writing 2,000 characters
+     * into the log, burying the rows worth reading.
+     */
+    private static String brief(String s) {
+        if (s == null) return "";
+        s = s.trim();
+        return s.length() <= 120 ? s : s.substring(0, 120) + "…";
+    }
+
+    /**
+     * A date formatter that accepts what a statement actually prints.
+     *
+     * Two things kept costing real rows. Every pattern here used "dd", which
+     * demands exactly two digits, so an RBL row dated "3 Jan 2025" matched
+     * nothing and was discarded on the date alone — the single-letter "d"
+     * accepts both one and two digits. And ofPattern is case-sensitive, so
+     * "22 jan 2019" failed where "22 Jan 2019" parsed.
+     *
+     * Being permissive here is safe: the pattern still fixes the field order,
+     * so nothing becomes ambiguous, it only stops being fussy about padding
+     * and capitalisation.
+     */
+    private static DateTimeFormatter loose(String pattern) {
+        return new DateTimeFormatterBuilder()
+                .parseCaseInsensitive()
+                .appendPattern(pattern)
+                .toFormatter(Locale.ENGLISH);
+    }
+
     private LocalDate parseDateMulti(String s) {
         s = s.trim().replace(',', '.');
-        DateTimeFormatter[] fmts = {
-            DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.ENGLISH), DateTimeFormatter.ofPattern("dd-MM-yy", Locale.ENGLISH),
-            DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH), DateTimeFormatter.ofPattern("dd-MMM-yy", Locale.ENGLISH),
-            DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH), DateTimeFormatter.ofPattern("dd MMM yy", Locale.ENGLISH),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ENGLISH), DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.ENGLISH),
-            DateTimeFormatter.ofPattern("dd.MM.yy", Locale.ENGLISH), DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ENGLISH),
-            DateTimeFormatter.ofPattern("dd/MM/yy", Locale.ENGLISH), DateTimeFormatter.ofPattern("d/M/yyyy", Locale.ENGLISH),
-        };
-        for (DateTimeFormatter f : fmts) { try { return LocalDate.parse(s, f); } catch (Exception ignored) {} }
+        for (DateTimeFormatter f : DATE_FORMATS) { try { return LocalDate.parse(s, f); } catch (Exception ignored) {} }
         throw new RuntimeException("Cannot parse date: " + s);
     }
 
