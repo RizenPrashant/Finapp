@@ -113,12 +113,20 @@ public class CreditCardParser {
         return list;
     }
 
-    /** A date opening a line, whether one token (14/08/2026) or three (14 Aug 26). */
     /** Any money-looking amount, used only to spot lines the scanner passed over. */
     private static final Pattern MONEY = Pattern.compile("[0-9,]+[.][0-9]{2}");
 
+    /**
+     * A transaction date, as one token (02/09/2026) or three (14 Aug 26).
+     *
+     * Deliberately not anchored to the start of the line. ICICI prints the GST
+     * category split in a column that bleeds into the same text row, so a real
+     * transaction can arrive as "28% 02/09/2026 ... 588.82" — the date is there,
+     * just not first. find() returns the earliest match, so a line that does
+     * begin with its date still splits in the same place as before.
+     */
     private static final Pattern LEADING_DATE = Pattern.compile(
-        "^[ 	]*([0-9]{1,4}[/.-][0-9]{1,2}[/.-][0-9]{1,4}" +
+        "([0-9]{1,4}[/.-][0-9]{1,2}[/.-][0-9]{1,4}" +
         "|[0-9]{1,2}[- ][A-Za-z]{3,9}[- ][0-9]{2,4})[ 	]+(.*)$");
 
     public List<TransactionDTO> parsePdf(MultipartFile file, ImportFormat fmt) {
