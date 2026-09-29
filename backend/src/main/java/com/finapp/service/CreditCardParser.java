@@ -114,6 +114,9 @@ public class CreditCardParser {
     }
 
     /** A date opening a line, whether one token (14/08/2026) or three (14 Aug 26). */
+    /** Any money-looking amount, used only to spot lines the scanner passed over. */
+    private static final Pattern MONEY = Pattern.compile("[0-9,]+[.][0-9]{2}");
+
     private static final Pattern LEADING_DATE = Pattern.compile(
         "^[ 	]*([0-9]{1,4}[/.-][0-9]{1,2}[/.-][0-9]{1,4}" +
         "|[0-9]{1,2}[- ][A-Za-z]{3,9}[- ][0-9]{2,4})[ 	]+(.*)$");
@@ -154,6 +157,7 @@ public class CreditCardParser {
 
         // Step 2: Collect transaction entries using column positions
         List<String[]> txRaw = new ArrayList<>(); // [dateStr, desc, amtStr, indicator]
+        List<String> unmatched = new ArrayList<>();
         final int DATE_COL_END = 12;
 
         for (int i = headerLineIdx + 1; i < rawLines.length; i++) {
@@ -186,21 +190,33 @@ public class CreditCardParser {
                 }
                 txRaw.add(new String[]{dateStr, desc, amtStr, indicator});
 
-            } else if (!txRaw.isEmpty() && amountColStart > 0) {
-                // Continuation line — only join if within description column and not junk
-                String trimmed = raw.trim();
-                if (trimmed.contains("%") || trimmed.matches("\\d+") || trimmed.startsWith("#")
-                        || trimmed.contains("`") || trimmed.matches("[A-Z]{4,}")) continue;
-                int contentStart = raw.length() - raw.stripLeading().length();
-                if (contentStart < amountColStart) {
-                    String[] last = txRaw.get(txRaw.size() - 1);
-                    if (last[2].isBlank()) {
-                        last[1] = (last[1] + " " + trimmed).trim();
+            } else {
+                // Recorded only, never acted on: a line carrying a money amount
+                // that the scanner did not take is the shape of a transaction it
+                // failed to recognise, and naming it turns "rows are missing"
+                // into something answerable without needing the file.
+                if (MONEY.matcher(raw).find() && unmatched.size() < 25) unmatched.add(raw.trim());
+
+                if (!txRaw.isEmpty() && amountColStart > 0) {
+                    // Continuation line — only join if within description column and not junk
+                    String trimmed = raw.trim();
+                    if (trimmed.contains("%") || trimmed.matches("\\d+") || trimmed.startsWith("#")
+                            || trimmed.contains("`") || trimmed.matches("[A-Z]{4,}")) continue;
+                    int contentStart = raw.length() - raw.stripLeading().length();
+                    if (contentStart < amountColStart) {
+                        String[] last = txRaw.get(txRaw.size() - 1);
+                        if (last[2].isBlank()) {
+                            last[1] = (last[1] + " " + trimmed).trim();
+                        }
                     }
                 }
             }
         }
         log.info("[CC_PDF] Collected {} transaction entries", txRaw.size());
+        // A line holding a money amount that the scanner did not take is the
+        // shape of a transaction it failed to recognise. Naming them turns
+        // "some rows are missing" into something answerable without the file.
+        for (String u : unmatched) log.info("[CC_PDF] Line with an amount but no usable date: {}", u);
 
         // Step 3: Parse into DTOs
         List<TransactionDTO> list = new ArrayList<>();
