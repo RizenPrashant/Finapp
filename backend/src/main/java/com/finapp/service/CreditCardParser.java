@@ -204,10 +204,22 @@ public class CreditCardParser {
 
         // Step 3: Parse into DTOs
         List<TransactionDTO> list = new ArrayList<>();
+        int emiRows = 0;
         for (String[] entry : txRaw) {
             try {
                 String dateStr = entry[0], narr = entry[1], amtStr = entry[2], indic = entry[3];
                 if (amtStr.isBlank()) { log.debug("[CC_PDF] No amount for: {}", narr); continue; }
+
+                // An EMI instalment booking, which SBI marks M. The card's own
+                // account summary leaves these out of both the purchases and the
+                // fees it adds up to the closing balance — the spend was already
+                // billed when the purchase was converted. Importing it would
+                // overstate the card by the instalment amount.
+                if ("M".equalsIgnoreCase(indic)) {
+                    emiRows++;
+                    log.info("[CC_PDF] Skipping EMI instalment row: {} {}", narr, amtStr);
+                    continue;
+                }
 
                 LocalDate date;
                 // Fall back when the configured pattern does not fit. A format
@@ -236,7 +248,7 @@ public class CreditCardParser {
                 log.debug("[CC_PDF] Parsed: {} | {} | {} | {}", date, narr, amt, txType);
             } catch (Exception e) { log.debug("[CC_PDF] Error: {}", e.getMessage()); }
         }
-        log.info("[CC_PDF] Total parsed: {}", list.size());
+        log.info("[CC_PDF] Total parsed: {} ({} EMI instalment row(s) skipped)", list.size(), emiRows);
         return list;
     }
 
