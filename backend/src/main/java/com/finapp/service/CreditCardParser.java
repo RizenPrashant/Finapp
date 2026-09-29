@@ -338,7 +338,11 @@ public class CreditCardParser {
         }
 
         if ("SIGNED".equals(mode)) {
-            return amt.compareTo(BigDecimal.ZERO) < 0 ? TransactionType.CREDIT : TransactionType.DEBIT;
+            // The sign, not the number. In a PDF the amount is picked up by a
+            // pattern that cannot hold a minus, so the value is always positive
+            // by the time it gets here and testing it always said debit. The
+            // minus is left behind at the end of the description.
+            return "-".equals(prefix) ? TransactionType.CREDIT : TransactionType.DEBIT;
         }
 
         // Conventional markers, honoured whatever the format says, because they
@@ -457,15 +461,24 @@ public class CreditCardParser {
      */
     private String markerBeforeAmount(String narr) {
         if (narr == null) return "";
-        Matcher m = Pattern.compile("([+-]|[A-Za-z]{2,3})[ ]*[A-Za-z]?[ ]*$").matcher(narr.trim());
+        Matcher m = Pattern.compile("(?:^|[ (])([+-]|[A-Za-z]{2,3})[ ]*[A-Za-z]?[ ]*$").matcher(narr.trim());
         return m.find() ? m.group(1) : "";
     }
 
 
+    /**
+     * Last-resort guess at direction from the wording.
+     *
+     * Deliberately phrases rather than the bare word "credit": a merchant with
+     * it in their name — CREDIT SUISSE, CREDITACCESS — is not a refund, and
+     * matching on the word alone filed their charges as money coming in.
+     */
     private boolean isCreditNarration(String narr) {
         String n = narr.toUpperCase();
-        return n.contains("CREDIT") || n.contains("REFUND") || n.contains("CASHBACK")
-            || n.contains("REVERSAL") || n.contains("PAYMENT RECEIVED") || n.contains("BBPS");
+        return n.contains("PAYMENT RECEIVED") || n.contains("REFUND") || n.contains("CASHBACK")
+            || n.contains("REVERSAL") || n.contains("BBPS") || n.contains("CREDITED")
+            || n.contains("CREDIT NOTE") || n.contains("CREDIT ADJUSTMENT")
+            || n.contains("INTEREST CREDIT");
     }
 
     private String mode(ImportFormat fmt) {
