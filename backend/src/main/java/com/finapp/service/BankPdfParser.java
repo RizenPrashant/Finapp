@@ -151,7 +151,7 @@ public class BankPdfParser {
                     dto.setAmount(parseMoney(first));
                     dto.setType(isCreditNarration(narr) ? TransactionType.CREDIT : TransactionType.DEBIT);
                 }
-                dto.setBudgetCategory(guessCategory(narr));
+                dto.setCategory(guessCategory(narr));
                 list.add(dto);
             } catch (Exception ignored) {}
         }
@@ -187,7 +187,7 @@ public class BankPdfParser {
                     dto.setAmount(parseMoney(first));
                     dto.setType(isCreditNarration(narr) ? TransactionType.CREDIT : TransactionType.DEBIT);
                 }
-                dto.setBudgetCategory(guessCategory(narr));
+                dto.setCategory(guessCategory(narr));
                 list.add(dto);
             } catch (Exception ignored) {}
         }
@@ -224,7 +224,7 @@ public class BankPdfParser {
                     dto.setAmount(parseMoney(first));
                     dto.setType(isCreditNarration(narr) ? TransactionType.CREDIT : TransactionType.DEBIT);
                 }
-                dto.setBudgetCategory(guessCategory(narr));
+                dto.setCategory(guessCategory(narr));
                 list.add(dto);
             } catch (Exception ignored) {}
         }
@@ -250,7 +250,7 @@ public class BankPdfParser {
                 dto.setDescription(narr);
                 dto.setAmount(parseMoney(m.group(3)));
                 dto.setType(isCreditNarration(narr) ? TransactionType.CREDIT : TransactionType.DEBIT);
-                dto.setBudgetCategory(guessCategory(narr));
+                dto.setCategory(guessCategory(narr));
                 list.add(dto);
             } catch (Exception ignored) {}
         }
@@ -354,7 +354,7 @@ public class BankPdfParser {
                     dto.setTitle(desc); dto.setDescription(desc);
                     setDebitCredit(dto, debit, credit, desc);
                     if (!bal.isBlank()) dto.setBalanceAfter(parseMoneySafe(bal));
-                    dto.setBudgetCategory(guessCategory(desc));
+                    dto.setCategory(guessCategory(desc));
                     if (dto.getAmount() != null && dto.getAmount().compareTo(BigDecimal.ZERO) != 0)
                         list.add(dto);
                 } catch (Exception ignored) {}
@@ -437,13 +437,13 @@ public class BankPdfParser {
                 String debit  = r.length > 2 ? r[2].trim() : "";
                 String credit = r.length > 3 ? r[3].trim() : "";
                 setDebitCredit(dto, debit, credit, r[1]);
-                if (r.length > 4 && !r[4].isBlank()) dto.setBudgetCategory(r[4].trim());
+                if (r.length > 4 && !r[4].isBlank()) dto.setCategory(r[4].trim());
                 if (r.length > 5 && !r[5].isBlank()) dto.setReferenceNumber(r[5].trim());
                 if (r.length > 6 && !r[6].isBlank()) dto.setBalanceAfter(parseMoneySafe(r[6].trim()));
-                if (dto.getBudgetCategory() != null) return dto;
+                if (dto.getCategory() != null) return dto;
             }
         }
-        dto.setBudgetCategory(guessCategory(dto.getTitle()));
+        dto.setCategory(guessCategory(dto.getTitle()));
         return dto;
     }
 
@@ -622,7 +622,7 @@ public class BankPdfParser {
         dto.setTitle(desc); dto.setDescription(desc);
         setDebitCredit(dto, debit, credit, desc);
         if (!balStr.isBlank()) dto.setBalanceAfter(parseMoneySafe(balStr));
-        dto.setBudgetCategory(guessCategory(desc));
+        dto.setCategory(guessCategory(desc));
         return dto;
     }
 

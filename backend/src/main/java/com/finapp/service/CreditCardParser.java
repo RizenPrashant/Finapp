@@ -309,7 +309,13 @@ public class CreditCardParser {
                 TransactionDTO dto = new TransactionDTO();
                 dto.setDate(date); dto.setTitle(narr); dto.setDescription(narr);
                 dto.setAmount(amt.abs()); dto.setType(txType);
-                dto.setBudgetCategory(guessCategory(narr));
+                // guessCategory returns a normal category — Food, Shopping,
+                // Fuel. It used to be written to budgetCategory, which is a
+                // different field with a fixed set of Budget Overview buckets,
+                // and that is how Salary, Cash Withdrawal and Loan EMI ended up
+                // as permanent options in the budget filter. The two fields are
+                // separate; an import does not presume a budget bucket.
+                dto.setCategory(guessCategory(narr));
                 list.add(dto);
                 // At info, and capped: knowing which rows a statement yielded is
                 // how a wrong count gets diagnosed, and every card so far has
@@ -369,7 +375,7 @@ public class CreditCardParser {
         dto.setTitle(desc); dto.setDescription(desc);
         dto.setAmount(val.abs());
         dto.setType(isCredit ? TransactionType.CREDIT : TransactionType.DEBIT);
-        dto.setBudgetCategory(guessCategory(desc));
+        dto.setCategory(guessCategory(desc));
         return dto;
     }
 

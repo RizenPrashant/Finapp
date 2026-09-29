@@ -192,9 +192,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     List<String> findDistinctCategories(@Param("user") User user, @Param("start") LocalDate start,
                                         @Param("end") LocalDate end, @Param("paymentSource") String paymentSource);
 
-    @Query("SELECT DISTINCT t.budgetCategory " + OPTION_SCOPE + "AND t.budgetCategory IS NOT NULL ORDER BY t.budgetCategory")
-    List<String> findDistinctBudgetCategories(@Param("user") User user, @Param("start") LocalDate start,
-                                              @Param("end") LocalDate end, @Param("paymentSource") String paymentSource);
+    // There is deliberately no equivalent for budgetCategory. Those are a
+    // fixed set of Budget Overview buckets, listed in the frontend's
+    // constants/budgetCategories.js, not whatever the table happens to hold —
+    // deriving them from the data turned every stray value an import wrote
+    // into a permanent filter option.
 
     // Daily credit/debit totals over a span, for callers that bucket the days
     // themselves. Grouping by day rather than by week keeps the week boundaries

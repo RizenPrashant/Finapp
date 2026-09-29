@@ -184,7 +184,7 @@ public class ImportService {
                 txn.setTitle(dto.getTitle() != null ? dto.getTitle() : dto.getDescription() != null ? dto.getDescription() : "Imported");
                 txn.setDescription(dto.getDescription());
                 txn.setAmount(dto.getAmount()); txn.setType(dto.getType());
-                txn.setCategory(dto.getBudgetCategory() != null ? dto.getBudgetCategory() : "Uncategorized");
+                txn.setCategory(dto.getCategory() != null ? dto.getCategory() : "Uncategorized");
                 txn.setDate(dto.getDate());
                 txn.setBudgetCategory(dto.getBudgetCategory() != null ? dto.getBudgetCategory() : "Uncategorized");
                 txn.setPaymentSource(ccName);
@@ -221,7 +221,7 @@ public class ImportService {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("date", txn.getDate()); map.put("description", txn.getDescription());
             map.put("amount", txn.getAmount()); map.put("type", txn.getType());
-            map.put("category", txn.getBudgetCategory());
+            map.put("category", txn.getCategory());
             previewData.add(map);
         }
         return ImportResponseDTO.builder().success(true).message("Preview ready")
@@ -287,7 +287,7 @@ public class ImportService {
                 txn.setTitle(dto.getTitle() != null ? dto.getTitle() : dto.getDescription() != null ? dto.getDescription() : "Imported");
                 txn.setDescription(dto.getDescription());
                 txn.setAmount(dto.getAmount()); txn.setType(dto.getType());
-                txn.setCategory(dto.getBudgetCategory() != null ? dto.getBudgetCategory() : "Uncategorized");
+                txn.setCategory(dto.getCategory() != null ? dto.getCategory() : "Uncategorized");
                 txn.setDate(dto.getDate());
                 txn.setBudgetCategory(dto.getBudgetCategory() != null ? dto.getBudgetCategory() : "Uncategorized");
                 txn.setPaymentSource(bankName);
@@ -326,7 +326,7 @@ public class ImportService {
             map.put("date", txn.getDate()); map.put("description", txn.getDescription());
             map.put("amount", txn.getAmount()); map.put("type", txn.getType());
             if (txn.getBalanceAfter() != null) map.put("balance", txn.getBalanceAfter());
-            map.put("category", txn.getBudgetCategory());
+            map.put("category", txn.getCategory());
             previewData.add(map);
         }
         return ImportResponseDTO.builder().success(true).message("Preview ready")
@@ -424,7 +424,7 @@ public class ImportService {
                 txn.setTitle(dto.getTitle() != null ? dto.getTitle() : dto.getDescription() != null ? dto.getDescription() : "Imported");
                 txn.setDescription(dto.getDescription());
                 txn.setAmount(dto.getAmount()); txn.setType(txType);
-                txn.setCategory(dto.getBudgetCategory() != null ? dto.getBudgetCategory() : "Uncategorized");
+                txn.setCategory(dto.getCategory() != null ? dto.getCategory() : "Uncategorized");
                 txn.setDate(txDate);
                 txn.setBudgetCategory(dto.getBudgetCategory() != null ? dto.getBudgetCategory() : "Uncategorized");
                 txn.setPaymentSource(bankName);

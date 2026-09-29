@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Shield, ShieldOff, Building2, Plus, Trash2, Calendar, Filter, TrendingUp, Percent, Wallet, Tag, FileInput, KeyRound, Lock } from 'lucide-react';
 import Header from '../components/Header';
 import { getBudgets, saveBudget, getBrokers, getCompoundingSettings, updateCompoundingSettings, getImportFormats, createImportFormat, updateImportFormat, deleteImportFormat, getAssets, changePassword } from '../api';
+import { BUDGET_OVERVIEW_CATEGORIES } from '../constants/budgetCategories';
 
 export const DELETE_LOCK_KEY = 'finapp_delete_locked'; // legacy, kept for compat
 export const DELETE_LOCKS_KEY = 'finapp_delete_locks';
@@ -612,7 +613,8 @@ export default function Settings() {
                     onChange={(e) => setNewFilter({ ...newFilter, name: e.target.value })}
                     placeholder="Filter name (e.g., HDFC Bank)"
                     className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" />
-                  <select value={newFilter.type} onChange={(e) => setNewFilter({ ...newFilter, type: e.target.value })}
+                  <select value={newFilter.type}
+                    onChange={(e) => setNewFilter({ ...newFilter, type: e.target.value, value: '' })}
                     className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="paymentSource">Payment Source</option>
                     <option value="category">Category</option>
@@ -627,11 +629,22 @@ export default function Settings() {
                     <option value="contains">Contains</option>
                     <option value="startsWith">Starts With</option>
                   </select>
-                  <input type="text" value={newFilter.value}
-                    onChange={(e) => setNewFilter({ ...newFilter, value: e.target.value })}
-                    placeholder="Filter value"
-                    className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddFilter()} />
+                  {/* A budget category is one of a fixed set, so it is picked,
+                      not typed — a typo here created a rule that matched nothing. */}
+                  {newFilter.type === 'budgetCategory' ? (
+                    <select value={newFilter.value}
+                      onChange={(e) => setNewFilter({ ...newFilter, value: e.target.value })}
+                      className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="">Select a budget category</option>
+                      {BUDGET_OVERVIEW_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  ) : (
+                    <input type="text" value={newFilter.value}
+                      onChange={(e) => setNewFilter({ ...newFilter, value: e.target.value })}
+                      placeholder="Filter value"
+                      className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddFilter()} />
+                  )}
                   <input type="color" value={newFilter.color} onChange={(e) => setNewFilter({ ...newFilter, color: e.target.value })}
                     className="w-10 h-10 rounded-xl border border-gray-200 dark:border-gray-600 cursor-pointer" />
                   <button onClick={handleAddFilter} disabled={!newFilter.name.trim() || !newFilter.value.trim()}

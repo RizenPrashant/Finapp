@@ -155,9 +155,9 @@ public class TransactionController {
         LocalDate start = startDate != null ? LocalDate.parse(startDate) : null;
         LocalDate end   = endDate   != null ? LocalDate.parse(endDate)   : null;
         String source   = blankToNull(paymentSource);
-        return Map.of(
-                "categories", transactionRepository.findDistinctCategories(user, start, end, source),
-                "budgetCategories", transactionRepository.findDistinctBudgetCategories(user, start, end, source));
+        // Only normal categories are derived from the data. Budget Overview
+        // categories are a fixed list the frontend owns.
+        return Map.of("categories", transactionRepository.findDistinctCategories(user, start, end, source));
     }
 
     private static String blankToNull(String value) {

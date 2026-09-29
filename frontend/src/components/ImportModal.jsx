@@ -206,14 +206,14 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
         if (isCreditCard) {
           const transactions = rows.map(r => ({
             date: r.date, description: r.description, title: r.description,
-            amount: r.amount, type: r.type, budgetCategory: r.category, paymentSource: bankNameToUse,
+            amount: r.amount, type: r.type, category: r.category, paymentSource: bankNameToUse,
             ...(r.balance != null ? { balanceAfter: r.balance } : {}),
           }));
           response = await importCCStatementJson({ bankName: bankNameToUse, transactions });
         } else if (isBankStatement) {
           const transactions = rows.map(r => ({
             date: r.date, description: r.description, title: r.description,
-            amount: r.amount, type: r.type, budgetCategory: r.category, paymentSource: bankNameToUse,
+            amount: r.amount, type: r.type, category: r.category, paymentSource: bankNameToUse,
             ...(r.balance != null ? { balanceAfter: r.balance } : {}),
           }));
           response = await importBankStatementJson({ bankName: bankNameToUse, accountType: 'BANK', transactions });

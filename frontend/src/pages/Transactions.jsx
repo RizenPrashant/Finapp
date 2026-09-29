@@ -12,6 +12,7 @@ import AddTransactionModal from '../components/AddTransactionModal';
 import { isDeleteLocked, isEditLocked, FILTER_PREFS_KEY, CUSTOM_FILTERS_KEY } from '../pages/Settings';
 import { getTransactionsPage, getTransactionFilterOptions, searchTransactions, updateTransaction, deleteTransaction, createTransaction, getCashbackWallets, getCashbackEntriesByWallet } from '../api';
 import ImportModal from '../components/ImportModal';
+import { BUDGET_OVERVIEW_CATEGORIES } from '../constants/budgetCategories';
 import { exportToXlsx } from '../utils/exportXlsx';
 import { eventEmitter, EVENTS } from '../utils/events';
 import { toISODate, monthRange } from '../utils/dates';
@@ -74,7 +75,7 @@ export default function Transactions({ onProfileClick }) {
   const [pageMeta, setPageMeta] = useState({
     page: 0, hasNext: false, totalElements: 0, totalIncome: 0, totalExpense: 0,
   });
-  const [filterOptions, setFilterOptions] = useState({ categories: [], budgetCategories: [] });
+  const [filterOptions, setFilterOptions] = useState({ categories: [] });
 
   useEffect(() => {
     getCashbackWallets().then(r => setCashbackWallets(r.data)).catch(() => {});
@@ -181,11 +182,8 @@ export default function Transactions({ onProfileClick }) {
   useEffect(() => {
     if (cashbackMode) return;
     getTransactionFilterOptions(dateRange)
-      .then(r => setFilterOptions({
-        categories: r.data.categories || [],
-        budgetCategories: r.data.budgetCategories || [],
-      }))
-      .catch(() => setFilterOptions({ categories: [], budgetCategories: [] }));
+      .then(r => setFilterOptions({ categories: r.data.categories || [] }))
+      .catch(() => setFilterOptions({ categories: [] }));
   }, [dateRange, cashbackMode]);
 
   useEffect(() => {
@@ -284,9 +282,12 @@ export default function Transactions({ onProfileClick }) {
     () => withSelected(filterOptions.categories, categoryFilter),
     [filterOptions.categories, categoryFilter]
   );
+  // Budget categories are a fixed list, not whatever the table happens to
+  // hold. withSelected still applies so an older value already on a row stays
+  // selectable rather than silently resetting the filter.
   const budgetCategoryOptions = useMemo(
-    () => withSelected(filterOptions.budgetCategories, budgetCategoryFilter),
-    [filterOptions.budgetCategories, budgetCategoryFilter]
+    () => withSelected(BUDGET_OVERVIEW_CATEGORIES, budgetCategoryFilter),
+    [budgetCategoryFilter]
   );
   const categoryFiltersActive = categoryFilter !== 'ALL' || budgetCategoryFilter !== 'ALL';
 

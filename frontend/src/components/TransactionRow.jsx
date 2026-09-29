@@ -1,14 +1,11 @@
 import { useState } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Trash2, Pencil, AlertTriangle, Building2, Gift, HandCoins, Tag } from 'lucide-react';
 import { recategorizeTransaction } from '../api';
+import { ASSIGNABLE_BUDGET_CATEGORIES } from '../constants/budgetCategories';
 
-// 'Monthly Total Expense' is intentionally absent — it's a rollup of
-// Monthly Food Expense + Monthly Spend + Miscellaneous, not a bucket
-// transactions can be assigned to directly.
-const BUDGET_CATEGORIES = [
-  'Monthly Spend', 'Monthly Total Savings',
-  'Monthly Food Expense', 'Monthly Revenue', 'Miscellaneous', 'Uncategorized'
-];
+// Monthly Total Expense is absent on purpose — it is a rollup, so filing a
+// transaction under it would double-count. See constants/budgetCategories.js.
+const BUDGET_CATEGORIES = ASSIGNABLE_BUDGET_CATEGORIES;
 
 const CATEGORIES = [
   'Food', 'Shopping', 'Salary', 'Fuel', 'Transport', 'Utilities',
