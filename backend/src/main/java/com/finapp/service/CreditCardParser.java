@@ -283,6 +283,11 @@ public class CreditCardParser {
                 }
             } catch (Exception e) { log.debug("[CC_PDF] Error: {}", e.getMessage()); }
         }
+
+        int outOfPeriod = dropRowsOutsideTheStatementPeriod(list);
+        if (outOfPeriod > 0) {
+            log.info("[CC_PDF] Dropped {} row(s) dated outside the statement period", outOfPeriod);
+        }
         log.info("[CC_PDF] Total parsed: {} ({} EMI instalment row(s) skipped)", list.size(), emiRows);
         return list;
     }
@@ -456,6 +461,36 @@ public class CreditCardParser {
     private BigDecimal parseMoneySafe(String s) {
         try { return (s == null || s.isBlank()) ? null : new BigDecimal(s.replaceAll(",", "").trim()); }
         catch (Exception e) { return null; }
+    }
+
+    /**
+     * Discard rows too old to belong to this statement.
+     *
+     * Card statements print worked examples — how interest would accrue, how
+     * the minimum due is arrived at — and those carry dates of their own.
+     * RBL's runs on 2019 dates in a statement covering December 2024, and
+     * eight of its rows were being imported as real spending.
+     *
+     * A statement covers a month, so anything more than a year older than its
+     * newest transaction is not part of it. Measuring against the newest row
+     * rather than against today keeps an old statement importable.
+     */
+    private int dropRowsOutsideTheStatementPeriod(List<TransactionDTO> rows) {
+        LocalDate newest = rows.stream()
+                .map(TransactionDTO::getDate)
+                .filter(java.util.Objects::nonNull)
+                .max(LocalDate::compareTo).orElse(null);
+        if (newest == null) return 0;
+
+        LocalDate earliest = newest.minusDays(400);
+        int before = rows.size();
+        rows.removeIf(r -> {
+            boolean stale = r.getDate() != null && r.getDate().isBefore(earliest);
+            if (stale) log.info("[CC_PDF] Outside the period, dropped: {} | {} | {}",
+                                r.getDate(), r.getAmount(), r.getTitle());
+            return stale;
+        });
+        return before - rows.size();
     }
 
     /**
