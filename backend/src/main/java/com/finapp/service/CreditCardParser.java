@@ -124,10 +124,13 @@ public class CreditCardParser {
      * transaction can arrive as "28% 02/09/2026 ... 588.82" — the date is there,
      * just not first. find() returns the earliest match, so a line that does
      * begin with its date still splits in the same place as before.
+     *
+     * The date may be followed by a pipe or comma rather than a space — HDFC
+     * prints "24/07/2026| 23:26 ..." — so those count as separators too.
      */
     private static final Pattern LEADING_DATE = Pattern.compile(
         "([0-9]{1,4}[/.-][0-9]{1,2}[/.-][0-9]{1,4}" +
-        "|[0-9]{1,2}[- ][A-Za-z]{3,9}[- ][0-9]{2,4})[ 	]+(.*)$");
+        "|[0-9]{1,2}[- ][A-Za-z]{3,9}[- ][0-9]{2,4})[ 	|,;]+(.*)$");
 
     public List<TransactionDTO> parsePdf(MultipartFile file, ImportFormat fmt) {
         return parsePdf(file, fmt, null);
@@ -263,7 +266,14 @@ public class CreditCardParser {
                 BigDecimal amt = parseMoney(amtStr);
                 if (amt.compareTo(BigDecimal.ZERO) == 0) continue;
 
-                TransactionType txType = resolveType(mode, indic, narr, amt, crInd, drInd);
+                // A plus sitting just before the amount marks money coming in.
+                // HDFC writes its card payment that way and nothing else on the
+                // statement carries one, while the narration ("BPPY CC PAYMENT")
+                // matches none of the credit keywords, so without this the one
+                // payment on the statement would be filed as a purchase.
+                TransactionType txType = signalsMoneyIn(narr)
+                        ? TransactionType.CREDIT
+                        : resolveType(mode, indic, narr, amt, crInd, drInd);
                 TransactionDTO dto = new TransactionDTO();
                 dto.setDate(date); dto.setTitle(narr); dto.setDescription(narr);
                 dto.setAmount(amt.abs()); dto.setType(txType);
@@ -427,6 +437,24 @@ public class CreditCardParser {
     private BigDecimal parseMoneySafe(String s) {
         try { return (s == null || s.isBlank()) ? null : new BigDecimal(s.replaceAll(",", "").trim()); }
         catch (Exception e) { return null; }
+    }
+
+    /**
+     * Whether the text running up to the amount ends in a plus.
+     *
+     * Only the tail is considered: a plus earlier in a merchant name says
+     * nothing about direction. Currency marks are skipped over, because the
+     * rupee sign often survives text extraction as a stray letter.
+     */
+    private boolean signalsMoneyIn(String narr) {
+        if (narr == null) return false;
+        int plus = narr.lastIndexOf('+');
+        if (plus < 0) return false;
+        // What follows the plus decides whether it marked the amount or merely
+        // sat inside a merchant name. A currency mark may trail it — the rupee
+        // sign often survives extraction as a stray letter — but nothing more.
+        String after = narr.substring(plus + 1).replace(" ", "");
+        return after.length() <= 2 && after.chars().noneMatch(Character::isDigit);
     }
 
     private boolean isCreditNarration(String narr) {
