@@ -154,7 +154,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         "AND (:end IS NULL OR t.date <= :end) " +
         "AND (:type IS NULL OR t.type = :type) " +
         "AND (:category IS NULL OR t.category = :category) " +
-        "AND (:budgetCategory IS NULL OR t.budgetCategory = :budgetCategory) " +
+        // A collection, not a single value: Monthly Total Expense is a rollup
+        // that no row is filed under, so filtering by it means matching the
+        // three buckets it covers. See BudgetCategories.expand.
+        "AND (:budgetCategories IS NULL OR t.budgetCategory IN :budgetCategories) " +
         "AND (:paymentSource IS NULL OR t.paymentSource = :paymentSource)";
 
     @Query("SELECT t " + LIST_FILTER)
@@ -164,7 +167,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         @Param("end") LocalDate end,
         @Param("type") TransactionType type,
         @Param("category") String category,
-        @Param("budgetCategory") String budgetCategory,
+        @Param("budgetCategories") java.util.Collection<String> budgetCategories,
         @Param("paymentSource") String paymentSource,
         Pageable pageable);
 
@@ -177,7 +180,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         @Param("end") LocalDate end,
         @Param("type") TransactionType type,
         @Param("category") String category,
-        @Param("budgetCategory") String budgetCategory,
+        @Param("budgetCategories") java.util.Collection<String> budgetCategories,
         @Param("paymentSource") String paymentSource);
 
     // Filter dropdowns can no longer be built from the loaded rows once the list

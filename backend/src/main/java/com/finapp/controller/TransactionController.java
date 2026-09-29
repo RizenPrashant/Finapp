@@ -7,6 +7,7 @@ package com.finapp.controller;
 
 import com.finapp.dto.TransactionDTO;
 import com.finapp.dto.TransactionPageDTO;
+import com.finapp.model.BudgetCategories;
 import com.finapp.model.Transaction;
 import com.finapp.model.TransactionType;
 import com.finapp.model.User;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -65,7 +67,8 @@ public class TransactionController {
         Pageable capped = PageRequest.of(0, LEGACY_LIST_CAP,
                 Sort.by(Sort.Order.desc("date"), Sort.Order.desc("id")));
         return transactionRepository
-                .findPage(user, start, end, type, category, budgetCategory, paymentSource, capped)
+                .findPage(user, start, end, type, category,
+                          BudgetCategories.expand(budgetCategory), paymentSource, capped)
                 .getContent();
     }
 
@@ -122,9 +125,14 @@ public class TransactionController {
                 Math.min(Math.max(1, size), MAX_PAGE_SIZE),
                 Sort.by(Sort.Order.desc("date"), Sort.Order.desc("id")));
 
-        Page<Transaction> result = transactionRepository.findPage(user, start, end, type, cat, budgetCat, source, pageable);
+        // Monthly Total Expense is a rollup, so it matches the buckets it
+        // covers rather than itself. Expanded here rather than in the browser
+        // so the page boundaries and the totals below agree with the filter.
+        Collection<String> budgetCats = BudgetCategories.expand(budgetCat);
 
-        List<Object[]> totals = transactionRepository.sumTotalsForFilter(user, start, end, type, cat, budgetCat, source);
+        Page<Transaction> result = transactionRepository.findPage(user, start, end, type, cat, budgetCats, source, pageable);
+
+        List<Object[]> totals = transactionRepository.sumTotalsForFilter(user, start, end, type, cat, budgetCats, source);
         BigDecimal income  = BigDecimal.ZERO;
         BigDecimal expense = BigDecimal.ZERO;
         if (!totals.isEmpty()) {

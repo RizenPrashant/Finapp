@@ -26,6 +26,7 @@ import {
 } from '../api';
 import { eventEmitter, EVENTS } from '../utils/events';
 import { toISODate, monthRange } from '../utils/dates';
+import { ROLLUP_MEMBERS } from '../constants/budgetCategories';
 
 // Stat drill-downs are a modal quick-look over one period, not a browsing
 // surface — one generous page, with the count saying so if it truncates.
@@ -112,7 +113,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
       spentMap[b.category] = parseFloat(value || 0);
     });
     // Monthly Total Expense = sum of its 3 sub-categories
-    const combinedCats = ['Monthly Food Expense', 'Monthly Spend', 'Miscellaneous'];
+    const combinedCats = ROLLUP_MEMBERS['Monthly Total Expense'];
     if (combinedCats.every(c => spentMap[c] !== undefined)) {
       spentMap['Monthly Total Expense'] = combinedCats.reduce((sum, c) => sum + (spentMap[c] || 0), 0);
     }
@@ -191,7 +192,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
     };
   }, [fetchSummary, fetchBudgets]);
 
-  const COMBINED_EXPENSE_CATEGORIES = ['Monthly Food Expense', 'Monthly Spend', 'Miscellaneous'];
+  const COMBINED_EXPENSE_CATEGORIES = ROLLUP_MEMBERS['Monthly Total Expense'];
   const REVENUE_CATEGORY = 'Monthly Revenue';
 
   const handleBudgetClick = async (budget) => {
@@ -199,15 +200,7 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
     setActiveStat(null);
     setTransactionsTotal(null);
     const dateParams = getDateRangeParams();
-    if (budget.category === 'Monthly Total Expense') {
-      const results = await Promise.all(
-        COMBINED_EXPENSE_CATEGORIES.map(cat =>
-          getTransactionsPage({ ...dateParams, budgetCategory: cat, page: 0, size: STAT_DRILLDOWN_SIZE }))
-      );
-      setTransactionsTotal(results.reduce((s, r) => s + r.data.totalElements, 0));
-      const all = results.flatMap(r => r.data.content).sort((a, b) => new Date(b.date) - new Date(a.date));
-      setTransactions(all);
-    } else if (budget.category === REVENUE_CATEGORY) {
+    if (budget.category === REVENUE_CATEGORY) {
       const [txRes, cashbackRes, analyticsRes] = await Promise.all([
         getTransactionsPage({ ...dateParams, budgetCategory: REVENUE_CATEGORY, page: 0, size: STAT_DRILLDOWN_SIZE }),
         getCashbackEntries().catch(() => ({ data: [] })),
@@ -262,6 +255,11 @@ export default function Dashboard({ onNavigate, onProfileClick }) {
         .sort((a, b) => new Date(b.date) - new Date(a.date));
       setTransactions(all);
     } else {
+      // Monthly Total Expense included: the server expands a rollup into the
+      // buckets it covers. This used to fetch the three separately and merge
+      // them here, which took the newest N of each and then sorted, so the
+      // list was a biased sample rather than the newest N overall — and the
+      // count was a sum of three independent totals.
       const res = await getTransactionsPage({ ...dateParams, budgetCategory: budget.category, page: 0, size: STAT_DRILLDOWN_SIZE });
       setTransactions(res.data.content);
       setTransactionsTotal(res.data.totalElements);

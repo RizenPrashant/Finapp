@@ -30,6 +30,16 @@ export const BUDGET_OVERVIEW_CATEGORIES = [
  */
 export const ROLLUP_BUDGET_CATEGORIES = ['Monthly Total Expense'];
 
+/**
+ * Which buckets each rollup covers. Kept in step with BudgetCategories.java
+ * on the backend, which does the same expansion when filtering — that has to
+ * happen in the query, or paging and the filtered totals would be computed
+ * over the wrong set. This copy is only for what the screen adds up itself.
+ */
+export const ROLLUP_MEMBERS = {
+  'Monthly Total Expense': ['Monthly Food Expense', 'Monthly Spend', 'Miscellaneous'],
+};
+
 /** What a transaction can actually be assigned to. */
 export const ASSIGNABLE_BUDGET_CATEGORIES = BUDGET_OVERVIEW_CATEGORIES
   .filter(c => !ROLLUP_BUDGET_CATEGORIES.includes(c));
