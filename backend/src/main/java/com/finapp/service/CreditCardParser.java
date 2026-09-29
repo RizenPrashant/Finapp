@@ -113,6 +113,11 @@ public class CreditCardParser {
         return list;
     }
 
+    /** A date opening a line, whether one token (14/08/2026) or three (14 Aug 26). */
+    private static final Pattern LEADING_DATE = Pattern.compile(
+        "^[ 	]*([0-9]{1,4}[/.-][0-9]{1,2}[/.-][0-9]{1,4}" +
+        "|[0-9]{1,2}[- ][A-Za-z]{3,9}[- ][0-9]{2,4})[ 	]+(.*)$");
+
     public List<TransactionDTO> parsePdf(MultipartFile file, ImportFormat fmt) {
         return parsePdf(file, fmt, null);
     }
@@ -155,16 +160,23 @@ public class CreditCardParser {
             String raw = rawLines[i];
             if (raw.isBlank()) continue;
 
-            String prefix = raw.length() >= DATE_COL_END ? raw.substring(0, DATE_COL_END).trim() : raw.trim();
-            String firstToken = prefix.split("\\s+")[0];
+            // Match the date where it actually ends instead of assuming a
+            // fixed column. This read a fixed-width prefix and tested only its
+            // first whitespace-separated token, so a date written "14 Aug 26"
+            // was tested as "14" and never recognised — a statement in that
+            // style yielded no transactions at all.
+            Matcher dm = LEADING_DATE.matcher(raw);
 
-            if (looksLikeDate(firstToken)) {
-                String dateStr = firstToken;
-                String rest = raw.substring(Math.min(DATE_COL_END, raw.length())).trim();
+            if (dm.find()) {
+                String dateStr = dm.group(1).trim();
+                String rest = dm.group(2).trim();
                 String desc = rest, amtStr = "", indicator = "";
 
                 Matcher am = Pattern.compile(
-                    "(?:\\d+\\s+)?([\\d,]+\\.\\d{2})(?:\\s+(" + Pattern.quote(crInd) + "|" + Pattern.quote(drInd) + "))?\\s*$",
+                    // Any short letter code, not only the two this format names:
+                    // cards write C/D, CR/DR, and sometimes a third for EMI rows.
+                    // Refusing to match an unknown one dropped the whole line.
+                    "(?:[0-9]+[ ]+)?([0-9,]+[.][0-9]{2})(?:[ ]+([A-Za-z]{1,3}))?[ ]*$",
                     Pattern.CASE_INSENSITIVE).matcher(rest);
                 if (am.find()) {
                     amtStr = am.group(1);
@@ -198,13 +210,24 @@ public class CreditCardParser {
                 if (amtStr.isBlank()) { log.debug("[CC_PDF] No amount for: {}", narr); continue; }
 
                 LocalDate date;
-                try { date = dateFmt != null ? LocalDate.parse(dateStr, dateFmt) : parseDateMulti(dateStr); }
-                catch (Exception e) { log.debug("[CC_PDF] Bad date '{}': {}", dateStr, e.getMessage()); continue; }
+                // Fall back when the configured pattern does not fit. A format
+                // saying "dd MMM yyyy" against a statement printing "14 Aug 26"
+                // matched nothing, and every row was discarded on the date
+                // alone. The configured pattern is still tried first.
+                LocalDate parsedDate = null;
+                if (dateFmt != null) {
+                    try { parsedDate = LocalDate.parse(dateStr, dateFmt); } catch (Exception ignored) {}
+                }
+                if (parsedDate == null) {
+                    try { parsedDate = parseDateMulti(dateStr); }
+                    catch (Exception e) { log.debug("[CC_PDF] Bad date '{}': {}", dateStr, e.getMessage()); continue; }
+                }
+                date = parsedDate;
 
                 BigDecimal amt = parseMoney(amtStr);
                 if (amt.compareTo(BigDecimal.ZERO) == 0) continue;
 
-                TransactionType txType = resolveType(mode, indic, narr, amt, crInd);
+                TransactionType txType = resolveType(mode, indic, narr, amt, crInd, drInd);
                 TransactionDTO dto = new TransactionDTO();
                 dto.setDate(date); dto.setTitle(narr); dto.setDescription(narr);
                 dto.setAmount(amt.abs()); dto.setType(txType);
@@ -257,7 +280,18 @@ public class CreditCardParser {
         return dto;
     }
 
-    private TransactionType resolveType(String mode, String indic, String narr, BigDecimal amt, String crInd) {
+    private TransactionType resolveType(String mode, String indic, String narr, BigDecimal amt,
+                                        String crInd, String drInd) {
+        // When the line carries its own marker, believe it. Guessing from the
+        // wording is only a fallback, and it read a refund printed "... 5,166.30 C"
+        // as a purchase because the narration looked like one. C/CR and D/DR are
+        // near universal, so they are honoured alongside whatever the format names.
+        if (indic != null && !indic.isBlank()) {
+            String i = indic.trim().toUpperCase();
+            if (i.equals(crInd.toUpperCase()) || i.equals("C") || i.equals("CR")) return TransactionType.CREDIT;
+            if (i.equals(drInd.toUpperCase()) || i.equals("D") || i.equals("DR")) return TransactionType.DEBIT;
+            // Anything else (SBI prints M on EMI instalments) falls through.
+        }
         return switch (mode) {
             case "SUFFIX", "COLUMN" -> indic.equalsIgnoreCase(crInd) ? TransactionType.CREDIT : TransactionType.DEBIT;
             case "SIGNED" -> amt.compareTo(BigDecimal.ZERO) < 0 ? TransactionType.CREDIT : TransactionType.DEBIT;
