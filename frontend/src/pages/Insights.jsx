@@ -5,12 +5,13 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ArrowLeft, Trash2, Edit3, RefreshCw, TrendingUp, TrendingDown, DollarSign, PieChart, Target, ArrowUp, ArrowDown, Home, Gem, Briefcase, Building2, Landmark, Wallet, Receipt, CreditCard as CreditCardIcon, Edit2, ArrowUpCircle, ArrowDownCircle, Calendar, Tag, X } from 'lucide-react';
+import { Plus, ArrowLeft, Edit3, RefreshCw, TrendingUp, TrendingDown, DollarSign, PieChart, Target, ArrowUp, ArrowDown, Home, Gem, Briefcase, Building2, Landmark, Wallet, Receipt, CreditCard as CreditCardIcon, ArrowUpCircle, ArrowDownCircle, Calendar, Tag, X } from 'lucide-react';
 import Header from '../components/Header';
 import AddAssetModal from '../components/AddAssetModal';
 import AddInvestmentModal from '../components/AddInvestmentModal';
 import AddTransactionModal from '../components/AddTransactionModal';
 import EditTransactionModal from '../components/EditTransactionModal';
+import TransactionRow from '../components/TransactionRow';
 import CloseInvestmentModal from '../components/CloseInvestmentModal';
 import InvestmentCard from '../components/InvestmentCard';
 import AssetCard from '../components/AssetCard';
@@ -276,11 +277,42 @@ export default function Insights({ onProfileClick }) {
     }
   };
 
+  /**
+   * Re-read the pages already on screen, the way the Transactions list does.
+   *
+   * loadBankPage(0) collapsed an expanded list back to the first page and
+   * raised the loading flag, which replaces the rows with placeholders — the
+   * page lost its height and the reader was thrown to the top after every
+   * edit. Totals and ordering still come from the server; the same pages are
+   * simply fetched again, quietly.
+   */
+  const refreshLoadedBankPages = useCallback(async () => {
+    if (!bankTxParams) return;
+    const pagesLoaded = Math.max(1, bankTxMeta.page + 1);
+    try {
+      const responses = await Promise.all(
+        Array.from({ length: pagesLoaded }, (_, p) =>
+          getTransactionsPage({ ...bankTxParams, page: p, size: BANK_TX_PAGE_SIZE }))
+      );
+      const last = responses[responses.length - 1].data;
+      setBankTransactions(responses.flatMap(r => r.data.content));
+      setBankTxMeta({
+        page: last.page,
+        hasNext: last.hasNext,
+        totalElements: last.totalElements,
+        totalIncome: parseFloat(last.totalIncome || 0),
+        totalExpense: parseFloat(last.totalExpense || 0),
+      });
+    } catch (e) {
+      console.error('Failed to refresh transactions', e);
+    }
+  }, [bankTxParams, bankTxMeta.page]);
+
   const handleAddBankTx = async (data) => {
     try {
       await createTransaction({ ...data, paymentSource: selectedBankAsset.name });
       eventEmitter.emit(EVENTS.TRANSACTION_CREATED, data);
-      await loadBankPage(0, false);
+      await refreshLoadedBankPages();
       await refreshSelectedAsset();
       setShowAddTxModal(false);
     } catch (e) {
@@ -292,7 +324,7 @@ export default function Insights({ onProfileClick }) {
     try {
       await updateTransaction(id, data);
       eventEmitter.emit(EVENTS.TRANSACTION_UPDATED, { id, ...data });
-      await loadBankPage(0, false);
+      await refreshLoadedBankPages();
       await refreshSelectedAsset();
       setEditingTx(null);
     } catch (e) {
@@ -300,13 +332,14 @@ export default function Insights({ onProfileClick }) {
     }
   };
 
+  // No window.confirm here: the row shows the same styled confirmation the
+  // Transactions list uses, and asking twice was the result of stacking them.
   const handleDeleteBankTx = async (id) => {
     if (txDeleteLocked) return;
-    if (!window.confirm('Delete this transaction?')) return;
     try {
       await deleteTransaction(id);
       eventEmitter.emit(EVENTS.TRANSACTION_DELETED, { id });
-      await loadBankPage(0, false);
+      await refreshLoadedBankPages();
       await refreshSelectedAsset();
     } catch (e) {
       alert('Failed to delete: ' + (e.response?.data?.message || e.message));
@@ -734,63 +767,31 @@ export default function Insights({ onProfileClick }) {
               <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Add transactions linked to {selectedBankAsset.name}</p>
             </div>
           ) : (
+            /* The same rows the Transactions list shows. They were a bespoke
+               table here, so an account's history looked nothing like the
+               main list and was missing the budget category, the Udhar mark
+               and the in-place re-categorise. */
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-                    <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Description</th>
-                    <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Category</th>
-                    <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Date</th>
-                    <th className="text-right px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Amount</th>
-                    <th className="text-right px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Balance</th>
-                    <th className="px-5 py-3"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                  {sorted.map(tx => (
-                    <tr key={tx.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-1.5 rounded-lg ${tx.type === 'CREDIT' ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
-                            {tx.type === 'CREDIT'
-                              ? <ArrowDownCircle size={14} className="text-green-600" />
-                              : <ArrowUpCircle size={14} className="text-red-600" />}
-                          </div>
-                          <span className="font-medium text-slate-700 dark:text-slate-300">{tx.title}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5 text-gray-500 dark:text-gray-400">{tx.category}</td>
-                      <td className="px-5 py-3.5 text-gray-500 dark:text-gray-400">
-                        {new Date(tx.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </td>
-                      <td className={`px-5 py-3.5 text-right font-bold ${tx.type === 'CREDIT' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {tx.type === 'CREDIT' ? '+' : '-'}{fmt(tx.amount)}
-                      </td>
-                      {/* Running balance after this row. Absent until the
-                          account has been rebuilt from its ledger. */}
-                      <td className="px-5 py-3.5 text-right font-medium text-slate-600 dark:text-slate-300 tabular-nums">
-                        {tx.balanceAfter != null
-                          ? fmt(tx.balanceAfter)
-                          : <span className="text-gray-300 dark:text-gray-600">—</span>}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => !txEditLocked && setEditingTx(tx)}
-                            className={`p-1.5 rounded-lg transition ${txEditLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                            title={txEditLocked ? 'Edit locked. Unlock in Settings.' : 'Edit'}>
-                            <Edit2 size={13} />
-                          </button>
-                          <button onClick={() => handleDeleteBankTx(tx.id)}
-                            className={`p-1.5 rounded-lg transition ${txDeleteLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
-                            title={txDeleteLocked ? 'Delete locked. Unlock in Settings.' : 'Delete'}>
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Transactions</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                  {bankTxMeta.hasNext
+                    ? `${sorted.length} of ${bankTxMeta.totalElements} transactions`
+                    : `${bankTxMeta.totalElements} transactions`}
+                </span>
+              </div>
+              <div className="divide-y divide-gray-50 dark:divide-gray-700">
+                {sorted.map(tx => (
+                  <TransactionRow
+                    key={tx.id}
+                    transaction={tx}
+                    onDelete={handleDeleteBankTx}
+                    onEdit={setEditingTx}
+                    deleteLocked={txDeleteLocked}
+                    editLocked={txEditLocked}
+                  />
+                ))}
+              </div>
               {bankTxMeta.hasNext && (
                 <div className="p-4 border-t border-gray-100 dark:border-gray-700 text-center">
                   <button
