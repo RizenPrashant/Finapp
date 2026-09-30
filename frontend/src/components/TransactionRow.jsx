@@ -113,7 +113,26 @@ function RecategorizePopup({ transaction, onSave, onClose }) {
 export default function TransactionRow({ transaction: initialTransaction, onDelete, onEdit, deleteLocked, editLocked, onCategoryChange }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showRecategorize, setShowRecategorize] = useState(false);
-  const [transaction, setTransaction] = useState(initialTransaction);
+  /**
+   * The row shows what the parent last handed it.
+   *
+   * The one exception is an in-place re-categorise, which does not make the
+   * parent refetch, so the new bucket is held here until fresher data for
+   * this row arrives. That override used to be the row's whole state,
+   * initialised from the prop and never updated — so once the list stopped
+   * unmounting its rows on every refresh, an edit saved fine on the server
+   * and the row went on showing the old values until the page was reloaded.
+   *
+   * Clearing the override as the prop changes, during render rather than in
+   * an effect, means the fresh row is what gets painted.
+   */
+  const [rowOverride, setRowOverride] = useState(null);
+  const [lastGiven, setLastGiven] = useState(initialTransaction);
+  if (initialTransaction !== lastGiven) {
+    setLastGiven(initialTransaction);
+    setRowOverride(null);
+  }
+  const transaction = rowOverride ?? initialTransaction;
   const isCredit = transaction.type === 'CREDIT';
 
   const handleDeleteClick = (e) => {
@@ -128,7 +147,7 @@ export default function TransactionRow({ transaction: initialTransaction, onDele
   };
 
   const handleCategorySaved = (updated) => {
-    setTransaction(updated);
+    setRowOverride(updated);
     onCategoryChange?.(updated);
   };
 
