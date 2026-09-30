@@ -137,8 +137,8 @@ public class UdharService {
      * nowhere to go.
      *
      * The amount follows the transaction, since the two describe the same
-     * debt, but never below what has already been settled against it — that
-     * would leave a record claiming to be overpaid.
+     * movement of money. There is nothing to clamp it against: a repayment
+     * is a separate entry, not a number carried on this one.
      */
     @Transactional
     public UdharRecord updateOriginalRecord(Transaction transaction, UdharRecordDTO dto) {
@@ -152,15 +152,7 @@ public class UdharService {
         if (dto.getType() != null) record.setType(dto.getType());
         if (dto.getDate() != null) record.setDate(dto.getDate());
 
-        if (dto.getTotalAmount() != null) {
-            BigDecimal settled = record.getSettledAmount() != null ? record.getSettledAmount() : BigDecimal.ZERO;
-            BigDecimal total = dto.getTotalAmount().max(settled);
-            record.setTotalAmount(total);
-            record.setStatus(
-                settled.compareTo(BigDecimal.ZERO) == 0 ? UdharStatus.PENDING
-                    : settled.compareTo(total) >= 0 ? UdharStatus.SETTLED
-                    : UdharStatus.PARTIAL);
-        }
+        if (dto.getTotalAmount() != null) record.setTotalAmount(dto.getTotalAmount());
 
         return udharRecordRepository.save(record);
     }
@@ -191,51 +183,70 @@ public class UdharService {
     // Settle udhar using an existing transaction (no new transaction created)
     @Transactional
     public void settleUdharWithTransaction(Long udharRecordId, Transaction transaction, BigDecimal amount, User user) {
-        UdharRecord record = getRecordById(udharRecordId, user);
+        UdharRecord against = getRecordById(udharRecordId, user);
 
-        BigDecimal remaining = record.getTotalAmount().subtract(record.getSettledAmount());
-        BigDecimal settleAmount = amount.min(remaining); // cap at remaining
+        // This capped the amount at the debt's remainder and kept no trace of
+        // the rest: paying 1,00,000 against a 60,000 debt recorded 60,000 and
+        // silently lost 40,000. An entry carries the whole amount, and the
+        // balance takes care of the arithmetic.
+        UdharType entryType = against.getType() == UdharType.GIVEN ? UdharType.TAKEN : UdharType.GIVEN;
 
-        UdharTransactionLink link = UdharTransactionLink.builder()
-                .udharRecord(record)
+        UdharRecord entry = udharRecordRepository.save(UdharRecord.builder()
+                .personName(against.getPersonName())
+                .mobileNumber(against.getMobileNumber())
+                .totalAmount(amount)
+                .settledAmount(BigDecimal.ZERO)
+                .type(entryType)
+                .status(UdharStatus.PENDING)
+                .date(transaction.getDate())
+                .notes(transaction.getDescription())
+                .user(user)
+                .build());
+
+        udharTransactionLinkRepository.save(UdharTransactionLink.builder()
+                .udharRecord(entry)
                 .transaction(transaction)
-                .transactionType(UdharTransactionLink.TransactionType.SETTLEMENT)
-                .amount(settleAmount)
-                .build();
-        udharTransactionLinkRepository.save(link);
+                .transactionType(UdharTransactionLink.TransactionType.ORIGINAL)
+                .amount(amount)
+                .build());
 
-        BigDecimal newSettled = record.getSettledAmount().add(settleAmount);
-        record.setSettledAmount(newSettled);
-        record.setStatus(newSettled.compareTo(record.getTotalAmount()) >= 0 ? UdharStatus.SETTLED : UdharStatus.PARTIAL);
-        udharRecordRepository.save(record);
-
-        // Mark transaction as udhar
         transaction.setIsUdhar(true);
         transactionRepository.save(transaction);
     }
 
+    /**
+     * Record a repayment as an entry of its own, facing the other way.
+     *
+     * Money between two people is a running balance, not a set of numbered
+     * debts. Paying somebody back used to mean choosing which debt it applied
+     * to and was capped at that debt's remainder — so borrowing 40,000 and
+     * 60,000 and then repaying 1,00,000 could not be recorded at all, and via
+     * the link path the excess was silently dropped.
+     *
+     * There is nothing to choose and nothing to cap now. A repayment is
+     * simply money moving the other way, and the person's balance is what
+     * every entry with them adds up to. Pay more than you owe and the balance
+     * crosses zero, which is the truth: they owe you the difference.
+     */
     @Transactional
     public UdharRecord settleUdhar(UdharSettlementDTO dto, User user) {
-        UdharRecord record = getRecordById(dto.getUdharRecordId(), user);
+        UdharRecord against = getRecordById(dto.getUdharRecordId(), user);
 
-        BigDecimal remaining = record.getTotalAmount().subtract(record.getSettledAmount());
-        if (dto.getAmount().compareTo(remaining) > 0) {
-            throw new RuntimeException("Settlement amount cannot exceed remaining balance: " + remaining);
-        }
+        // The entry faces the opposite way to the one being repaid: money
+        // owed to you coming back is money in, and vice versa.
+        UdharType entryType = against.getType() == UdharType.GIVEN ? UdharType.TAKEN : UdharType.GIVEN;
+        TransactionType txType = against.getType() == UdharType.GIVEN
+                ? TransactionType.CREDIT   // they are paying you back
+                : TransactionType.DEBIT;   // you are paying them back
 
-        // Create settlement transaction (opposite type of original)
-        TransactionType settlementTxType = record.getType() == UdharType.GIVEN
-                ? TransactionType.CREDIT   // If I gave, receiving back is CREDIT
-                : TransactionType.DEBIT;   // If I took, paying back is DEBIT
+        String title = against.getType() == UdharType.GIVEN
+                ? "Udhar wapas: " + against.getPersonName()
+                : "Udhar chukaya: " + against.getPersonName();
 
-        String title = record.getType() == UdharType.GIVEN
-                ? "Udhar wapas: " + record.getPersonName()
-                : "Udhar chukaya: " + record.getPersonName();
-
-        Transaction settlementTx = Transaction.builder()
+        Transaction repayment = transactionRepository.save(Transaction.builder()
                 .title(title)
                 .amount(dto.getAmount())
-                .type(settlementTxType)
+                .type(txType)
                 .category("Udhar Settlement")
                 .budgetCategory("Udhar")
                 .date(dto.getDate())
@@ -243,31 +254,28 @@ public class UdharService {
                 .paymentSource(dto.getPaymentSource())
                 .isUdhar(true)
                 .user(user)
-                .build();
+                .build());
 
-        settlementTx = transactionRepository.save(settlementTx);
+        UdharRecord entry = udharRecordRepository.save(UdharRecord.builder()
+                .personName(against.getPersonName())
+                .mobileNumber(against.getMobileNumber())
+                .totalAmount(dto.getAmount())
+                .settledAmount(BigDecimal.ZERO)
+                .type(entryType)
+                .status(UdharStatus.PENDING)
+                .date(dto.getDate())
+                .notes(dto.getDescription())
+                .user(user)
+                .build());
 
-        // Link settlement to udhar record
-        UdharTransactionLink link = UdharTransactionLink.builder()
-                .udharRecord(record)
-                .transaction(settlementTx)
-                .transactionType(UdharTransactionLink.TransactionType.SETTLEMENT)
+        udharTransactionLinkRepository.save(UdharTransactionLink.builder()
+                .udharRecord(entry)
+                .transaction(repayment)
+                .transactionType(UdharTransactionLink.TransactionType.ORIGINAL)
                 .amount(dto.getAmount())
-                .build();
+                .build());
 
-        udharTransactionLinkRepository.save(link);
-
-        // Update record
-        BigDecimal newSettled = record.getSettledAmount().add(dto.getAmount());
-        record.setSettledAmount(newSettled);
-
-        if (newSettled.compareTo(record.getTotalAmount()) == 0) {
-            record.setStatus(UdharStatus.SETTLED);
-        } else if (newSettled.compareTo(BigDecimal.ZERO) > 0) {
-            record.setStatus(UdharStatus.PARTIAL);
-        }
-
-        return udharRecordRepository.save(record);
+        return entry;
     }
 
     @Transactional

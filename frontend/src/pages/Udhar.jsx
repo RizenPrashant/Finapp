@@ -122,7 +122,7 @@ function AddUdharModal({ onClose, onSave, defaultType }) {
 }
 
 // Settlement Modal
-function SettlementModal({ record, onClose, onSave, onLinkTransaction }) {
+function SettlementModal({ record, personNet = 0, onClose, onSave, onLinkTransaction }) {
   const [tab, setTab] = useState('new'); // 'new' | 'link'
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -149,8 +149,10 @@ function SettlementModal({ record, onClose, onSave, onLinkTransaction }) {
   const handleNewSettlement = async (e) => {
     e.preventDefault();
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0 || amt > remaining) {
-      alert(`Please enter valid amount (max: ${fmt(remaining)})`);
+    // No upper bound. Repaying more than this one entry is ordinary — it
+    // just moves the balance with that person past zero.
+    if (!amt || amt <= 0) {
+      alert('Please enter an amount greater than zero');
       return;
     }
     setLoading(true);
@@ -188,18 +190,23 @@ function SettlementModal({ record, onClose, onSave, onLinkTransaction }) {
         <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Mark Settlement</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{record.personName}</p>
 
+        {/* The balance with the person, not the remainder of one entry.
+            A repayment is not tied to a particular debt — it moves what the
+            two of you are square on. */}
         <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-3 mb-4">
           <div className="flex justify-between text-sm mb-1">
-            <span className="text-gray-500 dark:text-gray-400">Total</span>
-            <span className="font-semibold">{fmt(record.totalAmount)}</span>
-          </div>
-          <div className="flex justify-between text-sm mb-1">
-            <span className="text-gray-500 dark:text-gray-400">Settled</span>
-            <span className="font-semibold text-green-600">{fmt(record.settledAmount)}</span>
+            <span className="text-gray-500 dark:text-gray-400">This entry</span>
+            <span className="font-semibold">
+              {record.type === 'GIVEN' ? 'You lent ' : 'You borrowed '}{fmt(record.totalAmount)}
+            </span>
           </div>
           <div className="flex justify-between text-sm border-t border-gray-200 dark:border-gray-600 pt-1 mt-1">
-            <span className="text-gray-500 dark:text-gray-400">Remaining</span>
-            <span className="font-bold text-orange-600">{fmt(remaining)}</span>
+            <span className="text-gray-500 dark:text-gray-400">
+              Balance with {record.personName}
+            </span>
+            <span className={`font-bold ${personNet >= 0 ? 'text-orange-600' : 'text-blue-600'}`}>
+              {fmt(Math.abs(personNet))} {personNet >= 0 ? 'owed to you' : 'you owe'}
+            </span>
           </div>
         </div>
 
@@ -223,7 +230,7 @@ function SettlementModal({ record, onClose, onSave, onLinkTransaction }) {
           <form onSubmit={handleNewSettlement} className="space-y-4">
             <div>
               <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Settlement Amount</label>
-              <input type="number" min="0.01" max={remaining} step="0.01" required
+              <input type="number" min="0.01" step="0.01" required
                 value={amount} onChange={e => setAmount(e.target.value)} className={inputCls} />
             </div>
             <div>
@@ -281,9 +288,9 @@ function SettlementModal({ record, onClose, onSave, onLinkTransaction }) {
  * is what actually settles between you.
  */
 function PersonCard({ person, onOpen }) {
-  const { name, mobiles, records, givenOutstanding, takenOutstanding, net, openCount } = person;
+  const { name, mobiles, records, givenOutstanding, takenOutstanding, net, isSquare } = person;
   const owesYou = net > 0;
-  const allSettled = openCount === 0;
+  const allSettled = isSquare;
 
   return (
     <button
@@ -309,7 +316,7 @@ function PersonCard({ person, onOpen }) {
               )}
               <span className="text-xs text-gray-400 dark:text-gray-500">
                 {records.length} {records.length === 1 ? 'entry' : 'entries'}
-                {!allSettled && ` · ${openCount} open`}
+
               </span>
             </div>
           </div>
@@ -346,95 +353,59 @@ function PersonCard({ person, onOpen }) {
   );
 }
 
+/**
+ * One entry in the ledger with a person: money that moved, and which way.
+ *
+ * This used to be a debt, carrying a progress bar and a settled fraction of
+ * its own. Under a ledger there is nothing to fill up — a repayment is its
+ * own entry facing the other way, and what is outstanding is the balance
+ * across all of them, shown on the person above.
+ */
 function UdharCard({ record, onSettle, onDelete, deleteLocked }) {
-  const progress = Math.min(100, (parseFloat(record.settledAmount || 0) / parseFloat(record.totalAmount)) * 100);
-  const isSettled = record.status === 'SETTLED';
-  const isPartial = record.status === 'PARTIAL';
-  const remaining = parseFloat(record.totalAmount) - parseFloat(record.settledAmount || 0);
+  const lent = record.type === 'GIVEN';
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-2xl border shadow-sm p-5 transition ${
-      isSettled ? 'border-green-200 dark:border-green-800 opacity-75' : 'border-gray-100 dark:border-gray-700'
-    }`}>
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${
-            record.type === 'GIVEN' ? 'bg-orange-50 dark:bg-orange-900/20' : 'bg-blue-50 dark:bg-blue-900/20'
+    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-5 transition">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0 ${
+            lent ? 'bg-orange-50 dark:bg-orange-900/20' : 'bg-blue-50 dark:bg-blue-900/20'
           }`}>
-            {record.type === 'GIVEN' ? '📤' : '📥'}
+            {lent ? '📤' : '📥'}
           </div>
-          <div>
-            <h3 className={`font-bold text-slate-800 dark:text-slate-200 ${isSettled ? 'line-through' : ''}`}>
-              {record.personName}
+          <div className="min-w-0">
+            <h3 className="font-bold text-slate-800 dark:text-slate-200">
+              {lent ? 'You lent' : 'You borrowed'}
             </h3>
-            {record.mobileNumber && (
-              <p className="text-xs text-gray-400 flex items-center gap-1">
-                <Phone size={10} /> {record.mobileNumber}
-              </p>
-            )}
+            <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+              {record.date
+                ? new Date(record.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                : '—'}
+              {record.notes ? ` · ${record.notes}` : ''}
+            </p>
           </div>
         </div>
-        <div className="text-right">
-          <p className={`text-lg font-bold ${record.type === 'GIVEN' ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400'}`}>
-            {fmt(record.totalAmount)}
+        <div className="text-right shrink-0">
+          <p className={`text-lg font-bold ${lent ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400'}`}>
+            {lent ? '+' : '−'}{fmt(record.totalAmount)}
           </p>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-            isSettled ? 'bg-green-100 text-green-700' :
-            isPartial ? 'bg-yellow-100 text-yellow-700' :
-            'bg-red-100 text-red-700'
-          }`}>
-            {isSettled ? '✓ SETTLED' : isPartial ? '⏳ PARTIAL' : '⏰ PENDING'}
-          </span>
+          <p className="text-[10px] text-gray-400 dark:text-gray-500">
+            {lent ? 'they owe you more' : 'you owe more'}
+          </p>
         </div>
       </div>
 
-      {/* Progress bar */}
-      <div className="mb-3">
-        <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
-          <div className={`h-2 rounded-full transition-all ${
-            isSettled ? 'bg-green-500' : 'bg-orange-500'
-          }`} style={{ width: `${progress}%` }} />
-        </div>
-        <div className="flex justify-between text-xs mt-1">
-          <span className="text-gray-400">{progress.toFixed(0)}% settled</span>
-          <span className="text-gray-500 dark:text-gray-400">
-            {fmt(record.settledAmount)} / {fmt(record.totalAmount)}
-          </span>
-        </div>
+      <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-gray-50 dark:border-gray-700">
+        <button onClick={() => onSettle(record)}
+          className="px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition">
+          Record repayment
+        </button>
+        <button onClick={() => !deleteLocked && onDelete(record.id)}
+          className={`p-1.5 rounded-lg transition ${deleteLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'}`}
+          title={deleteLocked ? 'Delete locked. Unlock in Settings.' : 'Delete'}>
+          <Trash2 size={14} />
+        </button>
       </div>
-
-      {/* Remaining amount */}
-      {!isSettled && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Outstanding: <span className="font-bold text-slate-700 dark:text-slate-300">{fmt(remaining)}</span>
-          </p>
-          <div className="flex gap-2">
-            <button onClick={() => onSettle(record)}
-              className="px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition">
-              Settle
-            </button>
-            <button onClick={() => !deleteLocked && onDelete(record.id)}
-              className={`p-1.5 rounded-lg transition ${deleteLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'}`}
-              title={deleteLocked ? 'Delete locked. Unlock in Settings.' : 'Delete'}>
-              <Trash2 size={14} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {isSettled && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
-            <CheckCircle size={14} /> Fully settled
-          </p>
-          <button onClick={() => !deleteLocked && onDelete(record.id)}
-            className={`p-1.5 rounded-lg transition ${deleteLocked ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'}`}
-            title={deleteLocked ? 'Delete locked. Unlock in Settings.' : 'Delete'}>
-            <Trash2 size={14} />
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -557,26 +528,34 @@ export default function Udhar({ onProfileClick }) {
       p.records.push(r);
     });
 
-    const outstanding = (rows, type) => rows
+    // Each entry is a movement, not a debt with a remainder: money out to
+    // someone is money they owe you, money in from them reduces it, and the
+    // balance is the difference. A repayment is its own entry facing the
+    // other way, so there is nothing to allocate and nothing to cap —
+    // borrowing 40,000 and 60,000 then repaying 1,00,000 simply nets out.
+    const total = (rows, type) => rows
       .filter(r => r.type === type)
-      .reduce((s, r) => s + (parseFloat(r.totalAmount || 0) - parseFloat(r.settledAmount || 0)), 0);
+      .reduce((s, r) => s + parseFloat(r.totalAmount || 0), 0);
 
     return [...byPerson.values()]
       .map(p => {
-        const givenOutstanding = outstanding(p.records, 'GIVEN');
-        const takenOutstanding = outstanding(p.records, 'TAKEN');
+        const givenOutstanding = total(p.records, 'GIVEN');
+        const takenOutstanding = total(p.records, 'TAKEN');
+        const net = givenOutstanding - takenOutstanding;
         return {
           ...p,
           mobiles: [...p.mobiles],
           records: [...p.records].sort((a, b) => new Date(b.date) - new Date(a.date)),
           givenOutstanding,
           takenOutstanding,
-          net: givenOutstanding - takenOutstanding,
-          openCount: p.records.filter(r => r.status !== 'SETTLED').length,
+          net,
+          // Square when the two directions cancel out. Compared with a
+          // tolerance rather than to zero, because these are sums of decimals.
+          isSquare: Math.abs(net) < 0.005,
         };
       })
-      // Whoever there is most still to settle with, first; fully settled last.
-      .sort((a, b) => (b.openCount > 0) - (a.openCount > 0) || Math.abs(b.net) - Math.abs(a.net));
+      // Whoever there is most to settle with, first; square with you last.
+      .sort((a, b) => a.isSquare - b.isSquare || Math.abs(b.net) - Math.abs(a.net));
   }, [filteredRecords]);
 
   // Derived rather than stored, so a person who disappears after their last
@@ -589,18 +568,16 @@ export default function Udhar({ onProfileClick }) {
     const taken = records.filter(r => r.type === 'TAKEN');
 
     const givenTotal = given.reduce((s, r) => s + parseFloat(r.totalAmount || 0), 0);
-    const givenSettled = given.reduce((s, r) => s + parseFloat(r.settledAmount || 0), 0);
     const takenTotal = taken.reduce((s, r) => s + parseFloat(r.totalAmount || 0), 0);
-    const takenSettled = taken.reduce((s, r) => s + parseFloat(r.settledAmount || 0), 0);
 
+    // An entry is a movement, so what is outstanding is the difference
+    // between the two directions rather than a total minus a settled part.
     return {
       givenTotal,
-      givenSettled,
-      givenOutstanding: givenTotal - givenSettled,
+      givenOutstanding: givenTotal,
       takenTotal,
-      takenSettled,
-      takenOutstanding: takenTotal - takenSettled,
-      netOutstanding: (givenTotal - givenSettled) - (takenTotal - takenSettled)
+      takenOutstanding: takenTotal,
+      netOutstanding: givenTotal - takenTotal,
     };
   }, [records]);
 
@@ -839,7 +816,7 @@ export default function Udhar({ onProfileClick }) {
                     )}
                     <span className="text-xs text-gray-400 dark:text-gray-500">
                       {selectedPerson.records.length} {selectedPerson.records.length === 1 ? 'entry' : 'entries'}
-                      {selectedPerson.openCount > 0 && ` · ${selectedPerson.openCount} open`}
+
                     </span>
                   </div>
                 </div>
@@ -896,6 +873,7 @@ export default function Udhar({ onProfileClick }) {
       {settlingRecord && (
         <SettlementModal
           record={settlingRecord}
+          personNet={people.find(p => p.records.some(r => r.id === settlingRecord.id))?.net ?? 0}
           onClose={() => setSettlingRecord(null)}
           onSave={handleSettle}
           onLinkTransaction={handleLinkTransaction}

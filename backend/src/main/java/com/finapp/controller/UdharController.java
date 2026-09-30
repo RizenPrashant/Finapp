@@ -90,41 +90,26 @@ public class UdharController {
 
     @GetMapping("/summary")
     public ResponseEntity<Map<String, Object>> getSummary() {
-        List<UdharRecord> all = udharService.getAllRecords(getCurrentUser());
+        List<UdharRecord> entries = udharService.getAllRecords(getCurrentUser());
 
-        java.math.BigDecimal given = all.stream()
+        // Every entry is a movement, not a debt with a remainder. Money out
+        // to someone is money they owe you; money in from them reduces it.
+        // What is outstanding is simply the difference.
+        java.math.BigDecimal given = entries.stream()
                 .filter(r -> r.getType() == UdharType.GIVEN)
                 .map(UdharRecord::getTotalAmount)
                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
 
-        java.math.BigDecimal taken = all.stream()
+        java.math.BigDecimal taken = entries.stream()
                 .filter(r -> r.getType() == UdharType.TAKEN)
                 .map(UdharRecord::getTotalAmount)
                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
-
-        java.math.BigDecimal givenSettled = all.stream()
-                .filter(r -> r.getType() == UdharType.GIVEN)
-                .map(UdharRecord::getSettledAmount)
-                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
-
-        java.math.BigDecimal takenSettled = all.stream()
-                .filter(r -> r.getType() == UdharType.TAKEN)
-                .map(UdharRecord::getSettledAmount)
-                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
-
-        java.math.BigDecimal givenOutstanding = given.subtract(givenSettled);
-        java.math.BigDecimal takenOutstanding = taken.subtract(takenSettled);
-        java.math.BigDecimal netOutstanding = givenOutstanding.subtract(takenOutstanding);
 
         return ResponseEntity.ok(Map.of(
                 "givenTotal", given,
-                "givenSettled", givenSettled,
-                "givenOutstanding", givenOutstanding,
                 "takenTotal", taken,
-                "takenSettled", takenSettled,
-                "takenOutstanding", takenOutstanding,
-                "netOutstanding", netOutstanding,
-                "totalRecords", all.size()
+                "netOutstanding", given.subtract(taken),
+                "totalEntries", entries.size()
         ));
     }
 }
