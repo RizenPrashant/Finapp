@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Trash2, Pencil, AlertTriangle, Building2, Gift, HandCoins, Tag } from 'lucide-react';
 import { recategorizeTransaction } from '../api';
-import { ASSIGNABLE_BUDGET_CATEGORIES } from '../constants/budgetCategories';
+import { ASSIGNABLE_BUDGET_CATEGORIES, DEFAULT_BUDGET_CATEGORY } from '../constants/budgetCategories';
 
 // Monthly Total Expense is absent on purpose — it is a rollup, so filing a
 // transaction under it would double-count. See constants/budgetCategories.js.
@@ -153,6 +153,27 @@ export default function TransactionRow({ transaction: initialTransaction, onDele
                   }`}>
                     {isCashback ? <Gift size={9} /> : <Building2 size={9} />}
                     {transaction.paymentSource}
+                  </span>
+                );
+              })()}
+              {/* The budget bucket, next to the normal category on the line
+                  above it. Always shown, including when nothing has been
+                  filed yet — an unfiled row is the one worth spotting — but
+                  muted in that state so a page of them stays readable. */}
+              {(() => {
+                const bucket = transaction.budgetCategory || DEFAULT_BUDGET_CATEGORY;
+                const unfiled = bucket === DEFAULT_BUDGET_CATEGORY;
+                return (
+                  <span
+                    title={`Budget category: ${bucket}`}
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${
+                      unfiled
+                        ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
+                        : 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400'
+                    }`}
+                  >
+                    <Tag size={9} />
+                    {bucket}
                   </span>
                 );
               })()}
