@@ -269,6 +269,83 @@ function SettlementModal({ record, onClose, onSave, onLinkTransaction }) {
 }
 
 // Udhar Card Component
+/**
+ * One person, not one debt.
+ *
+ * The page listed every record separately, so somebody you had lent to four
+ * times filled four cards and there was nowhere to see what they owed you
+ * altogether. Each person is one row now, and their records sit inside.
+ *
+ * A person can be on both sides at once — you lent them something and
+ * borrowed something else later — so both directions are shown and the net
+ * is what actually settles between you.
+ */
+function PersonCard({ person, onOpen }) {
+  const { name, mobiles, records, givenOutstanding, takenOutstanding, net, openCount } = person;
+  const owesYou = net > 0;
+  const allSettled = openCount === 0;
+
+  return (
+    <button
+      onClick={() => onOpen(person.key)}
+      className="w-full text-left bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-5 hover:border-gray-300 dark:hover:border-gray-500 transition"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`w-11 h-11 rounded-full flex items-center justify-center text-lg shrink-0 ${
+            allSettled ? 'bg-green-50 dark:bg-green-900/20'
+              : owesYou ? 'bg-orange-50 dark:bg-orange-900/20'
+              : 'bg-blue-50 dark:bg-blue-900/20'
+          }`}>
+            {allSettled ? '✅' : owesYou ? '📤' : '📥'}
+          </div>
+          <div className="min-w-0">
+            <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{name}</p>
+            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+              {mobiles.length > 0 && (
+                <span className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+                  <Phone size={10} /> {mobiles.join(', ')}
+                </span>
+              )}
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                {records.length} {records.length === 1 ? 'entry' : 'entries'}
+                {!allSettled && ` · ${openCount} open`}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          {allSettled ? (
+            <p className="text-sm font-bold text-green-600 dark:text-green-400">Settled</p>
+          ) : (
+            <>
+              <p className={`text-lg font-bold ${owesYou ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                {fmt(Math.abs(net))}
+              </p>
+              <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                {owesYou ? 'owes you' : 'you owe'}
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Both directions, when the person is on both sides of the ledger —
+          the net above would otherwise hide one of them entirely. */}
+      {givenOutstanding > 0 && takenOutstanding > 0 && (
+        <div className="flex gap-4 mt-4 pt-3 border-t border-gray-50 dark:border-gray-700 text-xs">
+          <span className="text-gray-500 dark:text-gray-400">
+            Lent <span className="font-semibold text-orange-600 dark:text-orange-400">{fmt(givenOutstanding)}</span>
+          </span>
+          <span className="text-gray-500 dark:text-gray-400">
+            Borrowed <span className="font-semibold text-blue-600 dark:text-blue-400">{fmt(takenOutstanding)}</span>
+          </span>
+        </div>
+      )}
+    </button>
+  );
+}
+
 function UdharCard({ record, onSettle, onDelete, deleteLocked }) {
   const progress = Math.min(100, (parseFloat(record.settledAmount || 0) / parseFloat(record.totalAmount)) * 100);
   const isSettled = record.status === 'SETTLED';
@@ -370,6 +447,7 @@ export default function Udhar({ onProfileClick }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [addType, setAddType] = useState('GIVEN');
   const [settlingRecord, setSettlingRecord] = useState(null);
+  const [selectedPersonKey, setSelectedPersonKey] = useState(null);
 
   // Date filters - default from settings
   const now = new Date();
@@ -459,6 +537,51 @@ export default function Udhar({ onProfileClick }) {
   };
 
   const filteredRecords = records.filter(r => filter === 'ALL' || r.type === filter);
+
+  /**
+   * Records grouped into the people they are with.
+   *
+   * Grouped on the name rather than the mobile number, because the number is
+   * optional and is often filled in on only one of a person's entries —
+   * keying on it would split the same person in two. Whatever numbers were
+   * given are collected and shown.
+   */
+  const people = useMemo(() => {
+    const byPerson = new Map();
+    filteredRecords.forEach(r => {
+      const name = (r.personName || 'Unknown').trim();
+      const key = name.toLowerCase().replace(/\s+/g, ' ');
+      if (!byPerson.has(key)) byPerson.set(key, { key, name, mobiles: new Set(), records: [] });
+      const p = byPerson.get(key);
+      if (r.mobileNumber) p.mobiles.add(r.mobileNumber);
+      p.records.push(r);
+    });
+
+    const outstanding = (rows, type) => rows
+      .filter(r => r.type === type)
+      .reduce((s, r) => s + (parseFloat(r.totalAmount || 0) - parseFloat(r.settledAmount || 0)), 0);
+
+    return [...byPerson.values()]
+      .map(p => {
+        const givenOutstanding = outstanding(p.records, 'GIVEN');
+        const takenOutstanding = outstanding(p.records, 'TAKEN');
+        return {
+          ...p,
+          mobiles: [...p.mobiles],
+          records: [...p.records].sort((a, b) => new Date(b.date) - new Date(a.date)),
+          givenOutstanding,
+          takenOutstanding,
+          net: givenOutstanding - takenOutstanding,
+          openCount: p.records.filter(r => r.status !== 'SETTLED').length,
+        };
+      })
+      // Whoever there is most still to settle with, first; fully settled last.
+      .sort((a, b) => (b.openCount > 0) - (a.openCount > 0) || Math.abs(b.net) - Math.abs(a.net));
+  }, [filteredRecords]);
+
+  // Derived rather than stored, so a person who disappears after their last
+  // record is deleted drops back to the list instead of showing an empty one.
+  const selectedPerson = people.find(p => p.key === selectedPersonKey) || null;
 
   // Calculate summary from filtered records
   const filteredSummary = useMemo(() => {
@@ -696,16 +819,67 @@ export default function Udhar({ onProfileClick }) {
               Add First Record
             </button>
           </div>
+        ) : selectedPerson ? (
+          /* One person's entries. */
+          <div>
+            <div className="flex items-center justify-between gap-4 flex-wrap bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-5 mb-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <button onClick={() => setSelectedPersonKey(null)}
+                  className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition"
+                  title="Back to everyone">
+                  <ChevronLeft size={18} />
+                </button>
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{selectedPerson.name}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {selectedPerson.mobiles.length > 0 && (
+                      <span className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+                        <Phone size={10} /> {selectedPerson.mobiles.join(', ')}
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      {selectedPerson.records.length} {selectedPerson.records.length === 1 ? 'entry' : 'entries'}
+                      {selectedPerson.openCount > 0 && ` · ${selectedPerson.openCount} open`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-5">
+                <div className="text-right">
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 uppercase font-semibold">You lent</p>
+                  <p className="text-sm font-bold text-orange-600 dark:text-orange-400">{fmt(selectedPerson.givenOutstanding)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 uppercase font-semibold">You borrowed</p>
+                  <p className="text-sm font-bold text-blue-600 dark:text-blue-400">{fmt(selectedPerson.takenOutstanding)}</p>
+                </div>
+                <div className="text-right pl-5 border-l border-gray-100 dark:border-gray-700">
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 uppercase font-semibold">
+                    {selectedPerson.net >= 0 ? 'Owes you' : 'You owe'}
+                  </p>
+                  <p className={`text-lg font-bold ${selectedPerson.net >= 0 ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                    {fmt(Math.abs(selectedPerson.net))}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {selectedPerson.records.map(record => (
+                <UdharCard
+                  key={record.id}
+                  record={record}
+                  onSettle={setSettlingRecord}
+                  onDelete={handleDelete}
+                  deleteLocked={udharLocked}
+                />
+              ))}
+            </div>
+          </div>
         ) : (
+          /* Everyone you have something outstanding with. */
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {filteredRecords.map(record => (
-              <UdharCard
-                key={record.id}
-                record={record}
-                onSettle={setSettlingRecord}
-                onDelete={handleDelete}
-                deleteLocked={udharLocked}
-              />
+            {people.map(person => (
+              <PersonCard key={person.key} person={person} onOpen={setSelectedPersonKey} />
             ))}
           </div>
         )}
