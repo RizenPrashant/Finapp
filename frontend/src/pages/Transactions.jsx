@@ -200,20 +200,53 @@ export default function Transactions({ onProfileClick }) {
     return () => clearTimeout(searchDebounceRef.current);
   }, [searchQuery, dateRange]);
 
-  // Mutations reset to page 0 rather than patching the loaded rows: the server
-  // owns the totals and the ordering, and a local splice would drift from both.
+  /**
+   * Re-read what is already on screen after a mutation.
+   *
+   * Mutations still refuse to patch the loaded rows — the server owns the
+   * totals and the ordering, and a local splice would drift from both — but
+   * they used to re-read via loadPage(0), which did two things that threw the
+   * reader back to the top of the list. It collapsed an expanded list to the
+   * first 50 rows, and it raised the loading flag, which swaps every row for
+   * a one-line placeholder, so the page lost its height and the browser
+   * scrolled up. Someone editing a row halfway down lost their place.
+   *
+   * The same pages are fetched again instead, quietly, so the list keeps its
+   * length and the rows keep their keys, and the scroll position holds.
+   */
+  const refreshLoadedPages = useCallback(async () => {
+    const pagesLoaded = Math.max(1, pageMeta.page + 1);
+    try {
+      const responses = await Promise.all(
+        Array.from({ length: pagesLoaded }, (_, p) =>
+          getTransactionsPage({ ...filterParams, page: p, size: PAGE_SIZE }))
+      );
+      const last = responses[responses.length - 1].data;
+      setTransactions(responses.flatMap(r => r.data.content));
+      setPageMeta({
+        page: last.page,
+        hasNext: last.hasNext,
+        totalElements: last.totalElements,
+        totalIncome: parseFloat(last.totalIncome || 0),
+        totalExpense: parseFloat(last.totalExpense || 0),
+      });
+    } catch (e) {
+      console.error('Failed to refresh transactions', e);
+    }
+  }, [filterParams, pageMeta.page]);
+
   const handleDelete = async (id) => {
     await deleteTransaction(id);
     // Emit event to refresh assets
     eventEmitter.emit(EVENTS.TRANSACTION_DELETED, { id });
-    loadPage(0, false);
+    refreshLoadedPages();
   };
 
   const handleEdit = async (id, data) => {
     await updateTransaction(id, data);
     // Emit event to refresh assets
     eventEmitter.emit(EVENTS.TRANSACTION_UPDATED, { id, ...data });
-    loadPage(0, false);
+    refreshLoadedPages();
   };
 
   const handleSave = async (data) => {
@@ -224,7 +257,7 @@ export default function Transactions({ onProfileClick }) {
       // Refresh cashback view
       handleWalletSelect(selectedWalletId);
     } else {
-      loadPage(0, false);
+      refreshLoadedPages();
     }
   };
 
