@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, Building2, CreditCard, Gift, HandCoins, User, Phone, ArrowLeftRight } from 'lucide-react';
-import { getAssetsByType, getCashbackWallets, getUdharRecords, getTransactionUdhar } from '../api';
+import { X, Building2, CreditCard, Gift, HandCoins, User, Phone } from 'lucide-react';
+import { getAssetsByType, getCashbackWallets, getTransactionUdhar } from '../api';
 
 const categoryOptions = {
   'Monthly Food Expense': ['Groceries', 'Dining Out', 'Cafe', 'Food Delivery'],
@@ -25,28 +25,24 @@ export default function EditTransactionModal({ transaction, onClose, onSave }) {
     udharPersonName: transaction.udharPersonName || '',
     udharMobileNumber: transaction.udharMobileNumber || '',
     udharType: transaction.udharType || 'GIVEN',
-    setoffUdharRecordId: null,
   });
   const [loading, setLoading] = useState(false);
   const [banks, setBanks] = useState([]);
   const [creditCards, setCreditCards] = useState([]);
   const [cashbackWallets, setCashbackWallets] = useState([]);
-  const [udharRecords, setUdharRecords] = useState([]);
   const [existingUdhar, setExistingUdhar] = useState(null);
 
   useEffect(() => {
     const fetchSources = async () => {
       try {
-        const [assetRes, liabRes, cbRes, udharRes] = await Promise.all([
+        const [assetRes, liabRes, cbRes] = await Promise.all([
           getAssetsByType('ASSET'),
           getAssetsByType('LIABILITY'),
           getCashbackWallets(),
-          getUdharRecords(),
         ]);
         setBanks((assetRes.data || []).filter(a => a.category === 'BANK'));
         setCreditCards((liabRes.data || []).filter(a => a.category === 'CREDIT_CARD'));
         setCashbackWallets(cbRes.data || []);
-        setUdharRecords((udharRes.data || []).filter(r => r.status !== 'SETTLED'));
       } catch (e) {
         console.error('Failed to load payment sources', e);
       }
@@ -85,12 +81,6 @@ export default function EditTransactionModal({ transaction, onClose, onSave }) {
     e.preventDefault();
     setLoading(true);
     const payload = { ...form, amount: parseFloat(form.amount) };
-    // Settling an existing udhar — don't also create a new udhar record
-    if (payload.setoffUdharRecordId) {
-      payload.udharPersonName = null;
-      payload.udharMobileNumber = null;
-      payload.udharType = null;
-    }
     await onSave(transaction.id, payload);
     setLoading(false);
     onClose();
@@ -203,7 +193,7 @@ export default function EditTransactionModal({ transaction, onClose, onSave }) {
               <input
                 type="checkbox"
                 checked={form.isUdhar}
-                onChange={(e) => setForm({ ...form, isUdhar: e.target.checked, setoffUdharRecordId: null })}
+                onChange={(e) => setForm({ ...form, isUdhar: e.target.checked })}
                 className="w-4 h-4 accent-orange-500"
               />
               <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
@@ -215,56 +205,16 @@ export default function EditTransactionModal({ transaction, onClose, onSave }) {
 
           {form.isUdhar && (
             <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 space-y-3 border border-orange-100 dark:border-orange-800">
-              {/* This transaction is already an udhar of its own, so it is
-                  not a candidate to settle somebody else's — the setoff
-                  chooser is for a transaction being marked for the first
-                  time. What is shown instead is the record it stands for. */}
               {existingUdhar && (
-                <div className="flex items-center justify-between gap-3 flex-wrap text-xs">
-                  <span className="text-gray-500 dark:text-gray-400">
-                    Editing the udhar recorded for this transaction
-                  </span>
-                  {parseFloat(existingUdhar.settledAmount || 0) > 0 && (
-                    <span className="text-orange-700 dark:text-orange-300 font-semibold">
-                      ₹{parseFloat(existingUdhar.settledAmount).toLocaleString('en-IN')} already settled
-                      {' '}— the amount cannot go below this
-                    </span>
-                  )}
-                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Editing the udhar recorded for this transaction
+                </p>
               )}
 
-              {/* Setoff against an existing pending udhar */}
-              {!existingUdhar && udharRecords.length > 0 && (
-                <div>
-                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase flex items-center gap-1.5 mb-1.5">
-                    <ArrowLeftRight size={13} className="text-blue-500" />
-                    Setoff against Udhar
-                  </label>
-                  <select
-                    value={form.setoffUdharRecordId || ''}
-                    onChange={(e) => setForm({ ...form, setoffUdharRecordId: e.target.value ? parseInt(e.target.value) : null })}
-                    className={inputCls}
-                  >
-                    <option value="">— New Udhar —</option>
-                    {udharRecords.map(r => {
-                      const remaining = parseFloat(r.totalAmount) - parseFloat(r.settledAmount || 0);
-                      return (
-                        <option key={r.id} value={r.id}>
-                          {r.type === 'GIVEN' ? '📤' : '📥'} {r.personName} — ₹{remaining.toLocaleString('en-IN')} pending ({r.status})
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                    {form.setoffUdharRecordId
-                      ? 'This transaction will be recorded as a settlement of the selected udhar'
-                      : 'Keep "New Udhar" to create a fresh record for this person'}
-                  </p>
-                </div>
-              )}
-
-              {!form.setoffUdharRecordId && (
-                <>
+              {/* There is no debt to choose any more. Udhar with a person is
+                  a running balance, so repaying them is just money going the
+                  other way: pick the person and the direction and the balance
+                  takes care of itself. */}
                   <div className="flex rounded-lg overflow-hidden border border-orange-200 dark:border-orange-700">
                     {['GIVEN', 'TAKEN'].map(t => (
                       <button key={t} type="button" onClick={() => setForm({ ...form, udharType: t })}
@@ -281,7 +231,7 @@ export default function EditTransactionModal({ transaction, onClose, onSave }) {
                     <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1.5">Person Name *</label>
                     <div className="relative">
                       <User size={14} className="absolute left-3 top-3 text-gray-400" />
-                      <input required={form.isUdhar && !form.setoffUdharRecordId} type="text" placeholder="e.g. Rahul Sharma"
+                      <input required={form.isUdhar} type="text" placeholder="e.g. Rahul Sharma"
                         value={form.udharPersonName}
                         onChange={(e) => setForm({ ...form, udharPersonName: e.target.value })}
                         className={`${inputCls} pl-9`} />
@@ -297,8 +247,6 @@ export default function EditTransactionModal({ transaction, onClose, onSave }) {
                         className={`${inputCls} pl-9`} />
                     </div>
                   </div>
-                </>
-              )}
             </div>
           )}
 

@@ -43,6 +43,4 @@ public class TransactionDTO {
     private String udharMobileNumber;
     private String udharType; // GIVEN or TAKEN
 
-    // Setoff field — link this transaction as settlement of an existing udhar record
-    private Long setoffUdharRecordId;
 }

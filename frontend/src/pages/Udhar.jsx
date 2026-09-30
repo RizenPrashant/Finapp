@@ -134,7 +134,7 @@ function SettlementModal({ record, personNet = 0, onClose, onSave, onLinkTransac
 
   const remaining = parseFloat(record.totalAmount) - parseFloat(record.settledAmount || 0);
 
-  // A setoff is nearly always a recent transaction, so pull the latest page
+  // A repayment is nearly always a recent transaction, so pull the latest page
   // rather than every transaction the user has ever recorded.
   useEffect(() => {
     if (tab === 'link') {
@@ -251,7 +251,7 @@ function SettlementModal({ record, personNet = 0, onClose, onSave, onLinkTransac
 
         {tab === 'link' && (
           <div className="space-y-4">
-            <p className="text-xs text-gray-400 dark:text-gray-500">Select an existing transaction to mark as setoff for this udhar</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">Pick a transaction that was a repayment with this person</p>
             {txLoading ? (
               <p className="text-sm text-gray-400 text-center py-4">Loading transactions...</p>
             ) : (
@@ -266,7 +266,7 @@ function SettlementModal({ record, personNet = 0, onClose, onSave, onLinkTransac
             )}
             <button onClick={handleLinkTransaction} disabled={!selectedTxId || loading}
               className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-60">
-              {loading ? 'Linking...' : 'Link as Setoff'}
+              {loading ? 'Linking...' : 'Link as repayment'}
             </button>
           </div>
         )}

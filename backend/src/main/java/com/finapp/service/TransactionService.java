@@ -98,11 +98,6 @@ public class TransactionService {
             udharService.createRecordFromTransaction(udharDTO, transaction, user);
         }
 
-        // If setoff udhar record id provided, mark this transaction as settlement
-        if (dto.getSetoffUdharRecordId() != null) {
-            udharService.settleUdharWithTransaction(dto.getSetoffUdharRecordId(), transaction, dto.getAmount(), user);
-        }
-
         return transaction;
     }
 
@@ -236,11 +231,6 @@ public class TransactionService {
                 udharDTO.setType(UdharRecord.UdharType.valueOf(dto.getUdharType()));
             }
             udharService.updateOriginalRecord(saved, udharDTO);
-        }
-
-        // If setoff udhar record id provided, mark this transaction as settlement
-        if (dto.getSetoffUdharRecordId() != null) {
-            udharService.settleUdharWithTransaction(dto.getSetoffUdharRecordId(), saved, dto.getAmount(), user);
         }
 
         return saved;

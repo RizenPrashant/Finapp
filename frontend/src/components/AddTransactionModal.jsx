@@ -4,8 +4,8 @@
  * All rights reserved.
  */
 import { useState, useEffect } from 'react';
-import { X, Building2, CreditCard, Gift, HandCoins, User, Phone, ArrowLeftRight } from 'lucide-react';
-import { getAssetsByType, getCashbackWallets, getUdharRecords } from '../api';
+import { X, Building2, CreditCard, Gift, HandCoins, User, Phone } from 'lucide-react';
+import { getAssetsByType, getCashbackWallets } from '../api';
 
 const categoryOptions = {
   'Monthly Food Expense': ['Groceries', 'Dining Out', 'Cafe', 'Food Delivery'],
@@ -33,27 +33,23 @@ export default function AddTransactionModal({ budgetCategory, onClose, onSave, p
     udharPersonName: '',
     udharMobileNumber: '',
     udharType: 'GIVEN',
-    setoffUdharRecordId: null,
   });
   const [loading, setLoading] = useState(false);
   const [banks, setBanks] = useState([]);
   const [creditCards, setCreditCards] = useState([]);
   const [cashbackWallets, setCashbackWallets] = useState([]);
-  const [udharRecords, setUdharRecords] = useState([]);
 
   useEffect(() => {
     const fetchSources = async () => {
       try {
-        const [assetRes, liabRes, cbRes, udharRes] = await Promise.all([
+        const [assetRes, liabRes, cbRes] = await Promise.all([
           getAssetsByType('ASSET'),
           getAssetsByType('LIABILITY'),
           getCashbackWallets(),
-          getUdharRecords(),
         ]);
         setBanks((assetRes.data || []).filter(a => a.category === 'BANK'));
         setCreditCards((liabRes.data || []).filter(a => a.category === 'CREDIT_CARD'));
         setCashbackWallets(cbRes.data || []);
-        setUdharRecords((udharRes.data || []).filter(r => r.status !== 'SETTLED'));
       } catch (e) {
         console.error('Failed to load payment sources', e);
       }
@@ -65,12 +61,6 @@ export default function AddTransactionModal({ budgetCategory, onClose, onSave, p
     e.preventDefault();
     setLoading(true);
     const payload = { ...form, amount: parseFloat(form.amount) };
-    // Settling an existing udhar — don't also create a new udhar record
-    if (payload.setoffUdharRecordId) {
-      payload.udharPersonName = null;
-      payload.udharMobileNumber = null;
-      payload.udharType = null;
-    }
     await onSave(payload);
     setLoading(false);
     onClose();
@@ -184,7 +174,7 @@ export default function AddTransactionModal({ budgetCategory, onClose, onSave, p
               <input
                 type="checkbox"
                 checked={form.isUdhar}
-                onChange={(e) => setForm({ ...form, isUdhar: e.target.checked, setoffUdharRecordId: null })}
+                onChange={(e) => setForm({ ...form, isUdhar: e.target.checked })}
                 className="w-4 h-4 accent-orange-500"
               />
               <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
@@ -200,38 +190,10 @@ export default function AddTransactionModal({ budgetCategory, onClose, onSave, p
           {/* Udhar Fields - shown when enabled */}
           {form.isUdhar && (
             <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 space-y-3 border border-orange-100 dark:border-orange-800">
-              {/* Setoff against an existing pending udhar */}
-              {udharRecords.length > 0 && (
-                <div>
-                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase flex items-center gap-1.5 mb-1.5">
-                    <ArrowLeftRight size={13} className="text-blue-500" />
-                    Setoff against Udhar
-                  </label>
-                  <select
-                    value={form.setoffUdharRecordId || ''}
-                    onChange={(e) => setForm({ ...form, setoffUdharRecordId: e.target.value ? parseInt(e.target.value) : null })}
-                    className={inputCls}
-                  >
-                    <option value="">— New Udhar —</option>
-                    {udharRecords.map(r => {
-                      const remaining = parseFloat(r.totalAmount) - parseFloat(r.settledAmount || 0);
-                      return (
-                        <option key={r.id} value={r.id}>
-                          {r.type === 'GIVEN' ? '📤' : '📥'} {r.personName} — ₹{remaining.toLocaleString('en-IN')} pending ({r.status})
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                    {form.setoffUdharRecordId
-                      ? 'This transaction will be recorded as a settlement of the selected udhar'
-                      : 'Keep "New Udhar" to create a fresh record for this person'}
-                  </p>
-                </div>
-              )}
-
-              {!form.setoffUdharRecordId && (
-                <>
+              {/* There is no debt to choose any more. Udhar with a person is
+                  a running balance, so repaying them is just money going the
+                  other way: pick the person and the direction, and the
+                  balance takes care of itself. */}
                   {/* GIVEN / TAKEN toggle */}
                   <div className="flex rounded-lg overflow-hidden border border-orange-200 dark:border-orange-700">
                     {['GIVEN', 'TAKEN'].map(t => (
@@ -256,7 +218,7 @@ export default function AddTransactionModal({ budgetCategory, onClose, onSave, p
                     <div className="relative">
                       <User size={14} className="absolute left-3 top-3 text-gray-400" />
                       <input
-                        required={form.isUdhar && !form.setoffUdharRecordId}
+                        required={form.isUdhar}
                         type="text"
                         placeholder="e.g. Rahul Sharma"
                         value={form.udharPersonName}
@@ -280,8 +242,6 @@ export default function AddTransactionModal({ budgetCategory, onClose, onSave, p
                       />
                     </div>
                   </div>
-                </>
-              )}
             </div>
           )}
 
