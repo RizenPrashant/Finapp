@@ -9,11 +9,13 @@ import com.finapp.dto.TransactionDTO;
 import com.finapp.dto.TransactionPageDTO;
 import com.finapp.model.BudgetCategories;
 import com.finapp.model.Transaction;
+import com.finapp.model.UdharRecord;
 import com.finapp.model.TransactionType;
 import com.finapp.model.User;
 import com.finapp.repository.TransactionRepository;
 import com.finapp.repository.UserRepository;
 import com.finapp.service.TransactionService;
+import com.finapp.service.UdharService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -29,6 +31,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -40,6 +43,7 @@ public class TransactionController {
     private final TransactionService transactionService;
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
+    private final UdharService udharService;
 
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -289,6 +293,34 @@ public class TransactionController {
         transaction.setIncludeInTax(includeInTax);
         transactionRepository.save(transaction);
         return ResponseEntity.ok(transaction);
+    }
+
+    /**
+     * The udhar behind a transaction: who it is with, and which way it went.
+     *
+     * Those live on the linked UdharRecord, not on the transaction, and the
+     * link is not serialised — so the edit form had nothing to fill itself
+     * from and showed only the tick. Fetched on its own rather than added to
+     * the listing, which would mean a lookup per row for something only the
+     * edit form asks for.
+     */
+    @GetMapping("/{id}/udhar")
+    public ResponseEntity<Map<String, Object>> getUdharDetails(@PathVariable Long id) {
+        User user = getCurrentUser();
+        Transaction transaction = transactionRepository.findByIdAndUser(id, user)
+                .orElseThrow(() -> new RuntimeException("Transaction not found"));
+
+        UdharRecord record = udharService.findOriginalRecord(transaction);
+        if (record == null) return ResponseEntity.ok(Map.of());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("udharRecordId", record.getId());
+        body.put("udharPersonName", record.getPersonName());
+        body.put("udharMobileNumber", record.getMobileNumber());
+        body.put("udharType", record.getType().name());
+        body.put("settledAmount", record.getSettledAmount());
+        body.put("status", record.getStatus().name());
+        return ResponseEntity.ok(body);
     }
 
     // Re-categorize a transaction — updates category + budgetCategory only

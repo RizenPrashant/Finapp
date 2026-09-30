@@ -223,6 +223,21 @@ public class TransactionService {
             udharService.createRecordFromTransaction(udharDTO, saved, user);
         }
 
+        // Still udhar, but its details may have been edited. Without this the
+        // person, the direction and the amount were fixed at the moment the
+        // tick went on and no later edit could reach them.
+        if (wasUdhar && isNowUdhar) {
+            UdharRecordDTO udharDTO = new UdharRecordDTO();
+            udharDTO.setPersonName(dto.getUdharPersonName());
+            udharDTO.setMobileNumber(dto.getUdharMobileNumber());
+            udharDTO.setTotalAmount(dto.getAmount());
+            udharDTO.setDate(dto.getDate());
+            if (dto.getUdharType() != null) {
+                udharDTO.setType(UdharRecord.UdharType.valueOf(dto.getUdharType()));
+            }
+            udharService.updateOriginalRecord(saved, udharDTO);
+        }
+
         // If setoff udhar record id provided, mark this transaction as settlement
         if (dto.getSetoffUdharRecordId() != null) {
             udharService.settleUdharWithTransaction(dto.getSetoffUdharRecordId(), saved, dto.getAmount(), user);

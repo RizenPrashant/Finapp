@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Building2, CreditCard, Gift, HandCoins, User, Phone, ArrowLeftRight } from 'lucide-react';
-import { getAssetsByType, getCashbackWallets, getUdharRecords } from '../api';
+import { getAssetsByType, getCashbackWallets, getUdharRecords, getTransactionUdhar } from '../api';
 
 const categoryOptions = {
   'Monthly Food Expense': ['Groceries', 'Dining Out', 'Cafe', 'Food Delivery'],
@@ -32,6 +32,7 @@ export default function EditTransactionModal({ transaction, onClose, onSave }) {
   const [creditCards, setCreditCards] = useState([]);
   const [cashbackWallets, setCashbackWallets] = useState([]);
   const [udharRecords, setUdharRecords] = useState([]);
+  const [existingUdhar, setExistingUdhar] = useState(null);
 
   useEffect(() => {
     const fetchSources = async () => {
@@ -52,6 +53,33 @@ export default function EditTransactionModal({ transaction, onClose, onSave }) {
     };
     fetchSources();
   }, []);
+
+  /**
+   * Fill in the udhar this transaction already is.
+   *
+   * Who it is with and which way it went are kept on the linked record, not
+   * on the transaction, so reopening an udhar transaction showed a ticked box
+   * over three empty fields — and saving from there would have written those
+   * blanks back.
+   */
+  useEffect(() => {
+    if (!transaction.isUdhar) return;
+    let cancelled = false;
+    getTransactionUdhar(transaction.id)
+      .then(res => {
+        const u = res.data || {};
+        if (cancelled || !u.udharRecordId) return;
+        setExistingUdhar(u);
+        setForm(prev => ({
+          ...prev,
+          udharPersonName: u.udharPersonName || '',
+          udharMobileNumber: u.udharMobileNumber || '',
+          udharType: u.udharType || prev.udharType,
+        }));
+      })
+      .catch(e => console.error('Failed to load udhar details', e));
+    return () => { cancelled = true; };
+  }, [transaction.id, transaction.isUdhar]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -187,8 +215,26 @@ export default function EditTransactionModal({ transaction, onClose, onSave }) {
 
           {form.isUdhar && (
             <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 space-y-3 border border-orange-100 dark:border-orange-800">
+              {/* This transaction is already an udhar of its own, so it is
+                  not a candidate to settle somebody else's — the setoff
+                  chooser is for a transaction being marked for the first
+                  time. What is shown instead is the record it stands for. */}
+              {existingUdhar && (
+                <div className="flex items-center justify-between gap-3 flex-wrap text-xs">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Editing the udhar recorded for this transaction
+                  </span>
+                  {parseFloat(existingUdhar.settledAmount || 0) > 0 && (
+                    <span className="text-orange-700 dark:text-orange-300 font-semibold">
+                      ₹{parseFloat(existingUdhar.settledAmount).toLocaleString('en-IN')} already settled
+                      {' '}— the amount cannot go below this
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Setoff against an existing pending udhar */}
-              {udharRecords.length > 0 && (
+              {!existingUdhar && udharRecords.length > 0 && (
                 <div>
                   <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase flex items-center gap-1.5 mb-1.5">
                     <ArrowLeftRight size={13} className="text-blue-500" />

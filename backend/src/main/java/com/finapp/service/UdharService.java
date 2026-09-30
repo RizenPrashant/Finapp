@@ -113,6 +113,58 @@ public class UdharService {
         return record;
     }
 
+    /**
+     * The record a transaction created by being marked as udhar.
+     *
+     * A transaction can also be linked as somebody else's settlement, which
+     * is a different relationship, so only the ORIGINAL link counts here.
+     */
+    public UdharRecord findOriginalRecord(Transaction transaction) {
+        return udharTransactionLinkRepository.findByTransaction(transaction).stream()
+                .filter(l -> l.getTransactionType() == UdharTransactionLink.TransactionType.ORIGINAL)
+                .map(l -> udharRecordRepository.findById(l.getUdharRecord().getId()).orElse(null))
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Carry an edit of the transaction through to the udhar record it created.
+     *
+     * Reopening a transaction that was marked as udhar used to offer only the
+     * tick: who it was with and which way it went were stored on the record
+     * and never sent back, so they could not be shown and an edit of them had
+     * nowhere to go.
+     *
+     * The amount follows the transaction, since the two describe the same
+     * debt, but never below what has already been settled against it — that
+     * would leave a record claiming to be overpaid.
+     */
+    @Transactional
+    public UdharRecord updateOriginalRecord(Transaction transaction, UdharRecordDTO dto) {
+        UdharRecord record = findOriginalRecord(transaction);
+        if (record == null) return null;
+
+        if (dto.getPersonName() != null && !dto.getPersonName().isBlank()) {
+            record.setPersonName(dto.getPersonName());
+        }
+        record.setMobileNumber(dto.getMobileNumber());
+        if (dto.getType() != null) record.setType(dto.getType());
+        if (dto.getDate() != null) record.setDate(dto.getDate());
+
+        if (dto.getTotalAmount() != null) {
+            BigDecimal settled = record.getSettledAmount() != null ? record.getSettledAmount() : BigDecimal.ZERO;
+            BigDecimal total = dto.getTotalAmount().max(settled);
+            record.setTotalAmount(total);
+            record.setStatus(
+                settled.compareTo(BigDecimal.ZERO) == 0 ? UdharStatus.PENDING
+                    : settled.compareTo(total) >= 0 ? UdharStatus.SETTLED
+                    : UdharStatus.PARTIAL);
+        }
+
+        return udharRecordRepository.save(record);
+    }
+
     // Unlink a transaction from udhar — reverses settlement or unmarks if original
     @Transactional
     public void unlinkTransaction(Transaction transaction) {

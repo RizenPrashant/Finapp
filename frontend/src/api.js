@@ -47,6 +47,7 @@ export const getTransactionsBySource = (source) => api.get(`/transactions/source
 export const getTransactionsByType = (type) => api.get(`/transactions/type/${type}`);
 export const createTransaction = (data) => api.post('/transactions', data);
 export const updateTransaction = (id, data) => api.put(`/transactions/${id}`, data);
+export const getTransactionUdhar = (id) => api.get(`/transactions/${id}/udhar`);
 export const deleteTransaction = (id) => api.delete(`/transactions/${id}`);
 
 export const getBudgets = () => api.get('/budgets');
