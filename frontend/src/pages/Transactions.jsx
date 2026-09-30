@@ -201,6 +201,28 @@ export default function Transactions({ onProfileClick }) {
   }, [searchQuery, dateRange]);
 
   /**
+   * Run the active search again, immediately.
+   *
+   * While a search is on, the list renders its results rather than the paged
+   * rows, and the effect above only re-runs when the query or the date range
+   * changes. So editing a row found by searching left it showing its old
+   * values — the refresh was replacing a set of rows that was not on screen.
+   *
+   * No debounce and no loading flag here: the query has not changed, and
+   * blanking the list is what used to cost the reader their scroll position.
+   */
+  const rerunSearch = useCallback(async () => {
+    const q = searchQuery.trim();
+    if (!q) return;
+    try {
+      const res = await searchTransactions(q, dateRange);
+      setSearchResults(res.data);
+    } catch (e) {
+      console.error('Failed to refresh search results', e);
+    }
+  }, [searchQuery, dateRange]);
+
+  /**
    * Re-read what is already on screen after a mutation.
    *
    * Mutations still refuse to patch the loaded rows — the server owns the
@@ -214,7 +236,7 @@ export default function Transactions({ onProfileClick }) {
    * The same pages are fetched again instead, quietly, so the list keeps its
    * length and the rows keep their keys, and the scroll position holds.
    */
-  const refreshLoadedPages = useCallback(async () => {
+  const refreshAfterMutation = useCallback(async () => {
     const pagesLoaded = Math.max(1, pageMeta.page + 1);
     try {
       const responses = await Promise.all(
@@ -233,20 +255,24 @@ export default function Transactions({ onProfileClick }) {
     } catch (e) {
       console.error('Failed to refresh transactions', e);
     }
-  }, [filterParams, pageMeta.page]);
+    // The paged rows are not always what is on screen: while a search is
+    // active the list renders its results instead, so those need re-reading
+    // too or the edited row goes on showing its old values.
+    await rerunSearch();
+  }, [filterParams, pageMeta.page, rerunSearch]);
 
   const handleDelete = async (id) => {
     await deleteTransaction(id);
     // Emit event to refresh assets
     eventEmitter.emit(EVENTS.TRANSACTION_DELETED, { id });
-    refreshLoadedPages();
+    refreshAfterMutation();
   };
 
   const handleEdit = async (id, data) => {
     await updateTransaction(id, data);
     // Emit event to refresh assets
     eventEmitter.emit(EVENTS.TRANSACTION_UPDATED, { id, ...data });
-    refreshLoadedPages();
+    refreshAfterMutation();
   };
 
   const handleSave = async (data) => {
@@ -257,7 +283,7 @@ export default function Transactions({ onProfileClick }) {
       // Refresh cashback view
       handleWalletSelect(selectedWalletId);
     } else {
-      refreshLoadedPages();
+      refreshAfterMutation();
     }
   };
 
