@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.Map;
 
@@ -22,6 +23,23 @@ import java.util.Map;
  */
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    /**
+     * Say that the file is too big, rather than that access is denied.
+     *
+     * Left alone, an oversized upload is resolved by Spring's default
+     * handler, which forwards to /error. That dispatch does not carry the
+     * Authorization header, so the security filter sees an anonymous request
+     * and answers 403 — and an import of a perfectly valid statement looked
+     * like a login problem. Handling it here writes the real reason straight
+     * back, with no forward for the credentials to be lost on.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleTooLarge(MaxUploadSizeExceededException e) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(Map.of(
+                "message", "That file is too large to upload. The limit is 25MB.",
+                "status", HttpStatus.PAYLOAD_TOO_LARGE.value()));
+    }
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntime(RuntimeException e) throws RuntimeException {
