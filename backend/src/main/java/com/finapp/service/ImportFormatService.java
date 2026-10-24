@@ -109,6 +109,22 @@ public class ImportFormatService {
         existing.setDateFormat(updated.getDateFormat());
         existing.setFileType(updated.getFileType());
 
+        // How the statement marks a credit. Left out of this copy, so editing
+        // the Dr/Cr detection mode in Settings saved without complaint and
+        // changed nothing — the format went on parsing the old way, which is
+        // indistinguishable from the parser being wrong.
+        existing.setTypeIndicatorMode(updated.getTypeIndicatorMode());
+        existing.setCreditIndicator(updated.getCreditIndicator());
+        existing.setDebitIndicator(updated.getDebitIndicator());
+
+        // The broker columns were dropped by the same omission, so editing a
+        // trade format quietly lost its mappings.
+        existing.setSymbolColumn(updated.getSymbolColumn());
+        existing.setQuantityColumn(updated.getQuantityColumn());
+        existing.setPriceColumn(updated.getPriceColumn());
+        existing.setTradeTypeColumn(updated.getTradeTypeColumn());
+        existing.setTradeDateColumn(updated.getTradeDateColumn());
+
         // Update linked asset
         if (updated.getLinkedAsset() != null && updated.getLinkedAsset().getId() != null) {
             Asset asset = assetRepository.findByIdAndUser(updated.getLinkedAsset().getId(), user)
