@@ -20,6 +20,11 @@ public class ImportResponseDTO {
     private int failedCount;
     private int duplicatesSkipped;
     private List<String> errors;
+
+    // The rows that were skipped as already present. A count alone left the
+    // reader unable to tell a correct re-import from one that silently
+    // dropped rows it should have taken.
+    private List<Map<String, Object>> duplicates;
     private List<Map<String, Object>> previewData;
     private boolean isPreview;
 }

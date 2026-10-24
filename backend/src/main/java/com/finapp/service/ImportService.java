@@ -167,13 +167,14 @@ public class ImportService {
         List<Transaction> batch = new ArrayList<>();
         List<String> errors = new ArrayList<>();
         int dupes = 0;
+        List<Map<String, Object>> duplicates = new ArrayList<>();
 
         for (int i = 0; i < transactions.size(); i++) {
             try {
                 TransactionDTO dto = transactions.get(i);
                 String hash = generateTxnHash(user.getId(), dto.getDate(), dto.getAmount(),
                         dto.getTitle() != null ? dto.getTitle() : dto.getDescription());
-                if (existingHashes.contains(hash)) { dupes++; continue; }
+                if (existingHashes.contains(hash)) { dupes++; duplicates.add(describeDuplicate(dto)); continue; }
                 existingHashes.add(hash);
 
                 runningBalance = dto.getType() == TransactionType.DEBIT
@@ -206,7 +207,8 @@ public class ImportService {
         String msg = "Imported " + imported + " transactions" + (dupes > 0 ? ", " + dupes + " duplicates skipped" : "");
         return ImportResponseDTO.builder().success(true).message(msg)
                 .totalRows(transactions.size()).importedCount(imported)
-                .failedCount(errors.size()).duplicatesSkipped(dupes).errors(errors).isPreview(false).build();
+                .failedCount(errors.size()).duplicatesSkipped(dupes).errors(errors)
+                .duplicates(duplicates).isPreview(false).build();
     }
 
     public ImportResponseDTO previewCCStatement(MultipartFile file, String format, Long formatId, String password) {
@@ -268,13 +270,14 @@ public class ImportService {
         List<Transaction> batch = new ArrayList<>();
         List<String> errors = new ArrayList<>();
         int dupes = 0;
+        List<Map<String, Object>> duplicates = new ArrayList<>();
 
         for (int i = 0; i < transactions.size(); i++) {
             try {
                 TransactionDTO dto = transactions.get(i);
                 String hash = generateTxnHash(user.getId(), dto.getDate(), dto.getAmount(),
                         dto.getTitle() != null ? dto.getTitle() : dto.getDescription());
-                if (existingHashes.contains(hash)) { dupes++; continue; }
+                if (existingHashes.contains(hash)) { dupes++; duplicates.add(describeDuplicate(dto)); continue; }
                 existingHashes.add(hash);
 
                 runningBalance = dto.getType() == TransactionType.CREDIT
@@ -310,7 +313,8 @@ public class ImportService {
         String msg = "Imported " + imported + " transactions" + (dupes > 0 ? ", " + dupes + " duplicates skipped" : "");
         return ImportResponseDTO.builder().success(true).message(msg)
                 .totalRows(transactions.size()).importedCount(imported)
-                .failedCount(errors.size()).duplicatesSkipped(dupes).errors(errors).isPreview(false).build();
+                .failedCount(errors.size()).duplicatesSkipped(dupes).errors(errors)
+                .duplicates(duplicates).isPreview(false).build();
     }
 
     public ImportResponseDTO previewBankStatement(MultipartFile file, String format, String bankName, String bankType, Long formatId, String password) {
@@ -401,6 +405,7 @@ public class ImportService {
         List<Transaction> batch = new ArrayList<>();
         List<String> errors = new ArrayList<>();
         int dupes = 0;
+        List<Map<String, Object>> duplicates = new ArrayList<>();
 
         for (int i = 0; i < transactions.size(); i++) {
             try {
@@ -408,7 +413,7 @@ public class ImportService {
                 LocalDate txDate = dto.getDate() != null ? dto.getDate() : LocalDate.now();
                 String hash = generateTxnHash(user.getId(), txDate, dto.getAmount(),
                         dto.getTitle() != null ? dto.getTitle() : dto.getDescription());
-                if (existingHashes.contains(hash)) { dupes++; continue; }
+                if (existingHashes.contains(hash)) { dupes++; duplicates.add(describeDuplicate(dto)); continue; }
                 existingHashes.add(hash);
 
                 TransactionType txType = dto.getType() != null ? dto.getType() : TransactionType.DEBIT;
@@ -445,7 +450,8 @@ public class ImportService {
         String msg = "Imported " + imported + " transactions" + (dupes > 0 ? ", " + dupes + " duplicates skipped" : "");
         return ImportResponseDTO.builder().success(true).message(msg)
                 .totalRows(transactions.size()).importedCount(imported)
-                .failedCount(errors.size()).duplicatesSkipped(dupes).errors(errors).isPreview(false).build();
+                .failedCount(errors.size()).duplicatesSkipped(dupes).errors(errors)
+                .duplicates(duplicates).isPreview(false).build();
     }
 
     public ImportResponseDTO importTradesJson(List<TradeDTO> trades, String username) {
@@ -480,6 +486,24 @@ public class ImportService {
     }
 
     // ==================== UTILITIES ====================
+
+    /**
+     * A skipped row, described well enough to recognise on the statement.
+     *
+     * The import reported only how many duplicates it dropped, which is no
+     * help when the number is unexpected: a statement that overlaps the last
+     * one by three rows and a statement that was already imported in full
+     * both just show a number. Naming them turns "why did only 4 of 20 come
+     * in" into something the reader can check against the PDF.
+     */
+    private static Map<String, Object> describeDuplicate(TransactionDTO dto) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("date", dto.getDate());
+        row.put("amount", dto.getAmount());
+        row.put("type", dto.getType());
+        row.put("description", dto.getTitle() != null ? dto.getTitle() : dto.getDescription());
+        return row;
+    }
 
     private String generateTxnHash(Long userId, LocalDate date, BigDecimal amount, String title) {
         String raw = userId + "|" + date + "|" + (amount != null ? amount.toPlainString() : "0") + "|" + (title != null ? title.trim().toLowerCase() : "");

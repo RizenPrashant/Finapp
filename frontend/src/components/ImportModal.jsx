@@ -546,6 +546,33 @@ const ImportModal = ({ isOpen, onClose, type, bankName }) => {
                 </div>
               </div>
 
+              {/* Which rows were skipped, not just how many. An unexpected
+                  count is only answerable against the statement itself. */}
+              {result.duplicates?.length > 0 && (
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
+                  <h4 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2">
+                    Already imported, skipped:
+                  </h4>
+                  <ul className="text-sm text-yellow-700 dark:text-yellow-400 space-y-1">
+                    {result.duplicates.slice(0, 10).map((d, idx) => (
+                      <li key={idx} className="flex justify-between gap-3">
+                        <span className="truncate">
+                          {d.date} · {d.description || '—'}
+                        </span>
+                        <span className="font-semibold whitespace-nowrap tabular-nums">
+                          {d.type === 'CREDIT' ? '+' : '-'}₹{parseFloat(d.amount ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </li>
+                    ))}
+                    {result.duplicates.length > 10 && (
+                      <li className="text-yellow-600 dark:text-yellow-500">
+                        ...and {result.duplicates.length - 10} more
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
               {result.errors?.length > 0 && (
                 <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
                   <h4 className="font-medium text-red-700 dark:text-red-300 mb-2">Errors:</h4>
