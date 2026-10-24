@@ -321,7 +321,13 @@ public class CreditCardParser {
                 // how a wrong count gets diagnosed, and every card so far has
                 // needed it. Statements run to tens of rows, not thousands.
                 if (list.size() <= 40) {
-                    log.info("[CC_PDF] Took: {} | {} | {} | {}", date, txType, amt, narr);
+                    // The evidence the type was decided from, not just the
+                    // verdict. A statement that comes in entirely as debits
+                    // cannot be diagnosed from the verdict alone — it is the
+                    // marker and the colour that say which rule fired.
+                    log.info("[CC_PDF] Took: {} | {} | {} | mode={} suffix='{}' prefix='{}' green={} | {}",
+                             date, txType, amt, mode, indic, markerBeforeAmount(narr),
+                             colourSaysCredit, brief(narr));
                 } else if (list.size() == 41) {
                     log.info("[CC_PDF] ... further rows not listed");
                 }
@@ -405,10 +411,23 @@ public class CreditCardParser {
 
         if ("SIGNED".equals(mode)) {
             // The sign, not the number. In a PDF the amount is picked up by a
-            // pattern that cannot hold a minus, so the value is always positive
+            // pattern that cannot hold a sign, so the value is always positive
             // by the time it gets here and testing it always said debit. The
-            // minus is left behind at the end of the description.
-            return "-".equals(prefix) ? TransactionType.CREDIT : TransactionType.DEBIT;
+            // sign is left behind at the end of the description.
+            //
+            // Which sign means credit is not universal: HDFC marks a credit
+            // with "+" and leaves a spend unsigned, while the statement this
+            // mode was first written for used "-". Hard-coding the minus made
+            // every HDFC row a debit, payments included, because a "+" fell
+            // through to the else. So the format's own indicator decides, and
+            // a bare sign falls back to the convention — either sign marks the
+            // exception, since no statement signs its ordinary spending.
+            if (!prefix.isBlank()) {
+                if (prefix.equals(crInd)) return TransactionType.CREDIT;
+                if (prefix.equals(drInd)) return TransactionType.DEBIT;
+                if ("+".equals(prefix) || "-".equals(prefix)) return TransactionType.CREDIT;
+            }
+            return TransactionType.DEBIT;
         }
 
         // Conventional markers, honoured whatever the format says, because they
