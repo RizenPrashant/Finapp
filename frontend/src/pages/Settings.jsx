@@ -875,7 +875,8 @@ export default function Settings() {
                                       <option value="SUFFIX">SUFFIX — marker after the amount (470.00 Cr)</option>
                                       <option value="PREFIX">PREFIX — marker before the amount (+ 470.00)</option>
                                       <option value="COLUMN">COLUMN — separate Dr/Cr column</option>
-                                      <option value="SIGNED">SIGNED — negative = credit</option>
+                                      <option value="SIGNED">SIGNED − — minus marks a credit</option>
+                                      <option value="SIGNED_PLUS">SIGNED + — plus marks a credit, unsigned is a spend</option>
                                       <option value="COLOUR">COLOUR — credits printed in green (PDF only)</option>
                                       <option value="">KEYWORD — guess from the description</option>
                                     </select>
@@ -1124,7 +1125,8 @@ export default function Settings() {
                             <option value="SUFFIX">SUFFIX — marker after the amount (e.g. 8365.75 CR)</option>
                             <option value="PREFIX">PREFIX — marker before the amount (e.g. + 3362.00)</option>
                             <option value="COLUMN">COLUMN — separate Dr/Cr column (e.g. 470.00 Dr)</option>
-                            <option value="SIGNED">SIGNED — negative = credit (e.g. -470.00)</option>
+                            <option value="SIGNED">SIGNED − — minus marks a credit (e.g. -470.00)</option>
+                            <option value="SIGNED_PLUS">SIGNED + — plus marks a credit, unsigned is a spend (e.g. + 630.23)</option>
                             <option value="COLOUR">COLOUR — credits printed in green (PDF only)</option>
                             <option value="">KEYWORD — guess from the description</option>
                           </select>

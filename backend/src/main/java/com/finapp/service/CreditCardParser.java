@@ -411,23 +411,21 @@ public class CreditCardParser {
 
         if ("SIGNED".equals(mode)) {
             // The sign, not the number. In a PDF the amount is picked up by a
-            // pattern that cannot hold a sign, so the value is always positive
+            // pattern that cannot hold a minus, so the value is always positive
             // by the time it gets here and testing it always said debit. The
-            // sign is left behind at the end of the description.
-            //
-            // Which sign means credit is not universal: HDFC marks a credit
-            // with "+" and leaves a spend unsigned, while the statement this
-            // mode was first written for used "-". Hard-coding the minus made
-            // every HDFC row a debit, payments included, because a "+" fell
-            // through to the else. So the format's own indicator decides, and
-            // a bare sign falls back to the convention — either sign marks the
-            // exception, since no statement signs its ordinary spending.
-            if (!prefix.isBlank()) {
-                if (prefix.equals(crInd)) return TransactionType.CREDIT;
-                if (prefix.equals(drInd)) return TransactionType.DEBIT;
-                if ("+".equals(prefix) || "-".equals(prefix)) return TransactionType.CREDIT;
-            }
-            return TransactionType.DEBIT;
+            // minus is left behind at the end of the description.
+            return "-".equals(prefix) ? TransactionType.CREDIT : TransactionType.DEBIT;
+        }
+
+        if ("SIGNED_PLUS".equals(mode)) {
+            // The other half of the convention, as its own mode rather than a
+            // widening of the one above. HDFC marks a credit with "+" and
+            // leaves a spend unsigned, which is the exact opposite of what
+            // SIGNED means. Teaching SIGNED both signs would have made "-"
+            // mean credit everywhere, quietly flipping any statement that
+            // uses a minus for a debit — a fix for one card that breaks the
+            // next. Two statements disagree, so there are two modes.
+            return "+".equals(prefix) ? TransactionType.CREDIT : TransactionType.DEBIT;
         }
 
         // Conventional markers, honoured whatever the format says, because they
